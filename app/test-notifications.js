@@ -27,7 +27,7 @@ test('question notification requests an answer and opens the exact task', async 
   const h = harness(), sid = '01a08a9a-847c-70a0-8a7b-ab6dcd26b65a';
   h.handlers['notify-waiting']({}, { title: '테스트 작업', sid, kind: 'ask' });
   assert.match(h.shown[0].options.title, /응답 요청/);
-  assert.equal(h.shown[0].options.silent, false);
+  assert.equal(h.shown[0].options.silent, true);
   await h.shown[0].events.click();
   assert.equal(h.opened[0], `codex://threads/${sid}`);
 });

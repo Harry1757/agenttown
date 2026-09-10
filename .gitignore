@@ -9,3 +9,5 @@ app/server/
 
 .playwright-mcp/
 *-preview.png
+
+.serena/

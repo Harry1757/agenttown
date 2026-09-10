@@ -83,6 +83,7 @@ const grabFn = (name, args) =>
 const avatars = {};
 const room = { gx: 8, gy: 7 };
 const env = {
+  window: {},
   ROOM_BY_ROLE: { r: room }, ROOM_W, ROOM_H, DESK_CLEAR, Math,
   WANDER: true, WANDER_PAUSE: JSON.parse(grab(/const WANDER_PAUSE = (\[[^\]]+\])/, 'WANDER_PAUSE')[1]),
   WANDER_TRIP: num('WANDER_TRIP'), WANDER_MIN: num('WANDER_MIN'),
@@ -222,7 +223,7 @@ console.log(`10분치 걸어봄 — 혼자 가로 ${soloSpan.toFixed(2)} x 세�
 
 // <script> 블록이 통째로 문법에 맞는지도 한 번 본다 — 이 파일은 브라우저에서만 도는
 // 코드라 오타 하나가 앱을 흰 화면으로 만든다.
-const js = grab(/<script>([\s\S]*)<\/script>/, '<script> 블록')[1];
+const js = grab(/<script id="town-renderer">([\s\S]*?)<\/script>/, '<script> 블록')[1];
 new Function(js.replace(/^\s*tick\(\);\s*$/m, ''));   // 파싱만 한다, 실행은 안 한다
 
 console.log(`배회 범위 정상 — ${checked}가지 확인, 폭 ${widths[0].toFixed(2)} -> ${widths[widths.length - 1].toFixed(2)} 타일`);

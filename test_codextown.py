@@ -82,6 +82,20 @@ class CodexTests(unittest.TestCase):
         self.assertNotIn('PRIVATE CODE',json.dumps(event))
         self.assertTrue(self.row()['sub'])
 
+    def test_pending_question_survives_background_tools_until_user_reply(self):
+        self.meta()
+        self.add('response_item', {'type':'function_call','name':'request_user_input_async','arguments':'{}'})
+        self.t.scan()
+        self.assertTrue(self.row()['needsInput'])
+        self.add('response_item', {'type':'function_call','name':'exec_command','arguments':'{"cmd":"ls"}'})
+        self.t.scan()
+        self.assertTrue(self.row()['needsInput'])
+        self.assertEqual(self.row()['state'],'waiting')
+        self.add('response_item', {'type':'message','role':'user','content':[]})
+        self.t.scan()
+        self.assertFalse(self.row()['needsInput'])
+        self.assertEqual(self.row()['state'],'working')
+
     def test_windows_keep_missing_unknown_and_multiple_buckets(self):
         out=usage_windows({'rateLimitsByLimitId':{
             'codex':{'primary':{'usedPercent':12,'windowDurationMins':10080,'resetsAt':123}},

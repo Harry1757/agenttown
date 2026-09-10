@@ -1,4 +1,5 @@
-<!doctype html><meta charset=utf-8><title>CodexTown</title>
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CodexTown · 나의 작은 작업실</title>
 <style>
   html,body{margin:0;height:100%;background:#2a2622;overflow:hidden}
   canvas{display:block;image-rendering:pixelated;cursor:grab}
@@ -42,18 +43,31 @@
        font:13px ui-monospace,monospace;pointer-events:none;opacity:0;
        transition:opacity 1s ease;z-index:5}
 @media(max-width:760px){#usage{max-width:calc(100vw - 32px);bottom:54px;padding:8px;gap:8px;flex-direction:column}#usage-tok{border-left:0;padding-left:0}#usage-bars{gap:8px}#usage .u-bar{width:50px}#usage{font-size:12px}#hud{bottom:8px;max-width:calc(100vw - 100px);line-height:1.5}}
-</style>
-<canvas id=cv></canvas>
-<div id=hud></div>
-<div id=tooltip></div>
-<div id=usage><div id=usage-bars></div><div id=usage-tok></div></div>
-<div id=gestures>
-  <button data-g="pet" title="쓰다듬기 — 누른 뒤 캐릭터를 클릭">🤚</button>
-  <button data-g="hit" title="때리기 — 겉보기만 빨라진다(진짜 세션은 안 바뀐다)">👊</button>
-</div>
-
-<div id=hint>휠로 확대 · 드래그로 이동 · 더블클릭으로 초기화 · 캐릭터 더블클릭으로 세션 창 열기 · 오른쪽 아래 버튼으로 쓰다듬기/때리기</div>
-<script>
+</style><link rel="stylesheet" href="/town-ui.css"></head><body>
+<a class="skip-link" href="#task-search">작업 검색으로 이동</a>
+<header class="topbar">
+  <div class="brand"><canvas id="brand-avatar" width="32" height="32" class="brand-icon" aria-hidden="true"></canvas><div><h1>CodexTown</h1><small>나의 작은 작업실</small></div></div>
+  <div class="header-actions"><span class="live" id="connection-state" role="status"><i class="live-dot"></i><span>연결 중</span></span><button id="notification-toggle" class="quiet-button" aria-pressed="true" title="소리 없이 배너로 알립니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/><path d="M3 3l18 18"/></svg><span>무음 배너</span></button><button class="mobile-roster-toggle" id="mobile-roster" aria-expanded="false" aria-controls="roster">작업 목록</button><time id="local-clock" class="header-time"></time></div>
+</header>
+<main class="workspace" id="workspace">
+  <section class="office" aria-label="도트 작업실">
+    <div class="office-heading"><div><h2>오늘도, 각자의 자리에서</h2><p class="office-subtitle" id="office-summary">작업실 문을 여는 중입니다</p></div><div class="office-legend"><span><i class="dot working"></i>작업 중</span><span><i class="dot input"></i>내 응답</span><span><i class="dot waiting"></i>답변 완료</span></div></div>
+    <div id="map-stage"><canvas id="cv" tabindex="0" aria-label="작업실 지도. 캐릭터를 클릭해 선택하거나 오른쪽 작업 목록을 이용하세요."></canvas><div class="map-empty" id="map-empty" hidden><p><strong>작업실이 조용하네요</strong>Codex에서 작업을 시작하면 캐릭터가 찾아옵니다.</p></div></div>
+    <div class="map-toolbar"><div class="map-controls" aria-label="지도 조작"><button id="zoom-out" aria-label="지도 축소">−</button><span id="zoom-label" class="zoom-label">100%</span><button id="zoom-in" aria-label="지도 확대">+</button><button id="map-reset" class="home-button" title="지도 전체 보기 (0)">전체 보기</button><div id="gestures"><button data-g="pet" title="쓰다듬기">🤚</button><button data-g="hit" title="장난치기 · 실제 작업에는 영향 없음">👊</button></div></div><span class="map-help">클릭해 선택 · 더블클릭해 열기</span><button id="motion-toggle" class="motion-button" aria-pressed="false">동작 줄이기</button></div>
+  </section>
+  <aside class="roster" id="roster" aria-label="작업 목록">
+    <div class="roster-head"><div class="roster-title"><h2>함께 일하는 작업들</h2><span id="roster-total" class="roster-total">0개</span><button id="close-roster" class="close-roster" aria-label="작업 목록 닫기">×</button></div>
+    <div class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><label for="task-search" class="sr-only">작업 제목, 프로젝트, 모델 검색</label><input type="search" id="task-search" placeholder="작업, 프로젝트 찾기" autocomplete="off"><span class="search-key">⌘ K</span></div>
+    <div class="filters" aria-label="작업 상태 필터"><button data-filter="all" aria-pressed="true">전체<span class="count" id="count-all">0</span></button><button data-filter="working" aria-pressed="false">작업 중<span class="count" id="count-working">0</span></button><button data-filter="input" aria-pressed="false">내 응답<span class="count" id="count-input">0</span></button><button data-filter="resting" aria-pressed="false">마침<span class="count" id="count-resting">0</span></button></div>
+    <div class="project-row"><label for="project-filter" class="sr-only">프로젝트 필터</label><select id="project-filter"><option value="">모든 프로젝트</option></select><button id="favorites-filter" class="favorites-filter" aria-label="즐겨찾기만 보기" aria-pressed="false" title="즐겨찾기만 보기">☆</button></div></div>
+    <ul id="task-list" aria-label="작업" role="list"></ul>
+    <section id="task-detail" aria-label="선택한 작업" hidden></section>
+    <div id="detail-placeholder" class="detail-placeholder">캐릭터나 작업을 선택해 보세요.<br>어디서 무엇을 하는지 한눈에 볼 수 있어요.</div>
+  </aside>
+</main>
+<footer class="statusbar"><div class="today-stats" title="한국 시간 기준 로컬 세션 입력·출력 토큰. 캐시 포함, 계정 한도와는 별도입니다."><p class="today-label">오늘 함께 쓴 토큰</p><div id="today-value" class="today-value">0 <span>토큰</span></div><div class="today-note">캐시 포함 · 한국 시간 기준</div></div><div><p class="usage-heading">계정 사용량</p><div id="usage"><div id="usage-bars"></div><div id="usage-tok"></div></div></div><div class="usage-note"><strong id="usage-freshness">사용량 확인 중</strong><span>5분마다 자동 갱신</span><br><button id="notification-test">배너 알림 테스트</button></div></footer>
+<div id="hud" class="sr-only"></div><div id="tooltip"></div><div id="hint" role="status"></div>
+<script id="town-renderer">
 const SHEETS = {
   town:    { src:'assets/town.png',    stride:16, cols:12 },
   dungeon: { src:'assets/dungeon.png', stride:16, cols:12 },
@@ -110,8 +124,8 @@ function drawTile(c, sheetKey, idx, px, py, scale, hScale) {
 // Kenney indoor 시트는 중세풍이라 사무실 가구로 못 쓴다. 벽·바닥·책상·모니터·
 // 의자·화분·명찰·간판·복도는 전부 코드로 그린다. Kenney 는 캐릭터(dungeon)에만 쓴다.
 const C = {
-  corridor: '#2a2622', corridorLine: '#332e29',
-  wallDark: '#3b352e', wallBody: '#5a5047', wallTop: '#7d7064',
+  corridor: '#152b27', corridorLine: '#203a30',
+  wallDark: '#31443a', wallBody: '#667562', wallTop: '#9ca58a',
   floorWood: '#8b6f47',
   deskTop: '#a9855c', deskEdge: '#7a5f3f',
   screenOff: '#2f3640', screenOn: '#8fd6ff',
@@ -119,9 +133,9 @@ const C = {
   plantPot: '#8c5a3c', plantLeaf: '#5b8c5a',
   tagBg: 'rgba(20,18,16,.85)', tagText: '#f0e6d8',
   boardPale: '#ded2ba',
-  statusActive: '#5fd68a',   // 작업 중
+  statusActive: '#add69e',   // 작업 중
   statusWaiting: '#e2b45a',  // 응답 대기 — 사용자 차례
-  statusDone: '#6b645c',     // 완료 — 오래 조용함
+  statusDone: '#7a8f84',     // 완료 — 오래 조용함
   statusIdle: '#8a8378',
 };
 
@@ -153,8 +167,8 @@ const ROOMS = [
   { role:'release',  label:'릴리즈', accent:'hsl(352,40%,36%)', floor:'wood' },
   // 여기부터 상태 구역 — 업무 구역이 아니다(응답 대기 / 완료). role 값이 role_for 가
   // 내는 값들과 겹치지 않으므로 충돌은 없다.
-  { role:'waiting',  label:'응답 대기', accent:'hsl(42,55%,50%)', floor:'wood' },
-  { role:'done',     label:'완료',   accent:'hsl(215,8%,34%)',  floor:'tile' },
+  { role:'waiting',  label:'라운지', accent:'hsl(42,55%,50%)', floor:'wood' },
+  { role:'done',     label:'휴게실',   accent:'hsl(215,8%,34%)',  floor:'tile' },
 ];
 const ROOM_BY_ROLE = Object.fromEntries(ROOMS.map(r => [r.role, r]));
 
@@ -184,11 +198,11 @@ const ROOM_ROW_LENS = [4, 4, 4];
 // floor 이므로). launch.sh 의 --window-size=1280,860 기본값과 정확히 맞아떨어지므로
 // 받아들였다.
 const ROOM_W = 8, ROOM_H = 7;
-const GUTTER_X = 0;             // 열 사이 복도 폭, 타일 — 일꾼은 복도를 안 걷는다, scale=2 폭 예산에 맞춰 0으로
-const GUTTER_Y = 0;             // 줄 사이 복도 폭, 타일 — 벽을 공유하므로 0
+const GUTTER_X = 1;             // 열 사이 복도 폭, 타일 — 일꾼은 복도를 안 걷는다, scale=2 폭 예산에 맞춰 0으로
+const GUTTER_Y = 1;             // 줄 사이 복도 폭, 타일 — 벽을 공유하므로 0
 
-const MARGIN = 0;               // 그리드 바깥 여백 — 0으로: 여백은 fill 만 깎고 이득이 없다
-const UI_BAND = 105;            // 하단에 티커(6줄)+HUD 를 위해 비워두는 CSS px(= dpr 곱해서 씀)
+const MARGIN = 1;               // 그리드 바깥 여백 — 0으로: 여백은 fill 만 깎고 이득이 없다
+const UI_BAND = 0;            // 하단에 티커(6줄)+HUD 를 위해 비워두는 CSS px(= dpr 곱해서 씀)
 
 // defect5: 방마다 가구 나무 톤을 살짝 다르게 — 예전엔 전부 같은 갈색이라 바닥색을 빼면
 // 방이 다 똑같아 보였다. seed 로 hue/lightness 를 방마다 조금씩 흔든다.
@@ -270,7 +284,7 @@ function fitScaleAndAvailH() {
   // 그래서 floor 는 1 이상일 때만 건다. 1 미만이면 비율을 그대로 쓴다 — 어차피
   // 그 크기에선 픽셀이 또렷할 수 없고, 비율 그대로면 넘치지도 않는다.
   const raw = Math.min(cv.width / (g.w * TILE), availH / (g.h * TILE));
-  const fitScale = raw >= 1 ? Math.floor(raw) : Math.max(MIN_SCALE, raw);
+  const fitScale = raw >= 1 ? Math.floor(raw / ZOOM_STEP) * ZOOM_STEP : Math.max(MIN_SCALE, raw);
   return { g, availH, fitScale };
 }
 
@@ -342,7 +356,7 @@ function computeLayout() {
 
   // 배율은 매 프레임 fit 에서 다시 세운다 — 창이 바뀌면 fit 이 바뀌고, 사용자가 고른
   // 확대량(zoomSteps)은 그 위에 얹힌다. zoomSteps 가 0 이면 항상 전체가 보인다.
-  cam.scale = quantZoom(Math.min(cam.maxScale, Math.max(fitScale, fitScale + cam.zoomSteps)));
+  cam.scale = cam.zoomSteps === 0 ? fitScale : Math.max(fitScale, quantZoom(Math.min(cam.maxScale, fitScale + cam.zoomSteps)));
 
   if (!cam.userAdjusted) {
     const off = fitOffset(g, availH, cam.scale);
@@ -1008,6 +1022,34 @@ function drawCorridor() {
   }
 }
 
+// Small planted corridors connect the rooms into one shared office.
+function drawGarden() {
+  const P = TILE * layout.scale, k = layout.scale;
+  function planter(x, y) {
+    const px = layout.offsetX + x * P, py = layout.offsetY + y * P;
+    ctx.fillStyle = '#10221e'; fillRectA(px-6*k,py+2*k,14*k,5*k);
+    ctx.fillStyle = '#9a8b66'; fillRectA(px-4*k,py,8*k,6*k);
+    ctx.fillStyle = '#596f48'; fillRectA(px-7*k,py-9*k,14*k,9*k);
+    ctx.fillStyle = '#789467'; fillRectA(px-5*k,py-13*k,10*k,8*k);
+    ctx.fillStyle = '#a9bc7e'; fillRectA(px-3*k,py-13*k,4*k,3*k);
+  }
+  const g = gridTiles();
+  ctx.fillStyle = '#304639';
+  for (let row = 0; row < ROOM_ROWS-1; row++) {
+    const y = MARGIN + ROOM_H + row * (ROOM_H + GUTTER_Y) + .45;
+    for(let x = MARGIN+.5; x < g.w-MARGIN; x += 1.1) {
+      fillRectA(layout.offsetX+x*P,layout.offsetY+y*P,.6*P,.15*P);
+    }
+  }
+  for(let col=0;col<ROOM_COLS-1;col++) {
+    const x = MARGIN + ROOM_W + col*(ROOM_W+GUTTER_X)+.42;
+    for(let y=MARGIN+.5;y<g.h-MARGIN;y+=1.1) fillRectA(layout.offsetX+x*P,layout.offsetY+y*P,.17*P,.55*P);
+  }
+  for(const room of ROOMS) {
+    planter(room.gx+ROOM_W+.48,room.gy+ROOM_H-.85);
+  }
+}
+
 // --- 작업자(캐릭터) ---------------------------------------------------------
 // dungeon 시트에서 사람으로 읽히는 칸만 골랐다(상자·검·물약·박쥐·거미는 뺐다).
 // 예전엔 진입점(cli/vscode/desktop)으로 3종만 썼는데, 화면에 늘 같은 둘만 보였다 —
@@ -1327,6 +1369,18 @@ function layoutRoomOccupants(role) {
   const room = ROOM_BY_ROLE[role];
   if (!room) return;
   const occupants = Object.keys(avatars).filter(k => avatars[k].role === role).sort().map(k => avatars[k]);
+  // Crowded lounges use a compact standing grid instead of overlapping large sprites.
+  if (occupants.length > 6) {
+    const cols = Math.ceil(Math.sqrt(occupants.length * 1.8));
+    const rows = Math.ceil(occupants.length / cols);
+    occupants.forEach((a, i) => {
+      a.slotIdx = i;
+      a.homeX = room.gx + 1.3 + (i % cols) * 4.5 / Math.max(1, cols - 1);
+      a.homeY = room.gy + 3.0 + Math.floor(i / cols) * 2.0 / Math.max(1, rows - 1);
+      a.tx = a.homeX; a.ty = a.homeY; a.strolling = false;
+    });
+    return;
+  }
   // 자리를 사람마다 기억한다. 예전엔 키 정렬 순서로 매번 다시 매겨서, 누가 들어오면
   // 이미 있던 사람들이 자리를 서로 바꿔 앉았다. 이미 자리가 있으면 그대로 두고,
   // 새로 온 사람만 비어 있는 가장 앞 번호를 가져간다.
@@ -1420,6 +1474,7 @@ function moveAvatar(ev) {
 let lastStep = 0;
 function stepAvatars() {
   const now = performance.now();
+  if (window.townUI?.motionReduced) { for (const a of Object.values(avatars)) { a.x = a.tx; a.y = a.ty; } lastStep = now; return; }
   // 프레임 간격만큼 움직인다 — 화면 주사율이 달라도 걷는 속도는 같아야 한다. 상한을
   // 두는 건 창을 최소화했다 돌아왔을 때 한 프레임에 순간이동하지 않게 하려는 것.
   const dt = lastStep ? Math.min(0.1, (now - lastStep) / 1000) : 0;
@@ -1428,7 +1483,7 @@ function stepAvatars() {
     // 도착했고 쉬는 시간도 지났으면 다음 목적지를 잡는다. 완료는 안 돌아다닌다 —
     // 끝난 세션이 계속 움직이면 아직 뭔가 하는 줄로 읽힌다(숨쉬기를 끄는 것과 같은 이유).
     // 이미 걷던 중이면 마저 걸어서 제자리에 선다.
-    if (WANDER && a.homeX !== undefined && workerState(a) !== 'done'
+    if (WANDER && roomOccCount(a.role) <= 6 && a.homeX !== undefined && workerState(a) !== 'done'
         && now >= (a.wanderAt || 0) && !isMoving(a)) pickWander(a, now);
     const dx = a.tx - a.x, dy = a.ty - a.y;
     const dist = Math.hypot(dx, dy);
@@ -1726,7 +1781,8 @@ function drawFaceBubble(cx, tagTop, scale, text, t) {
 function drawWorker(a) {
   const scale = layout.scale, P = TILE * scale;
   const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
-  const now = performance.now();
+  const now = window.townUI?.motionReduced ? 0 : performance.now();
+  const dim = window.townUI && !window.townUI.matches(a.key) ? .15 : 1;
   const st = workerState(a);
   const seed = hashSeed(a.key);
   const moving = isMoving(a);
@@ -1809,7 +1865,7 @@ function drawWorker(a) {
 
   ctx.save();
   // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.
-  ctx.globalAlpha = { working: 1, waiting: 0.85, done: 0.45 }[workerState(a)];
+  ctx.globalAlpha = dim * ({ working: 1, waiting: 0.92, done: 0.6 }[workerState(a)]);
   ctx.translate(feetX, feetY);
   ctx.rotate(leanAngle);
   ctx.translate(-feetX, -feetY);
@@ -1827,10 +1883,15 @@ function drawWorker(a) {
   drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale, hScale);
   ctx.restore();
 
+  if (window.townUI?.selectedKey === a.key) {
+    ctx.save();ctx.strokeStyle = '#f0d18b';ctx.lineWidth = Math.max(2, scale);
+    ctx.beginPath();ctx.ellipse(feetX, feetY + scale, sSize * .65, 3 * scale, 0, 0, Math.PI*2);ctx.stroke();ctx.restore();
+  }
+  if (roomOccCount(a.role) > 6) return;
   const tb = tagLayout[a.key] || tagBox(a, px, py, bounce);
   const { pcx, pcy, pw, ph, dotR, dotGap, contentW, label } = tb;
   ctx.save();
-  ctx.globalAlpha = { working: 0.92, waiting: 0.85, done: 0.5 }[workerState(a)];
+  ctx.globalAlpha = dim * ({ working: 0.92, waiting: 0.85, done: 0.5 }[workerState(a)]);
   ctx.fillStyle = C.wallDark;
   roundRect(pcx - pw / 2 - 1, pcy - ph / 2 - 1, pw + 2, ph + 2, 3 * scale);
   ctx.fill();
@@ -1902,6 +1963,12 @@ function tokenSizeMul(tokens) {
 // 정수로 올리면 작은 세션까지 덩달아 커져서 기준이 어긋난다.
 // scale=1 이면 1·1.5·2 세 단계, scale=2 면 2·2.5·3·3.5·4 로 나온다.
 function spriteScaleFor(a, scale) {
+  const count = roomOccCount(a.role);
+  if (count > 6) {
+    const cols = Math.ceil(Math.sqrt(count * 1.8));
+    const rows = Math.ceil(count / cols);
+    return Math.max(MIN_SCALE, Math.floor(scale * Math.min(.85, 4.5 / cols, 2.4 / rows) / .125) * .125);
+  }
   const mul = tokenSizeMul(tokensOf(a));
   return Math.max(scale, Math.min(scale * TOK_MAX_MUL, quantZoom(scale * mul)));
 }
@@ -1944,7 +2011,11 @@ function computeRoomActivity() {
   return counts;
 }
 
+let lastHudUpdate = 0;
 function updateHud(activeCounts) {
+  const now = performance.now();
+  if (now - lastHudUpdate < 500) return;
+  lastHudUpdate = now;
   const by = { working: 0, waiting: 0, done: 0 };
   let today = 0;
   for (const a of Object.values(avatars)) { by[workerState(a)]++; today += tokensTodayOf(a); }
@@ -1994,6 +2065,7 @@ function drawTicker() {
 // offset)이나 방 구성이 바뀔 때만 다시 그리는 방식으로 올리면 된다.
 function draw() {
   drawCorridor();
+  drawGarden();
   const activeCounts = computeRoomActivity();
   for (const room of ROOMS) {
     // 응답 대기 방은 사람이 있으면 불을 켠다 — 이 앱을 켜 두는 이유가 "내 차례인
@@ -2004,13 +2076,13 @@ function draw() {
   // 벽을 공유하므로 문과 간판은 모든 방을 그린 뒤에 따로 얹는다 — 아래 방의 윗벽이
   // 위 방의 문·간판을 덮지 않게 하려면 순서가 이래야 한다.
   for (const room of ROOMS) { const r = roomRect(room); drawDoor(r.ox, r.oy, r.w, r.h, r.scale); }
-  for (const room of ROOMS) { const r = roomRect(room); drawSign(r.ox, r.oy, r.w, r.h, r.scale, room.label); }
+  for (const room of ROOMS) { const r = roomRect(room); drawSign(r.ox, r.oy, r.w, r.h, r.scale, room.label + (roomOccCount(room.role) ? ' ' + roomOccCount(room.role) : '')); }
   drawRoomHighlight();
   computeTagLayout();
   for (const a of Object.values(avatars)) drawWorker(a);
   drawConflicts();
   drawParticles();
-  drawTicker();
+
   updateHud(activeCounts);
 }
 
@@ -2018,6 +2090,7 @@ function draw() {
 let hoveredRoom = null, hoveredWorker = null;
 let lastMouseDevX = -1, lastMouseDevY = -1;   // 디바이스 px, 마지막으로 안 곳
 let dragState = null;
+let mapDragged = false;
 
 function drawRoomHighlight() {
   if (!hoveredRoom) return;
@@ -2138,6 +2211,7 @@ document.getElementById('gestures').addEventListener('click', e => {
 
 cv.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
+  mapDragged = false;
   trackMouse(e);
   // 제스처가 켜져 있고 캐릭터 위에서 눌렀다면 그건 팬이 아니라 액션이다.
   if (gesture && hoveredWorker) { applyGesture(hoveredWorker, gesture); return; }
@@ -2152,6 +2226,7 @@ window.addEventListener('mousemove', e => {
   cam.userAdjusted = true;
   cam.animTo = null;
   const dx = (e.clientX - dragState.x) * dpr, dy = (e.clientY - dragState.y) * dpr;
+  if (Math.abs(dx) + Math.abs(dy) > 5 * dpr) mapDragged = true;
   const c = clampOffset(cam.scale, dragState.offX + dx, dragState.offY + dy);
   cam.offX = c.x; cam.offY = c.y;
 });
@@ -2163,6 +2238,9 @@ cv.addEventListener('mouseleave', () => {
 });
 // 더블클릭: 캐릭터 위면 그 세션을 연 창을 앞으로 가져오고, 빈 곳이면 카메라 리셋.
 // 창 제목으로 찾는 것이라 창 단위까지만 간다 — 탭까지는 못 간다.
+cv.addEventListener('click', () => {
+  if (!mapDragged && !gesture && hoveredWorker) window.townUI?.select(hoveredWorker.key);
+});
 cv.addEventListener('dblclick', () => {
   const a = hoveredWorker;
   // 제스처가 켜져 있으면 연타 중이라는 뜻이라 이동시키지 않는다.
@@ -2212,6 +2290,7 @@ function escapeHtml(value) {
   return span.innerHTML;
 }
 function renderUsage(usage) {
+  window.dispatchEvent(new CustomEvent('town:usage', { detail: usage || {} }));
   const el = document.getElementById('usage-bars');
   if (!usage || !usage.windows || !usage.windows.length) {
     // 왜 없는지 적어 준다 — 빈칸이면 앱 탓인지 로그인 탓인지 알 수가 없다.
@@ -2271,6 +2350,7 @@ function toast(msg) {
 }
 
 window.addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, select, [contenteditable=true]')) return;
   if (e.key === 'Escape' && gesture) { setGesture(null); return; }
   if (e.key === '+' || e.key === '=') { zoomStep(1, cv.width / 2, (cv.height - UI_BAND * dpr) / 2); }
   else if (e.key === '-' || e.key === '_') { zoomStep(-1, cv.width / 2, (cv.height - UI_BAND * dpr) / 2); }
@@ -2289,10 +2369,11 @@ window.addEventListener('keydown', e => {
 // 던질 수 있어 try/catch 로 감싼다.
 function initHint() {
   let seen = false;
-  try { seen = localStorage.getItem('claudetown_hint_seen') === '1'; } catch (e) {}
+  try { seen = localStorage.getItem('codextown_hint_seen') === '1'; } catch (e) {}
   if (seen) return;
-  try { localStorage.setItem('claudetown_hint_seen', '1'); } catch (e) {}
+  try { localStorage.setItem('codextown_hint_seen', '1'); } catch (e) {}
   const hintEl = document.getElementById('hint');
+  hintEl.textContent = '캐릭터를 클릭하면 작업 정보를 볼 수 있어요. ⌘ K로 빠르게 검색하세요.';
   hintEl.style.opacity = '1';
   setTimeout(() => { hintEl.style.opacity = '0'; }, 3500);
 }
@@ -2303,10 +2384,11 @@ function initHint() {
 // CSS 크기(cv.style.*)는 그대로 뷰포트에 맞추고, 픽셀 버퍼만 키운다.
 function fitCanvas() {
   dpr = window.devicePixelRatio || 1;
-  cv.style.width = window.innerWidth + 'px';
-  cv.style.height = window.innerHeight + 'px';
-  cv.width = Math.round(window.innerWidth * dpr);
-  cv.height = Math.round(window.innerHeight * dpr);
+  const stage = document.getElementById('map-stage');
+  cv.style.width = stage.clientWidth + 'px';
+  cv.style.height = stage.clientHeight + 'px';
+  cv.width = Math.round(stage.clientWidth * dpr);
+  cv.height = Math.round(stage.clientHeight * dpr);
   ctx.imageSmoothingEnabled = false;
   computeLayout();
 }
@@ -2325,9 +2407,13 @@ window.addEventListener('resize', refit);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refit(); });
 window.addEventListener('focus', refit);
 
+let frameRequest = 0;
 function tick() {
+  frameRequest = 0;
+  if (window.townHidden) return;
   try {
-  const cssW = window.innerWidth, cssH = window.innerHeight;
+  const stage = document.getElementById('map-stage');
+  const cssW = stage.clientWidth, cssH = stage.clientHeight;
   const r = window.devicePixelRatio || 1;
   const wantW = Math.round(cssW * r);
   const wantH = Math.round(cssH * r);
@@ -2352,7 +2438,7 @@ function tick() {
     // 하루 종일 켜 두는 앱에서 그건 곧 "앱이 고장난 것"으로 보인다. 삼키고 계속 돈다.
     console.error('tick 프레임에서 예외:', e);
   }
-  requestAnimationFrame(tick);
+  frameRequest = requestAnimationFrame(tick);
 }
 
 // 이 툴들이 뜨면 사람이 답해야 진행된다 — 옛 PreToolUse 훅이 알려주던 자리다.
@@ -2391,7 +2477,7 @@ function connect() {
       for (const r of rooms) {
         const sk = `${proj}|${r.sid}`;
         if (r.cwd) projCwd[proj] = r.cwd;
-        info[sk] = { entry: r.entry, active: r.active, state: r.state || (r.active ? 'working' : 'done'), title: r.title || '', tokens: r.tokens || 0, tokensToday: r.tokensToday || 0, model: r.model || '', mtime: r.mtime || 0 };
+        info[sk] = { entry: r.entry, active: r.active, state: r.state || (r.active ? 'working' : 'done'), title: r.title || '', needsInput: Boolean(r.needsInput), sub: Boolean(r.sub), lastTool: r.lastTool || '', requestAt: r.requestAt, tokens: r.tokens || 0, tokensToday: r.tokensToday || 0, model: r.model || '', mtime: r.mtime || 0 };
         liveKeys.add(sk);
       }
     }
@@ -2422,6 +2508,7 @@ function connect() {
       }
     }
     state.sessionInfo = info;
+    window.dispatchEvent(new Event('town:sessions'));
     if (api) {
       const waiting = Object.values(info).filter(r => r.state === 'waiting').length;
       api.setWaitingCount(waiting);
@@ -2442,11 +2529,11 @@ function connect() {
     }
     reroomAvatars();
   });
-  es.onerror = () => { hud.textContent = '연결 끊김 — 재연결 중'; };
+  es.onerror = () => { hud.textContent = '연결 끊김 — 재연결 중'; window.dispatchEvent(new Event('town:disconnected')); };
 }
 
 initRooms();
 connect();
 initHint();
 loadSheets().then(tick);
-</script>
+</script><script src="/town-ui.js"></script></body></html>

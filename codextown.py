@@ -76,6 +76,8 @@ class Tailer(town.Tailer):
         self._meta = {}
         self._totals = {}
         self._daily = {}
+        self._requests = {}
+        self._last_tools = {}
         self._identity = {}
         self._index_at = 0
         self._index = {}
@@ -130,11 +132,15 @@ class Tailer(town.Tailer):
             self._last_role[path] = 'plan'
         if path not in self._meta:
             return []
+        if kind == 'response_item' and p.get('type') == 'message' and p.get('role') == 'user':
+            self._requests.pop(path, None)
+            self._turn_ended[path] = False
         if kind == 'turn_context':
             self._meta[path]['model'] = str(p.get('model', ''))
         if kind == 'event_msg':
             typ = p.get('type')
             if typ in ('task_started', 'turn_started', 'user_message'):
+                self._requests.pop(path, None)
                 self._turn_ended[path] = False
             elif typ in ('task_complete', 'task_completed', 'turn_complete', 'turn_aborted'):
                 self._turn_ended[path] = True
@@ -159,7 +165,9 @@ class Tailer(town.Tailer):
             return []
         name, role, label = tool_details(p)
         self._last_role[path] = role
+        self._last_tools[path] = name
         if name == 'AskUserQuestion':
+            self._requests[path] = row.get('timestamp', '')
             self._turn_ended[path] = True
         else:
             self._turn_ended[path] = False
@@ -198,7 +206,7 @@ class Tailer(town.Tailer):
                 start = self._offset.get(path, 0)
                 if st.st_size < start or self._identity.get(path, identity) != identity:
                     start = 0
-                    for mapping in (self._seen, self._meta, self._totals, self._tokens, self._daily, self._turn_ended, self._last_role, self._cwd):
+                    for mapping in (self._seen, self._meta, self._totals, self._tokens, self._daily, self._turn_ended, self._last_role, self._cwd, self._requests, self._last_tools):
                         mapping.pop(path, None)
                 self._identity[path] = identity
                 with path.open('rb') as f:
@@ -231,11 +239,12 @@ class Tailer(town.Tailer):
             record = self._index.get(meta['sid'], {})
             if now - mtime > town.HIDE_AFTER or record.get('archived'):
                 continue
-            state = 'done' if now - mtime > town.DONE_AFTER else 'waiting' if self._turn_ended.get(path) else 'working'
+            state = 'waiting' if path in self._requests else 'done' if now - mtime > town.DONE_AFTER else 'waiting' if self._turn_ended.get(path) else 'working'
             cwd = self._cwd.get(path, '')
             result.setdefault(self._project(path), []).append({
                 **meta, 'cwd': cwd, 'title': str(record.get('title') or Path(cwd).name or 'Codex 작업')[:180],
                 'active': state == 'working', 'state': state, 'mtime': mtime,
+                'needsInput': path in self._requests, 'requestAt': self._requests.get(path), 'lastTool': self._last_tools.get(path, ''),
                 'role': self._last_role.get(path, 'plan'), 'tokens': self._tokens.get(path, 0),
                 'tokensToday': self._daily.get(path, {}).get(town.kst_day(), 0),
             })
@@ -359,6 +368,10 @@ def main():
             if host not in ('127.0.0.1', 'localhost'):
                 self.send_error(403); return
             route = self.path.split('?')[0]
+            if route in ('/town-ui.js', '/town-ui.css'):
+                target = town.HERE / route[1:]
+                ctype = 'text/javascript' if route.endswith('.js') else 'text/css'
+                return self._send(target.read_bytes(), ctype + '; charset=utf-8')
             if route == '/favicon.ico':
                 return self._send((town.ASSETS / 'town.png').read_bytes(), 'image/png')
             if route == '/health':
