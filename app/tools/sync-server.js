@@ -14,7 +14,7 @@ const APP = path.resolve(__dirname, '..');
 const REPO = path.resolve(APP, '..');
 const OUT = path.join(APP, 'server');
 
-const FILES = ['claudetown.py', 'town.html', 'tiles.html'];
+const FILES = ['codextown.py', 'claudetown.py', 'town.html', 'tiles.html'];
 const DIRS = ['assets'];
 
 fs.rmSync(OUT, { recursive: true, force: true });

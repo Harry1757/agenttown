@@ -623,10 +623,10 @@ def safe_asset(name):
     """assets/ 밖으로 나가는 경로를 막는다. 안전하면 Path, 아니면 None."""
     try:
         target = (ASSETS / name).resolve()
+        if target.is_file() and ASSETS.resolve() in target.parents:
+            return target
     except (ValueError, OSError):
         return None
-    if target.is_file() and ASSETS.resolve() in target.parents:
-        return target
     return None
 
 
