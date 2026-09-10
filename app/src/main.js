@@ -11,7 +11,11 @@ let win, tray, server, quitting = false;
 app.setName('CodexTown');
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => show());
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes('--quit')) app.quit();
+    else if (argv.includes('--test-notification')) notifyWaiting({ title: '응답 요청 알림이 설정되었습니다.', kind: 'ask' });
+    else show();
+  });
   app.whenReady().then(start).catch(err => {
     dialog.showErrorBox('CodexTown 실행 실패', err.message);
     app.quit();
@@ -68,7 +72,7 @@ async function start() {
   await startServer();
   win = new BrowserWindow({ width: 1280, height: 850, minWidth: 680, minHeight: 540, title: 'CodexTown',
     backgroundColor: '#2a2622', icon: path.join(ASSETS, 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (event, url) => { if (url !== `${URL}/`) event.preventDefault(); });
@@ -80,17 +84,30 @@ async function start() {
   tray.on('click', show);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'CodexTown 열기', click: show },
+    { label: '알림 테스트', click: () => notifyWaiting({ title: '응답 요청 알림이 설정되었습니다.', kind: 'ask' }) },
     { label: '항상 위에 표시', type: 'checkbox', click: item => win.setAlwaysOnTop(item.checked) },
     { type: 'separator' }, { label: '종료', click: () => app.quit() },
   ]));
 }
 ipcMain.handle('focus-session', (_event, { sid }) => focusSession(sid));
-ipcMain.handle('notify-waiting', (_event, { title, label, sid }) => {
+const recentNotifications = new Map();
+function notifyWaiting({ title, label, sid, kind }) {
   if (!Notification.isSupported()) return;
-  const notification = new Notification({ title: 'CodexTown — 응답 대기', body: String(title || label || '작업이 응답을 마쳤습니다').slice(0, 180) });
+  const now = Date.now();
+  for (const [key, at] of recentNotifications) if (now - at > 5000) recentNotifications.delete(key);
+  // A question event is followed by the same task entering the waiting state.
+  const key = sid || title || label;
+  if (recentNotifications.has(key)) return;
+  recentNotifications.set(key, now);
+  const notification = new Notification({
+    title: kind === 'ask' ? 'CodexTown — 응답 요청' : 'CodexTown — 응답 완료',
+    body: String(title || label || '작업을 확인해 주세요').slice(0, 180),
+    silent: false,
+  });
   notification.on('click', () => sid ? focusSession(sid) : show());
   notification.show();
-});
+}
+ipcMain.handle('notify-waiting', (_event, message) => notifyWaiting(message));
 ipcMain.on('waiting-count', (_event, count) => {
   if (tray) tray.setToolTip(`CodexTown — 응답 대기 ${Math.max(0, Number(count) || 0)}개`);
 });

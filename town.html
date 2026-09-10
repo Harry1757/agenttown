@@ -2377,6 +2377,7 @@ function applyEvent(ev) {
 function connect() {
   const es = new EventSource('/events');
   es.addEventListener('snapshot', e => {
+    liveEvents = false;
     state.ticker = [];
     JSON.parse(e.data).recent.forEach(applyEvent);
     liveEvents = true;      // 여기부터는 진짜 새 이벤트다
