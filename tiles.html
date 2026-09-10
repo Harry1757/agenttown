@@ -1,0 +1,34 @@
+<!doctype html><meta charset=utf-8><title>ClaudeTown 타일 피커</title>
+<style>
+ body{background:#1a365d;margin:0;color:#fff;font:12px monospace}
+ canvas{image-rendering:pixelated;display:block;margin:8px}
+ a{color:#ffe066;margin:0 8px}
+</style>
+<div><a href=?s=town>town</a><a href=?s=dungeon>dungeon</a><a href=?s=indoor>indoor</a>
+<span id=hint>타일에 마우스를 올리면 인덱스가 나옵니다</span></div>
+<script>
+const CFG = {
+  town:    {src:'assets/town.png',    stride:16, cols:12, rows:11, scale:4},
+  dungeon: {src:'assets/dungeon.png', stride:16, cols:12, rows:11, scale:4},
+  indoor:  {src:'assets/indoor.png',  stride:17, cols:26, rows:17, scale:3},
+};
+const S = CFG[new URLSearchParams(location.search).get('s') || 'town'];
+const img = new Image(); img.src = S.src;
+img.onload = () => {
+  const T = 16 * S.scale;
+  const c = document.createElement('canvas');
+  c.width = S.cols * T; c.height = S.rows * T;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  for (let r = 0; r < S.rows; r++) for (let q = 0; q < S.cols; q++)
+    x.drawImage(img, q*S.stride, r*S.stride, 16, 16, q*T, r*T, T, T);
+  x.strokeStyle = 'rgba(255,255,255,.3)';
+  for (let q = 0; q <= S.cols; q++) { x.beginPath(); x.moveTo(q*T+.5,0); x.lineTo(q*T+.5,c.height); x.stroke(); }
+  for (let r = 0; r <= S.rows; r++) { x.beginPath(); x.moveTo(0,r*T+.5); x.lineTo(c.width,r*T+.5); x.stroke(); }
+  c.onmousemove = e => {
+    const b = c.getBoundingClientRect();
+    const q = Math.floor((e.clientX-b.left)/T), r = Math.floor((e.clientY-b.top)/T);
+    hint.textContent = `row ${r}, col ${q}  →  인덱스 ${r*S.cols+q}`;
+  };
+  document.body.appendChild(c);
+};
+</script>

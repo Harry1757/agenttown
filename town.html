@@ -1,0 +1,2521 @@
+<!doctype html><meta charset=utf-8><title>ClaudeTown</title>
+<style>
+  html,body{margin:0;height:100%;background:#2a2622;overflow:hidden}
+  canvas{display:block;image-rendering:pixelated;cursor:grab}
+  #hud{position:fixed;left:10px;bottom:10px;color:#cbd5e0;
+       font:12px ui-monospace,monospace;text-shadow:0 1px 2px #000;pointer-events:none}
+  #tooltip{position:fixed;display:none;pointer-events:none;z-index:10;
+       background:rgba(20,18,16,.92);color:#f0e6d8;font:12px ui-monospace,monospace;
+       padding:6px 9px;border-radius:4px;max-width:340px;white-space:pre-line;
+       box-shadow:0 2px 8px rgba(0,0,0,.5);line-height:1.5}
+  /* 한 줄로 눕힌다 — 세로로 쌓으니 지도를 가렸다. */
+  #usage{position:fixed;left:50%;bottom:8px;z-index:6;display:none;
+       transform:translateX(-50%);transform-origin:bottom center;
+       align-items:center;gap:12px;white-space:nowrap;
+       background:rgba(20,18,16,.85);border:1px solid #4a433b;border-radius:8px;
+       padding:9px 16px;color:#f5efe4;
+       font:14px/1 system-ui,'Malgun Gothic',sans-serif}
+  /* line-height 를 1 로 못박는다 — 기본 leading 이 붙으면 글자 박스가 글리프보다
+     커져서 align-items:center 로도 막대와 글자의 '보이는' 중심이 어긋난다. */
+  #usage-bars{display:flex;align-items:center;gap:18px}
+  /* 한 칸 = 위에 '이름 · 막대 · %', 그 아래 초기화 시각. 두 줄을 가운데로 맞춘다 —
+     기본(stretch)으로 두면 아래 줄이 더 넓어서 위아래가 어긋나 보였다. */
+  #usage .u-item{display:flex;flex-direction:column;align-items:center;gap:7px}
+  #usage .u-top{display:flex;align-items:center;justify-content:center;gap:8px}
+  /* 이름('5시간')과 퍼센트는 같은 크기다 — 한쪽만 크면 짝이 안 맞아 보인다.
+     굵기와 tabular-nums 로만 구분한다(숫자가 바뀌어도 폭이 안 흔들리게). */
+  #usage .u-pct{font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  #usage .u-bar{width:92px;height:12px;background:#3b352e;border-radius:6px;overflow:hidden}
+  #usage .u-bar i{display:block;height:100%;background:#5fd68a;border-radius:6px;transition:width .4s}
+  #usage .u-bar.warn i{background:#e2b45a}
+  #usage .u-bar.hot i{background:#ff6b5a}
+  #usage .u-sub{opacity:.68;font-size:12px;line-height:1}
+  #usage-tok{display:none;opacity:.9;border-left:1px solid #4a433b;padding-left:15px;align-self:center}
+  #gestures{position:fixed;right:10px;bottom:10px;display:flex;gap:6px;z-index:6}
+  #gestures button{font:16px/1 system-ui,sans-serif;width:34px;height:34px;cursor:pointer;
+       background:rgba(20,18,16,.85);color:#f0e6d8;border:1px solid #5a5047;border-radius:8px;
+       padding:0;transition:background .15s,border-color .15s}
+  #gestures button:hover{background:rgba(48,42,36,.95)}
+  #gestures button.on{background:#7d6a3f;border-color:#e2b45a}
+  #hint{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);
+       color:#f0e6d8;background:rgba(20,18,16,.85);padding:8px 16px;border-radius:6px;
+       font:13px ui-monospace,monospace;pointer-events:none;opacity:0;
+       transition:opacity 1s ease;z-index:5}
+</style>
+<canvas id=cv></canvas>
+<div id=hud></div>
+<div id=tooltip></div>
+<div id=usage><div id=usage-bars></div><div id=usage-tok></div></div>
+<div id=gestures>
+  <button data-g="pet" title="쓰다듬기 — 누른 뒤 캐릭터를 클릭">🤚</button>
+  <button data-g="hit" title="때리기 — 겉보기만 빨라진다(진짜 세션은 안 바뀐다)">👊</button>
+</div>
+
+<div id=hint>휠로 확대 · 드래그로 이동 · 더블클릭으로 초기화 · 캐릭터 더블클릭으로 세션 창 열기 · 오른쪽 아래 버튼으로 쓰다듬기/때리기</div>
+<script>
+const SHEETS = {
+  town:    { src:'assets/town.png',    stride:16, cols:12 },
+  dungeon: { src:'assets/dungeon.png', stride:16, cols:12 },
+  indoor:  { src:'assets/indoor.png',  stride:17, cols:26 },
+};
+
+const T = {
+  grass:0, grassAlt:1,
+  roofBlue:[48,49,50,60,61,62], roofRed:[52,53,54,64,65,66],
+  wallBrown:72, wallGray:76, windowBrown:84, windowGray:88,
+  doorBrown:85, doorGray:89, sign:83,
+  treeOrange:3, treePine:16, bush:5,
+  charKnight:96, charWizard:84, charArcher:112, charSlime:108,
+  floorWood:50, floorRug:154, deskL:0, deskR:1, chair:52,
+  shelfTop:12, shelfBot:38, stoveTop:378, stoveBot:404,
+  boardGit:357, boardWhite:332, windowRoom:410,
+  tableRoundL:5, tableRoundR:6, rug:250, mirror:386, drawer:312, plant:16,
+};
+
+const TILE = 16;
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const hud = document.getElementById('hud');
+ctx.imageSmoothingEnabled = false;
+let dpr = window.devicePixelRatio || 1;   // 화면 배율(윈도 125%/150%, 브라우저 줌)마다 바뀐다
+
+function loadSheets() {
+  return Promise.all(Object.entries(SHEETS).map(([k, s]) => new Promise(res => {
+    const img = new Image();
+    img.onload = () => { s.img = img; res(); };
+    img.onerror = () => { console.error('시트 로드 실패', s.src); res(); };
+    img.src = s.src;
+  })));
+}
+
+// hScale(생략시 1): 세로 방향만 늘/줄인다 — 발(바닥, py+TILE*scale)은 고정하고 머리
+// 쪽만 움직인다. 캐릭터 "숨쉬기"/"착지 스쿼시" 연출용 — hScale=1 이면 예전과 완전히
+// 같은 픽셀을 낸다(아래 y1 을 먼저 반올림해 고정점을 만들고 거기서 높이를 빼는 방식이라
+// h=1 일 때 Math.round(py)와 정확히 같다 — edges() 와 같은 "양끝 반올림" 원칙).
+function drawTile(c, sheetKey, idx, px, py, scale, hScale) {
+  const s = SHEETS[sheetKey];
+  if (!s.img) return;
+  const sx = (idx % s.cols) * s.stride;
+  const sy = Math.floor(idx / s.cols) * s.stride;
+  const h = hScale === undefined ? 1 : hScale;
+  // 양쪽 경계를 각각 반올림해 폭을 그 차이로 잡는다.
+  // 위치만 반올림하면 scale 이 소수인 줌 배율에서 타일 사이에 1px 실금이 생긴다.
+  const x0 = Math.round(px), x1 = Math.round(px + TILE * scale);
+  const y1 = Math.round(py + TILE * scale), y0 = Math.round(y1 - TILE * scale * h);
+  c.drawImage(s.img, sx, sy, TILE, TILE, x0, y0, x1 - x0, y1 - y0);
+}
+
+// --- 팔레트 -------------------------------------------------------------
+// Kenney indoor 시트는 중세풍이라 사무실 가구로 못 쓴다. 벽·바닥·책상·모니터·
+// 의자·화분·명찰·간판·복도는 전부 코드로 그린다. Kenney 는 캐릭터(dungeon)에만 쓴다.
+const C = {
+  corridor: '#2a2622', corridorLine: '#332e29',
+  wallDark: '#3b352e', wallBody: '#5a5047', wallTop: '#7d7064',
+  floorWood: '#8b6f47',
+  deskTop: '#a9855c', deskEdge: '#7a5f3f',
+  screenOff: '#2f3640', screenOn: '#8fd6ff',
+  chair: '#474a52',
+  plantPot: '#8c5a3c', plantLeaf: '#5b8c5a',
+  tagBg: 'rgba(20,18,16,.85)', tagText: '#f0e6d8',
+  boardPale: '#ded2ba',
+  statusActive: '#5fd68a',   // 작업 중
+  statusWaiting: '#e2b45a',  // 응답 대기 — 사용자 차례
+  statusDone: '#6b645c',     // 완료 — 오래 조용함
+  statusIdle: '#8a8378',
+};
+
+// --- 구역 배치: 5열 x 2행, 역할별 방 -----------------------------------
+// floor: 'wood'|'tile' — 차가운 색조 방은 타일 바닥, 따뜻한 색조는 나무 바닥.
+// accent: 바닥에 30%→55% 로 겹칠 틴트. 나무 바닥(#8b6f47, 갈색)이 深게 깔리므로
+// 채도만으론 구분이 안 된다 — hue 뿐 아니라 lightness 도 방마다 벌려서, 특히
+// 기획/회의/인프라/릴리즈/QA 5개(예전엔 전부 같은 갈색으로 뭉쳐 보였다) 를
+// 서로 구분되게 잡았다.
+// defect4: 작업 파이프라인 순서 — 윗줄은 상류(기획->회의), 아랫줄은 실행(프론트->릴리즈)
+// 4열x3행. 위에서부터 일이 흘러가는 순서로 놓고, 마지막 두 칸을 상태 구역으로 둔다.
+//   1줄  기획 · 리서치 · 디자인 · 회의      생각하는 일 (무엇을 만들지)
+//   2줄  탐색 · 프론트 · 백엔드 · 인프라    만드는 일 (읽고 고치고 띄우고)
+//   3줄  QA · 릴리즈 | 응답 대기 · 완료     내보내는 일 + 상태 구역
+// 상태 구역 둘은 업무 구역이 아니므로 마지막에 붙여 둔다. 그 앞에 한 칸 틈을 줘 봤는데
+// 줄이 어긋나 보여서 뺐다 — 구분은 응답 대기 방의 점등과 '!' 몸짓이 이미 하고 있다.
+const ROOMS = [
+  { role:'plan',     label:'기획',   accent:'hsl(255,30%,60%)', floor:'tile' },
+  { role:'research', label:'리서치', accent:'hsl(185,30%,42%)', floor:'tile' },
+  { role:'design',   label:'디자인', accent:'hsl(330,32%,60%)', floor:'wood' },
+  { role:'meeting',  label:'회의',   accent:'hsl(30,36%,55%)',  floor:'wood' },
+
+  { role:'explore',  label:'탐색',   accent:'hsl(225,26%,45%)', floor:'tile' },
+  { role:'frontend', label:'프론트', accent:'hsl(206,40%,62%)', floor:'tile' },
+  { role:'backend',  label:'백엔드', accent:'hsl(132,28%,42%)', floor:'wood' },
+  { role:'infra',    label:'인프라', accent:'hsl(18,42%,44%)',  floor:'wood' },
+
+  { role:'qa',       label:'QA',    accent:'hsl(58,36%,46%)',  floor:'wood' },
+  { role:'release',  label:'릴리즈', accent:'hsl(352,40%,36%)', floor:'wood' },
+  // 여기부터 상태 구역 — 업무 구역이 아니다(응답 대기 / 완료). role 값이 role_for 가
+  // 내는 값들과 겹치지 않으므로 충돌은 없다.
+  { role:'waiting',  label:'응답 대기', accent:'hsl(42,55%,50%)', floor:'wood' },
+  { role:'done',     label:'완료',   accent:'hsl(215,8%,34%)',  floor:'tile' },
+];
+const ROOM_BY_ROLE = Object.fromEntries(ROOMS.map(r => [r.role, r]));
+
+const ROOM_COLS = 4, ROOM_ROWS = 3;
+// 4열x3행. ROOMS 배열 순서 그대로 위에서부터 네 개씩 끊는다(순서는 그 배열 주석 참고).
+// 그리드는 32x21 타일이라 세로가 병목이다(6열x2행일 땐 48x16 으로 가로가 병목이었다).
+// 넓은 창에서 가로가 좀 남는 대신 세로를 잘 쓴다.
+const ROOM_ROW_LENS = [4, 4, 4];
+// 방 하나 크기(벽 포함), 타일 — iter5 는 GUTTER 를 가로/세로 공용 1칸으로 두고
+// "landscape(W>H) + scale=2 유지" 아래 ROOM_W=7,ROOM_H=6(7:6) 이 최대였다 — fillH 71.5%,
+// 목표 85%에 못 미쳤다(iter5 리포트에 그 산수가 남아있다). iter6: GUTTER 를 가로
+// (GUTTER_X)/세로(GUTTER_Y)로 분리해 재계산했다. 1280 폭·scale=2(32 device px/타일)
+// 예산은 floor(1280/32)=40 타일 — 열 사이 복도(GUTTER_X)를 1→0 으로 없애면(방끼리
+// 벽을 맞대는 것뿐, 일꾼은 복도를 실제로 걷지 않고 방 안 슬롯에만 서므로 기능 손실이
+// 없다) 5*ROOM_W≤40 에서 ROOM_W=8 까지 커진다(5*8=40, 정확히 예산에 닿는다).
+// landscape 를 지키려면 ROOM_H<ROOM_W=8 → ROOM_H=7 이 최대(8:7=1.143, 여전히 가로가
+// 더 넓다). 이제 GUTTER_Y(두 줄 사이 복도)가 남은 세로 예산을 실제로 쓰는 손잡이다 —
+// availH=582px 에서 scale=2 를 유지하려면 gridH*32≤582 → gridH≤18; ROOM_H=7 고정 시
+// gridH=2*7+GUTTER_Y 이므로 GUTTER_Y=2 면 gridH=16, fillH=16*32/582=88.0%(목표 85%
+// 달성, 여유 있음). GUTTER_Y=2 는 "위/아래 두 줄(상류/실행) 사이 넓은 복도"로도 읽혀서,
+// iter5 가 남겼던 "방 바닥과 티커 사이 빈 띠"를 방(둘레 포함) 안으로 흡수한 셈이다 —
+// GUTTER_Y=4 로 더 키우면 99%까지 가지만 복도가 방 높이의 절반을 넘어 "복도"가 아니라
+// "빈 공간"으로 읽힌다. 실측: 1280x687/dpr1 fillW 100%(과거 97.5%), fillH 88.0%(과거
+// 71.5%, 목표 85% 초과) — iter6 리포트 참고.
+// 주의: ROOM_W=8·GUTTER_X=0 은 scale=2 예산(정확히 1280px)에 딱 맞아 여유가 없다 —
+// 실제 창 폭이 1280px 에서 1px 이라도 좁아지면 scale 이 2→1 로 떨어진다(넘침은 없다,
+// floor 이므로). launch.sh 의 --window-size=1280,860 기본값과 정확히 맞아떨어지므로
+// 받아들였다.
+const ROOM_W = 8, ROOM_H = 7;
+const GUTTER_X = 0;             // 열 사이 복도 폭, 타일 — 일꾼은 복도를 안 걷는다, scale=2 폭 예산에 맞춰 0으로
+const GUTTER_Y = 0;             // 줄 사이 복도 폭, 타일 — 벽을 공유하므로 0
+
+const MARGIN = 0;               // 그리드 바깥 여백 — 0으로: 여백은 fill 만 깎고 이득이 없다
+const UI_BAND = 105;            // 하단에 티커(6줄)+HUD 를 위해 비워두는 CSS px(= dpr 곱해서 씀)
+
+// defect5: 방마다 가구 나무 톤을 살짝 다르게 — 예전엔 전부 같은 갈색이라 바닥색을 빼면
+// 방이 다 똑같아 보였다. seed 로 hue/lightness 를 방마다 조금씩 흔든다.
+function woodTone(seed) {
+  const hue = 26 + (seed % 17);            // 26~42 (갈색 대역 안에서만 흔든다)
+  const light = ((seed >> 6) % 9) - 4;     // -4~4
+  return {
+    top:  `hsl(${hue}, 42%, ${58 + light}%)`,
+    edge: `hsl(${hue - 4}, 40%, ${37 + light}%)`,
+    chair: `hsl(${220 + (seed >> 10) % 30}, 9%, ${31 + light}%)`,
+  };
+}
+
+function initRooms() {
+  let i = 0;
+  ROOM_ROW_LENS.forEach((len, row) => {
+    const colOffset = (ROOM_COLS - len) / 2;
+    for (let c = 0; c < len; c++) {
+      const r = ROOMS[i++];
+      // 방마다 자기 벽 4면을 갖고, 옆방과는 겹치지 않고 맞닿는다(GUTTER 0).
+      r.gx = MARGIN + (colOffset + c) * (ROOM_W + GUTTER_X);
+      r.gy = MARGIN + row * (ROOM_H + GUTTER_Y);
+      r.seed = hashSeed(r.role);
+      r.wood = woodTone(r.seed);
+    }
+  });
+}
+
+function gridTiles() {
+  return {
+    w: ROOM_COLS * ROOM_W + (ROOM_COLS - 1) * GUTTER_X + 2 * MARGIN,
+    h: ROOM_ROWS * ROOM_H + (ROOM_ROWS - 1) * GUTTER_Y + 2 * MARGIN,
+  };
+}
+
+// --- 카메라: 휠 줌(0.5 스텝) + 드래그 팬 --------------------------------
+// scale 은 "디바이스 픽셀당 몇 배로 그리나"다. 1.9 같은 아무 소수나 쓰면 타일 하나가
+// 고르지 않은 폭의 destination 픽셀로 늘어나 스프라이트가 흐려진다 — 그래서 원래는
+// 정수만 허용했다. 그런데 정수 스텝은 낮은 배율에서 너무 거칠다: 1 -> 2 는 한 번에
+// 100% 확대라 원하는 크기에 못 맞춘다.
+//
+// 0.25 스텝으로 낮춘다. TILE 이 16 이라 0.25 배수는 타일 크기가 항상 정수 픽셀이고
+// (16*1.25=20, 16*2.75=44) 타일 경계에 실금이 안 생긴다. 타일 '안'의 소스 픽셀은
+// 폭이 섞여 살짝 울퉁불퉁해지는데, 조절이 안 되는 것보다 낫다고 봤다.
+// 0.125 까지도 정수가 유지되지만(16*0.125=2) 한 칸이 12.5% 라 휠을 너무 많이 굴려야 한다.
+const ZOOM_STEP = 0.25;
+// 배율은 절대 0 이 되면 안 된다. 그리기 루프들이 배율에서 간격을 뽑아 쓰는데
+// (drawCorridor 의 step = 4 * TILE * scale, 바닥 선의 4 * scale), 간격이 0 이면
+// `for (x = 0; x < w; x += 0)` 이 되어 JS 스레드가 그 자리에서 영원히 돈다.
+// 그러면 rAF 도 타이머도 멈춰 앱이 통째로 얼어붙고, 창을 되돌려도 안 돌아온다.
+// 측정: 창을 줄여 그리드가 배율 1 로도 안 들어가는 크기가 되면 floor 가 0 을 냈다.
+const MIN_SCALE = 0.125;
+const quantZoom = (v) => Math.max(MIN_SCALE, Math.round(v / ZOOM_STEP) * ZOOM_STEP);
+const ZOOM_TWEEN_MS = 120;
+const cam = {
+  fitScale: 1, maxScale: 4,
+  scale: 1, offX: 0, offY: 0,
+  // 사용자가 고른 줌을 "절대 배율"로 들고 있으면 안 된다. 1920 폭에서 fit 이 3배일 때
+  // 3배로 보고 있다가 창을 1264 로 줄이면, fit 은 1배가 됐는데 3배를 그대로 써서
+  // 1920px 짜리 그림을 1264px 캔버스에 그린다 — 화면이 잘린다(사용자 재현 로그:
+  // in=1264x821 scale=3 fit=1). 그래서 "fit 에서 몇 스텝 확대했는지"만 들고 있는다.
+  // 0 이면 창이 어떻게 바뀌든 항상 전체가 보인다.
+  zoomSteps: 0,
+  userAdjusted: false,   // 팬(드래그) 여부만 뜻한다 — 줌 자동맞춤은 zoomSteps 가 따로 맡는다
+  animFrom: null, animTo: null, animStart: 0,
+  animOffFrom: { x: 0, y: 0 }, animOffTo: { x: 0, y: 0 },
+};
+
+function fitScaleAndAvailH() {
+  const g = gridTiles();
+  const uiBand = UI_BAND * dpr;
+  const availH = Math.max(0, cv.height - uiBand);
+  // 예전 버그였던 Math.max(1, ...) 는 넣지 않는다 — 실제 비율이 1 미만인데 1로
+  // 올려버리면 그리드가 캔버스를 넘친다(overflow).
+  //
+  // 그렇다고 floor 만 쓰면 이번엔 0 이 나온다. 창이 작아 그리드가 배율 1 로도 안
+  // 들어가면 비율이 1 미만이고, floor 가 그걸 0 으로 깎는다 — 배율 0 은 그리기
+  // 루프의 간격을 0 으로 만들어 앱을 얼려버린다(MIN_SCALE 설명 참고).
+  // 그래서 floor 는 1 이상일 때만 건다. 1 미만이면 비율을 그대로 쓴다 — 어차피
+  // 그 크기에선 픽셀이 또렷할 수 없고, 비율 그대로면 넘치지도 않는다.
+  const raw = Math.min(cv.width / (g.w * TILE), availH / (g.h * TILE));
+  const fitScale = raw >= 1 ? Math.floor(raw) : Math.max(MIN_SCALE, raw);
+  return { g, availH, fitScale };
+}
+
+function fitOffset(g, availH, scale) {
+  const P = TILE * scale;
+  return {
+    x: Math.round((cv.width - g.w * P) / 2),
+    y: Math.round((availH - g.h * P) / 2),   // availH 안에서만 중앙 정렬 — 하단 UI_BAND 는 건드리지 않는다
+  };
+}
+
+// 축 하나를 클램프: 콘텐츠가 뷰포트보다 작거나 같으면(줌아웃/기본 fit) 가운데 고정 —
+// "fit 상태에선 더 옮길 데가 없다"가 자연히 성립한다. 콘텐츠가 더 크면(줌인) 뷰포트가
+// 항상 그리드로 꽉 차 있게(그리드가 화면 밖으로 통째로 나가지 않게) 오프셋 범위를 막는다.
+function clampAxis(off, contentPx, viewPx) {
+  if (contentPx <= viewPx) return Math.round((viewPx - contentPx) / 2);
+  return Math.min(0, Math.max(viewPx - contentPx, off));
+}
+function clampOffset(scale, offX, offY) {
+  const { g, availH } = fitScaleAndAvailH();
+  const P = TILE * scale;
+  return {
+    x: clampAxis(offX, g.w * P, cv.width),
+    y: clampAxis(offY, g.h * P, availH),
+  };
+}
+
+// 휠/키보드 줌 한 스텝. anchorX/Y 는 디바이스 px 좌표 — 그 점 아래의 "월드(타일)" 좌표가
+// 줌 전후로 같은 화면 픽셀에 남도록 오프셋을 다시 계산한다(커서 고정 줌).
+function zoomStep(delta, anchorX, anchorY) {
+  if (cam.animTo !== null) return;   // 트윈 도중 새 요청은 버린다 — 두 정수 사이만 오가는 불변식을 지킨다
+  const { g, availH, fitScale } = fitScaleAndAvailH();
+  cam.fitScale = fitScale;
+  cam.maxScale = Math.max(fitScale, fitScale * 4);
+  const from = cam.scale;   // computeLayout 이 매 프레임 최신으로 유지한다
+  const to = Math.min(cam.maxScale, Math.max(cam.fitScale, quantZoom(from + delta * ZOOM_STEP)));
+  if (to === from) return;
+  const fromOff = { x: cam.offX, y: cam.offY };
+  const worldX = (anchorX - fromOff.x) / (TILE * from);
+  const worldY = (anchorY - fromOff.y) / (TILE * from);
+  const toOffRaw = { x: anchorX - worldX * TILE * to, y: anchorY - worldY * TILE * to };
+  const toOff = clampOffset(to, toOffRaw.x, toOffRaw.y);
+  cam.zoomSteps = to - fitScale;   // 절대 배율이 아니라 fit 대비 스텝으로 기억한다
+  cam.userAdjusted = true;
+  cam.animFrom = from; cam.animTo = to;
+  cam.animOffFrom = fromOff; cam.animOffTo = toOff;
+  cam.animStart = performance.now();
+}
+
+function panBy(dx, dy) {
+  cam.userAdjusted = true;
+  cam.animTo = null;
+  const c = clampOffset(cam.scale, cam.offX + dx, cam.offY + dy);
+  cam.offX = c.x; cam.offY = c.y;
+}
+
+function resetCamera() {
+  cam.zoomSteps = 0;
+  cam.userAdjusted = false;
+  cam.animTo = null;
+}
+
+let layout = { scale: 1, offsetX: 0, offsetY: 0 };
+function computeLayout() {
+  // cv.width/cv.height 는 이제 디바이스 픽셀(= CSS px * dpr)이다 — fitCanvas() 참고.
+  const { g, availH, fitScale } = fitScaleAndAvailH();
+  cam.fitScale = fitScale;
+  cam.maxScale = Math.max(fitScale, fitScale * 4);
+
+  // 배율은 매 프레임 fit 에서 다시 세운다 — 창이 바뀌면 fit 이 바뀌고, 사용자가 고른
+  // 확대량(zoomSteps)은 그 위에 얹힌다. zoomSteps 가 0 이면 항상 전체가 보인다.
+  cam.scale = quantZoom(Math.min(cam.maxScale, Math.max(fitScale, fitScale + cam.zoomSteps)));
+
+  if (!cam.userAdjusted) {
+    const off = fitOffset(g, availH, cam.scale);
+    cam.offX = off.x; cam.offY = off.y;
+    cam.animTo = null;
+  } else {
+    if (cam.animTo !== null) {
+      const t = Math.min(1, (performance.now() - cam.animStart) / ZOOM_TWEEN_MS);
+      const shown = quantZoom(cam.animFrom + (cam.animTo - cam.animFrom) * t);
+      cam.scale = shown;
+      const useTo = shown === cam.animTo;
+      cam.offX = useTo ? cam.animOffTo.x : cam.animOffFrom.x;
+      cam.offY = useTo ? cam.animOffTo.y : cam.animOffFrom.y;
+      if (t >= 1) cam.animTo = null;
+    }
+    const c = clampOffset(cam.scale, cam.offX, cam.offY);
+    cam.offX = c.x; cam.offY = c.y;
+  }
+  layout = { scale: cam.scale, offsetX: cam.offX, offsetY: cam.offY };
+}
+
+// 슬러그를 사람이 읽을 짧은 이름으로.
+const LABEL_CHARS = 18;
+// 슬러그 -> 실제 작업 폴더. 서버가 트랜스크립트의 cwd 를 그대로 넘겨준다.
+const projCwd = {};
+
+function baseName(p) {
+  const s = String(p || '').replace(/[\\/]+$/, '');
+  const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return i >= 0 ? s.slice(i + 1) : s;
+}
+
+// 창 제목에서 찾을 때 쓸 검색어 후보들. 긴 것부터 준다.
+//
+// 예전엔 '-home-pc-' / '-mnt-c-Users-PC-' 를 벗겨 폴더 이름 하나를 만들었는데,
+// 그건 이 컴퓨터의 경로 규칙이다. 남의 컴퓨터에서는 슬러그가
+// '-C--Users-kim-projects-myapp' 같은 모양이라 그 규칙이 안 먹고, 결과가 어떤
+// 창 제목에도 안 걸려서 "세션으로 이동" 이 조용히 실패했다(팀원 신고).
+//
+// 슬러그는 경로 구분자와 이름 속 하이픈이 똑같이 '-' 로 뭉개져 있어서 폴더 이름을
+// 정확히 복원할 수 없다. 그래서 복원을 포기하고 뒤에서부터 1~3조각을 후보로 만들어
+// 넘긴다 — 받는 쪽이 창 제목과 대보고 가장 긴 일치를 고른다.
+//   '-home-pc-baros-next'          -> ['pc-baros-next', 'baros-next', 'next']
+//   '-C--Users-kim-projects-myapp' -> ['kim-projects-myapp', 'projects-myapp', 'myapp']
+function projTerms(slug) {
+  // cwd 를 아는 세션은 폴더 이름이 정확하다 — 추측할 이유가 없다.
+  const b = baseName(projCwd[slug]);
+  if (b) return [b];
+  const segs = String(slug).split('-').filter(Boolean);
+  const out = [];
+  for (const n of [3, 2, 1]) {
+    if (segs.length < n) continue;
+    const t = segs.slice(-n).join('-');
+    if (t.length >= 3 && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+function shortLabel(slug) {
+  // cwd 가 있으면 그 폴더 이름을 그대로 쓴다. 슬러그를 벗기는 규칙은 이 컴퓨터의
+  // 경로 모양에만 맞아서, 남의 컴퓨터에서는 'C--Users-...' 가 그대로 노출됐다.
+  const real = baseName(projCwd[slug]);
+  if (real) return real.length > LABEL_CHARS ? real.slice(0, LABEL_CHARS - 1) + '…' : real;
+  const raw = String(slug);
+  if (raw === '-mnt-c-Users-PC') return 'PC';   // 윈도 홈 자체면 'win:' 만 남아 뜻이 없다
+  let s = raw
+    .replace(/^-home-pc-?/, '')
+    .replace(/^-mnt-c-Users-PC-?/, 'win:')
+    .replace(/^-tmp-[^-]*-*/, 'tmp:')
+    .replace(/^-+/, '');
+  if (!s) s = 'home';
+  return s.length > LABEL_CHARS ? s.slice(0, LABEL_CHARS - 1) + '…' : s;
+}
+
+// defect3: 옛 버전은 s.length>1 에서 멈추고 마지막 한 글자는 "글자+…"의 폭을
+// 한 번도 검증하지 않은 채(길이 조건에 막혀 while 을 못 돔) 그냥 돌려줬다 —
+// maxWidth 가 아주 좁으면(붐비는 방·작은 scale) 그 한 글자조차 넘칠 수 있는데도
+// 통과했다. length>0 까지 줄이고, 최종적으로 빈 문자열까지 갈 수 있게 해서
+// "반환값의 폭 <= maxWidth" 를 항상 보장한다 — 명찰/간판 둘 다 이 함수 하나를
+// 거치므로 여기 한 곳만 고치면 두 호출부 다 고쳐진다.
+function fitText(text, maxWidth) {
+  if (maxWidth <= 0) return '';
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let s = text;
+  while (s.length > 0 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1);
+  return s.length > 0 ? s + '…' : '';
+}
+
+// 문자열 -> 32비트 정수. 화분 종류/지터를 방마다 다르게, 그러나 매 프레임 그대로 고르는 데 쓴다
+// (Math.random 은 매 프레임 값이 바뀌어 깜빡인다).
+function hashSeed(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// 두 변을 각각 반올림하고 그 차이를 폭/높이로 쓴다 — drawTile 과 같은 원칙.
+// scale 이 소수일 때, 폭/높이를 따로 반올림하면(예: Math.round(w)) 이웃한
+// 사각형과 경계가 안 맞아 실금이나 겹침이 생긴다. 위치가 아니라 "양쪽 끝"을
+// 반올림해야 같은 좌표를 공유하는 두 사각형이 항상 같은 픽셀에서 만난다.
+function edges(x, y, w, h) {
+  const x0 = Math.round(x), y0 = Math.round(y);
+  const x1 = Math.round(x + w), y1 = Math.round(y + h);
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+function fillRectA(x, y, w, h) { ctx.fillRect(...edges(x, y, w, h)); }
+
+function roundRect(x, y, w, h, rad) {
+  [x, y, w, h] = edges(x, y, w, h);
+  const r = Math.max(0, Math.min(rad, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// --- defect5: 소품 3종 세트 — 그림자/하이라이트/외곽선 ----------------------
+// "가구가 다 납작한 색칠 사각형으로 보인다"의 원인은 이 세 개가 하나도 없어서다.
+// 매 소품마다 따로 색을 계산하지 않고 검정/흰색 반투명 오버레이만 얹는다 — 소품마다
+// 색이 달라도(책상 갈색, 서버랙 짙은 회색 등) 항상 먹히고 코드도 한 벌로 끝난다.
+function propShadow(x, y, w, h, scale, rad) {
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = '#000';
+  const oy = Math.max(1, Math.round(scale * 0.5));
+  roundRect(x + w * 0.06, y + h * 0.72, w * 0.9, h * 0.3 + oy, rad || 0);
+  ctx.fill();
+  ctx.restore();
+}
+function propHighlight(x, y, w, scale, rad) {
+  ctx.save();
+  ctx.globalAlpha = 0.26;
+  ctx.fillStyle = '#fff';
+  const hh = Math.max(1, Math.round(scale * 0.4));
+  roundRect(x, y, w, hh, rad || 0);
+  ctx.fill();
+  ctx.restore();
+}
+function propOutline(x, y, w, h, scale, rad) {
+  const lw = Math.max(1, Math.round(scale * 0.3));
+  ctx.save();
+  ctx.strokeStyle = 'rgba(10,8,6,.8)';
+  ctx.lineWidth = lw;
+  roundRect(x + lw / 2, y + lw / 2, Math.max(1, w - lw), Math.max(1, h - lw), rad || 0);
+  ctx.stroke();
+  ctx.restore();
+}
+// 세 개를 한 번에: 본체 fill 은 호출자가 사이에 그린다 (top/edge 이중톤 등 내부 디테일
+// 유지하려고). 이 wrapper 는 그림자->…->하이라이트+외곽선 순서만 강제한다.
+function propBefore(x, y, w, h, scale, rad) { propShadow(x, y, w, h, scale, rad); }
+function propAfter(x, y, w, h, scale, rad) { propHighlight(x, y, w, scale, rad); propOutline(x, y, w, h, scale, rad); }
+
+// --- 그리기 primitive --------------------------------------------------
+function drawWalls(ox, oy, w, h, scale) {
+  const t = TILE * scale;
+  // 바깥 테두리를 방 '안쪽' 에 그린다. 예전엔 ox-ol 로 밖으로 삐져나가서, 방끼리
+  // 맞닿는 지금은 옆방 벽 위에 겹쳐 그려져 이음매가 두 겹으로 보였다.
+  const ol = Math.max(1, Math.round(scale * 0.5));
+  ctx.fillStyle = C.wallDark;
+  fillRectA(ox, oy, w, h);
+  ctx.fillStyle = C.wallBody;
+  fillRectA(ox + ol, oy + ol, w - 2 * ol, t - ol);            // 윗벽
+  fillRectA(ox + ol, oy + h - t, w - 2 * ol, t - ol);         // 아랫벽 (출입구 뚫기 전)
+  fillRectA(ox + ol, oy + ol, t - ol, h - 2 * ol);            // 왼벽
+  fillRectA(ox + w - t, oy + ol, t - ol, h - 2 * ol);         // 오른벽
+  // 예전엔 위·왼쪽에만 하이라이트가 있어서 오른쪽·아래가 '벽이 없는' 것처럼
+  // 보였다(사용자 지적). 네 면 다 테두리를 둘러 방이 사방으로 막힌 걸로 읽히게 한다.
+  ctx.fillStyle = C.wallTop;
+  const hi = Math.max(1, Math.round(t * 0.28));
+  fillRectA(ox, oy, w, hi);                       // 윗벽 윗면
+  fillRectA(ox, oy, hi, h);                       // 왼벽 윗면
+  fillRectA(ox + w - hi, oy, hi, h);              // 오른벽 바깥면
+  fillRectA(ox, oy + h - hi, w, hi);              // 아랫벽 바깥면
+  // 안쪽 모서리에 그림자 한 줄 — 벽에 두께가 있는 것처럼 보이게 한다.
+  const sh = Math.max(1, Math.round(t * 0.12));
+  ctx.fillStyle = C.wallDark;
+  fillRectA(ox + t - sh, oy + t - sh, w - 2 * t + 2 * sh, sh);          // 실내 위쪽
+  fillRectA(ox + t - sh, oy + t - sh, sh, h - 2 * t + 2 * sh);          // 실내 왼쪽
+  fillRectA(ox + w - t, oy + t - sh, sh, h - 2 * t + 2 * sh);           // 실내 오른쪽
+  fillRectA(ox + t - sh, oy + h - t, w - 2 * t + 2 * sh, sh);           // 실내 아래쪽
+}
+
+// 아랫벽 가운데를 뚫어 출입구를 낸다. 벽을 공유하는 배치라 이건 모든 방의 벽을
+// 다 그린 뒤에 따로 돌려야 한다 — 안 그러면 아래 방의 윗벽이 위 방의 문을 덮는다.
+function drawDoor(ox, oy, w, h, scale) {
+  const t = TILE * scale;
+  const doorW = 2 * t;
+  const doorX0 = Math.round(ox + w / 2 - doorW / 2), doorX1 = doorX0 + Math.round(doorW);
+  ctx.fillStyle = C.corridor;
+  fillRectA(doorX0, oy + h - t, doorX1 - doorX0, t);
+  // defect5: 문틀 — 출입구 좌우에 문설주(기둥) + 하이라이트 한 줄. 그냥 뚫린 구멍이
+  // 아니라 문처럼 보이게 한다.
+  const postW = Math.max(1, Math.round(scale * 0.6));
+  ctx.fillStyle = C.wallDark;
+  fillRectA(doorX0 - postW, oy + h - t, postW, t);
+  fillRectA(doorX1, oy + h - t, postW, t);
+  ctx.fillStyle = C.wallTop;
+  const postHi = Math.max(1, Math.round(t * 0.25));
+  fillRectA(doorX0 - postW, oy + h - t, postW, postHi);
+  fillRectA(doorX1, oy + h - t, postW, postHi);
+}
+
+function drawFloor(ox, oy, w, h, scale, accent, floorKind) {
+  const t = TILE * scale;
+  const ix = ox + t, iy = oy + t, iw = w - 2 * t, ih = h - 2 * t;
+  ctx.fillStyle = C.floorWood;
+  fillRectA(ix, iy, iw, ih);
+  ctx.strokeStyle = 'rgba(0,0,0,.4)';
+  ctx.lineWidth = 1;
+  for (let ly = 4 * scale; ly < ih; ly += 4 * scale) {
+    ctx.beginPath();
+    ctx.moveTo(ix, iy + ly + 0.5);
+    ctx.lineTo(ix + iw, iy + ly + 0.5);
+    ctx.stroke();
+  }
+  if (floorKind === 'tile') {   // 타일 방: 세로선도 그어 격자로
+    for (let lx = 4 * scale; lx < iw; lx += 4 * scale) {
+      ctx.beginPath();
+      ctx.moveTo(ix + lx + 0.5, iy);
+      ctx.lineTo(ix + lx + 0.5, iy + ih);
+      ctx.stroke();
+    }
+  }
+  ctx.save();
+  ctx.globalAlpha = 0.55;   // 30% 였을 땐 나무바닥 갈색이 너무 강하게 남아 방 색이 다 갈색으로 뭉쳐 보였다
+  ctx.fillStyle = accent;
+  fillRectA(ix, iy, iw, ih);
+  ctx.restore();
+  // defect5: 걸레받이 — 벽과 바닥이 만나는 자리에 2px 짙은 선. 이게 없으면 벽과
+  // 바닥이 그냥 맞닿아 뜬 것처럼 보인다.
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  const bb = Math.max(1, Math.round(scale * 0.35));
+  fillRectA(ix, iy, iw, bb);
+  fillRectA(ix, iy + ih - bb, iw, bb);
+  fillRectA(ix, iy, bb, ih);
+  fillRectA(ix + iw - bb, iy, bb, ih);
+}
+
+// 개방 구역에 깔린 러그: 바닥 틴트보다 톤이 살짝 다른 사각형.
+// A3(iter6): 일꾼이 이제 실내 아래 절반(개방 바닥, SLOT_ROWS_Y 참고)에 서므로 러그도
+// 그 자리 밑으로 옮겼다 — 예전엔 책상 쪽까지 걸쳐 있어 "서 있는 자리"와 안 맞았다.
+function drawRug(ix, iy, iw, ih, scale) {
+  const P = TILE * scale;
+  const rx = ix + 1.0 * P, ry = iy + 2.3 * P;
+  const rw = iw - 2.0 * P, rh = ih - 2.6 * P;
+  if (rw <= 0 || rh <= 0) return;
+  // roundRect 가 이제 자체적으로 양쪽 경계를 반올림하므로(edges) 여기서 미리
+  // Math.round 할 필요가 없다 — 폭/높이를 따로 반올림하면 오히려 그 정합이 깨진다.
+  ctx.save();
+  ctx.globalAlpha = 0.20;
+  ctx.fillStyle = '#120f0c';
+  roundRect(rx, ry, rw, rh, 3 * scale);
+  ctx.fill();
+  ctx.restore();
+  // defect5: 이중톤 인셋 테두리 — 바깥은 짙게, 안쪽은 한 단 밝게 띄워서 러그
+  // 가장자리가 그냥 평평한 사각형이 아니라 짜여진 테두리로 보이게 한다.
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.strokeStyle = '#0b0908';
+  ctx.lineWidth = Math.max(1, Math.round(scale * 0.7));
+  roundRect(rx, ry, rw, rh, 3 * scale);
+  ctx.stroke();
+  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = C.tagText;
+  ctx.lineWidth = Math.max(1, Math.round(scale * 0.5));
+  const inset = Math.max(2, Math.round(scale * 1.2));
+  if (rw - 2 * inset > 0 && rh - 2 * inset > 0) {
+    roundRect(rx + inset, ry + inset, rw - 2 * inset, rh - 2 * inset, 2 * scale);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+
+// 상단 벽면에 붙인 게시판/스크린: 옅은 색 사각형 + 짙은 테두리.
+function drawWallBoard(cx, cy, scale) {
+  const w = 11 * scale, h = 7 * scale;
+  const x = Math.round(cx - w / 2), y = Math.round(cy - h / 2);
+  const fx = x - scale, fy = y - scale, fw = w + 2 * scale, fh = h + 2 * scale;
+  propShadow(fx, fy, fw, fh, scale);
+  ctx.fillStyle = C.wallDark;
+  fillRectA(fx, fy, fw, fh);
+  ctx.fillStyle = C.boardPale;
+  fillRectA(x, y, w, h);
+  propOutline(fx, fy, fw, fh, scale);
+}
+
+// 역할별 가구 한 점: 각 방을 서로 다르게 보이게 하는 요소.
+function drawRoleFurniture(role, x, y, w, h, scale, wood, flash) {
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  wood = wood || { edge: C.deskEdge, chair: C.chair, top: C.deskTop };
+  propShadow(x, y, w, h, scale);
+  switch (role) {
+    case 'plan':   // 화이트보드(스탠드형)
+      ctx.fillStyle = wood.edge;
+      fillRectA(x + w * 0.15, y + h * 0.7, w * 0.08, h * 0.3);
+      fillRectA(x + w * 0.77, y + h * 0.7, w * 0.08, h * 0.3);
+      ctx.fillStyle = C.wallDark;
+      fillRectA(x, y, w, h * 0.75);
+      ctx.fillStyle = C.boardPale;
+      fillRectA(x + scale, y + scale, w - 2 * scale, h * 0.75 - 2 * scale);
+      break;
+    case 'design':   // 이젤
+      ctx.strokeStyle = wood.edge;
+      ctx.lineWidth = Math.max(1, scale);
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.5, y + h); ctx.lineTo(x + w * 0.2, y + h * 0.3);
+      ctx.moveTo(x + w * 0.5, y + h); ctx.lineTo(x + w * 0.8, y + h * 0.3);
+      ctx.stroke();
+      ctx.fillStyle = C.boardPale;
+      fillRectA(x + w * 0.15, y, w * 0.7, h * 0.55);
+      ctx.fillStyle = C.wallDark;
+      fillRectA(x + w * 0.15, y, w * 0.7, Math.max(1, scale));
+      break;
+    case 'research':   // 책장
+      ctx.fillStyle = wood.edge;
+      fillRectA(x, y, w, h);
+      ctx.fillStyle = C.wallDark;
+      for (let ly = h * 0.33; ly < h; ly += h * 0.33) {
+        fillRectA(x, y + ly, w, Math.max(1, scale * 0.5));
+      }
+      const spineColors = [C.screenOn, C.plantLeaf, '#c9a66b', wood.chair];
+      let bx = x + scale;
+      for (let i = 0; i < 5 && bx < x + w - scale; i++) {
+        ctx.fillStyle = spineColors[i % spineColors.length];
+        fillRectA(bx, y + scale, Math.max(1, scale), h * 0.28);
+        bx += scale * 1.6;
+      }
+      break;
+    case 'meeting':   // 큰 회의 테이블
+      ctx.fillStyle = wood.edge;
+      roundRect(x, y + h * 0.55, w, h * 0.45, 2 * scale);
+      ctx.fill();
+      ctx.fillStyle = wood.top || C.deskTop;
+      roundRect(x, y + h * 0.2, w, h * 0.5, 3 * scale);
+      ctx.fill();
+      break;
+    case 'frontend':   // 듀얼 모니터
+      drawMonitor(x + w * 0.28, y + h * 0.85, scale * 0.75, true, flash);
+      drawMonitor(x + w * 0.72, y + h * 0.85, scale * 0.75, true, flash);
+      break;
+    case 'backend':
+    case 'infra': {   // 서버랙
+      ctx.fillStyle = C.wallDark;
+      fillRectA(x, y, w, h);
+      const ledColors = [C.plantLeaf, C.screenOn, '#e2b45a'];
+      for (let ly = scale; ly < h - scale; ly += scale * 1.6) {
+        ctx.fillStyle = ledColors[Math.floor(ly / (scale * 1.6)) % ledColors.length];
+        fillRectA(x + w * 0.15, y + ly, Math.max(1, scale * 0.7), Math.max(1, scale * 0.7));
+        ctx.strokeStyle = 'rgba(0,0,0,.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, y + ly - scale * 0.3); ctx.lineTo(x + w, y + ly - scale * 0.3); ctx.stroke();
+      }
+      break;
+    }
+    case 'qa':   // 테스트 벤치
+      ctx.fillStyle = wood.edge;
+      fillRectA(x, y + h * 0.6, w, h * 0.4);
+      ctx.fillStyle = wood.chair;
+      fillRectA(x + w * 0.15, y + h * 0.25, w * 0.22, h * 0.22);
+      ctx.beginPath();
+      ctx.arc(x + w * 0.65, y + h * 0.4, w * 0.16, 0, Math.PI * 2);
+      ctx.fillStyle = C.screenOn;
+      ctx.fill();
+      break;
+    case 'release':   // 서류 캐비닛
+      ctx.fillStyle = wood.chair;
+      fillRectA(x, y, w, h);
+      ctx.fillStyle = C.wallDark;
+      for (let ly = h * 0.3; ly < h; ly += h * 0.3) {
+        fillRectA(x, y + ly, w, Math.max(1, scale * 0.5));
+        fillRectA(x + w * 0.5 - scale * 0.4, y + ly + scale * 0.3, scale * 0.8, scale * 0.5);
+      }
+      break;
+    case 'explore':   // 지도 보드
+      ctx.fillStyle = C.wallDark;
+      fillRectA(x, y, w, h);
+      ctx.fillStyle = C.boardPale;
+      fillRectA(x + scale, y + scale, w - 2 * scale, h - 2 * scale);
+      ctx.strokeStyle = C.plantLeaf;
+      ctx.lineWidth = Math.max(1, scale * 0.6);
+      ctx.setLineDash([scale, scale]);
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.2, y + h * 0.8); ctx.lineTo(x + w * 0.5, y + h * 0.3); ctx.lineTo(x + w * 0.85, y + h * 0.6);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      break;
+  }
+  propOutline(x, y, w, h, scale);
+}
+
+// defect5: 책상 위 잡동사니 한 점 — 머그컵/서류더미/책 중 하나. kind 는 방+책상
+// 자리로 고정해(seed 기반) 매 프레임 그대로 유지한다.
+// --- 방 꾸미기: 왼쪽 벽 수납, 휴지통 ---------------------------------------
+// 화분을 걷어낸 뒤 왼쪽 벽이 통째로 비어 방이 휑했다. 일꾼 슬롯은 실내 x 0.8 부터
+// 시작하므로 그 왼쪽 좁은 칸(0.1~0.75)은 안전하게 가구를 놓을 수 있다.
+const ROOM_UNIT = {
+  plan: 'cabinet', research: 'shelf', design: 'shelf', meeting: 'cooler',
+  explore: 'cabinet', frontend: 'cabinet', backend: 'rack', infra: 'rack',
+  qa: 'cabinet', release: 'cabinet', waiting: 'cooler', done: 'cabinet',
+};
+
+function drawFloorUnit(x, y, w, h, scale, wood, kind, flash) {
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  const rad = Math.max(1, scale * 0.3);
+  propBefore(x, y, w, h, scale, rad);
+  const line = Math.max(1, Math.round(scale * 0.5));
+  if (kind === 'rack') {                      // 서버 랙 — 검은 몸통에 LED 줄
+    ctx.fillStyle = C.wallDark;
+    fillRectA(x, y, w, h);
+    const rows = 5;
+    for (let i = 0; i < rows; i++) {
+      const ry = y + h * (0.12 + i * 0.17);
+      ctx.fillStyle = '#26221d';
+      fillRectA(x + line, ry, w - 2 * line, Math.max(1, h * 0.1));
+      ctx.fillStyle = (i % 2 === 0) ? C.statusActive : C.screenOn;
+      ctx.globalAlpha = flash ? 1 : 0.55;
+      fillRectA(x + w - line * 2.2, ry, Math.max(1, line), Math.max(1, h * 0.1));
+      ctx.globalAlpha = 1;
+    }
+  } else if (kind === 'cooler') {             // 정수기 — 위에 물통
+    ctx.fillStyle = '#cfd8dc';
+    fillRectA(x + w * 0.15, y, w * 0.7, h * 0.34);          // 물통
+    ctx.fillStyle = C.screenOn;
+    ctx.globalAlpha = 0.5;
+    fillRectA(x + w * 0.2, y + h * 0.05, w * 0.6, h * 0.24);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#8e9aa3';
+    fillRectA(x, y + h * 0.34, w, h * 0.66);                // 몸통
+    ctx.fillStyle = C.wallDark;
+    fillRectA(x + w * 0.3, y + h * 0.52, w * 0.4, Math.max(1, h * 0.08));   // 꼭지
+  } else if (kind === 'shelf') {              // 낮은 선반 — 칸마다 물건
+    ctx.fillStyle = wood.edge;
+    fillRectA(x, y, w, h);
+    ctx.fillStyle = C.wallDark;
+    fillRectA(x, y + h * 0.48, w, line);
+    const items = [C.screenOn, '#c9a66b', C.statusWaiting, C.boardPale];
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = items[i % items.length];
+      const iy = y + (i < 2 ? h * 0.12 : h * 0.6);
+      fillRectA(x + line + (i % 2) * w * 0.45, iy, w * 0.32, h * 0.3);
+    }
+  } else {                                    // 서랍장
+    ctx.fillStyle = wood.edge;
+    fillRectA(x, y, w, h);
+    ctx.fillStyle = wood.top;
+    for (let i = 0; i < 3; i++) {
+      const dy = y + h * (0.08 + i * 0.31);
+      fillRectA(x + line, dy, w - 2 * line, h * 0.24);
+      ctx.fillStyle = C.wallDark;
+      fillRectA(x + w * 0.38, dy + h * 0.1, w * 0.24, Math.max(1, line));   // 손잡이
+      ctx.fillStyle = wood.top;
+    }
+  }
+  propAfter(x, y, w, h, scale, rad);
+}
+
+// 휴지통 — 오른쪽 아래 구석, 상자 더미 아래 빈 자리.
+function drawBin(cx, cy, scale) {
+  const w = 3.2 * scale, h = 3.6 * scale;
+  const x = cx - w / 2, y = cy - h;
+  propBefore(x, y, w, h, scale, scale * 0.3);
+  ctx.fillStyle = '#5b6068';
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w * 0.85, y + h); ctx.lineTo(x + w * 0.15, y + h);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#7a818a';
+  fillRectA(x - scale * 0.2, y - scale * 0.5, w + scale * 0.4, Math.max(1, scale * 0.6));
+  propAfter(x, y, w, h, scale, scale * 0.3);
+}
+
+function drawDeskItem(x, y, scale, kind) {
+  if (kind === 0) {          // 머그컵
+    ctx.fillStyle = '#e2b45a';
+    fillRectA(x, y, 2 * scale, 2.2 * scale);
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    fillRectA(x, y + 1.6 * scale, 2 * scale, Math.max(1, scale * 0.4));
+  } else if (kind === 1) {   // 서류 더미
+    ctx.fillStyle = C.boardPale;
+    fillRectA(x, y + 0.7 * scale, 3 * scale, 1.4 * scale);
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    fillRectA(x, y + 0.7 * scale, 3 * scale, Math.max(1, scale * 0.3));
+  } else {                   // 책 한 권, 세워서
+    ctx.fillStyle = C.plantLeaf;
+    fillRectA(x, y, 1.4 * scale, 2.6 * scale);
+    ctx.fillStyle = 'rgba(255,255,255,.22)';
+    fillRectA(x, y, 1.4 * scale, Math.max(1, scale * 0.3));
+  }
+}
+
+// x,y = 책상 좌상단, w = 책상 폭(방 폭에 맞춰 호출부에서 넘긴다). wood = 방별 나무 톤,
+// itemKind = drawDeskItem 에 넘길 소품 종류.
+function drawDesk(x, y, w, scale, wood, itemKind) {
+  const h = TILE * scale;
+  const rad = Math.max(1, Math.round(scale * 0.4));
+  propBefore(x, y, w, h, scale, rad);
+  ctx.fillStyle = wood.top;
+  fillRectA(x, y, w, h * 0.7);
+  ctx.fillStyle = wood.edge;
+  fillRectA(x, y + h * 0.7, w, h * 0.3);
+  drawDeskItem(x + w - Math.max(3.2 * scale, w * 0.24), y + 0.12 * h, scale, itemKind);
+  propAfter(x, y, w, h, scale, rad);
+}
+
+// B: 모니터 "켜짐" 은 이제 정적인 30% 알파가 아니라 천천히 숨쉬듯 밝기가 오간다 —
+// 이게 방의 "일하는 중" 신호이므로 살아있게. cx/cy 로 위상을 살짝 흔들어(자리마다
+// 다른 seed 없이도) 한 방 안 모니터 여럿이 완전히 같은 박자로 깜빡이지 않게 한다.
+// flash(0~1, 생략시 0): 그 방에 이벤트가 막 들어왔을 때 잠깐 더 밝아지는 값 — computeFlash.
+const MONITOR_BREATH_MS = 3200;
+function drawMonitor(cx, cy, scale, on, flash) {
+  flash = flash || 0;
+  const w = 10 * scale, h = 8 * scale;
+  const x = Math.round(cx - w / 2), y = Math.round(cy - h);
+  if (on) {
+    const phase = ((cx * 13 + cy * 7) % 1000) / 1000 * Math.PI * 2;
+    const breathe = 0.5 + 0.5 * Math.sin(performance.now() / MONITOR_BREATH_MS * Math.PI * 2 + phase);
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.85, 0.20 + 0.14 * breathe + 0.42 * flash);
+    ctx.fillStyle = C.screenOn;
+    fillRectA(x - 3, y - 3, w + 6, h + 6);
+    ctx.restore();
+  }
+  propBefore(x, y, w, h, scale, Math.max(1, Math.round(scale * 0.25)));
+  ctx.fillStyle = C.wallDark;
+  fillRectA(x, y, w, h);
+  ctx.fillStyle = on ? C.screenOn : C.screenOff;
+  fillRectA(x + 1, y + 1, w - 2, h - 2);
+  propAfter(x, y, w, h, scale, Math.max(1, Math.round(scale * 0.25)));
+}
+
+// A3(iter6): 낮은 상자 더미 — 개방 바닥 한쪽 구석에 놓는 저밀도 소품. 의자보다도
+// 낮게(둘을 합쳐도 6타일분이 안 되는 높이) 잡아 시야를 안 막는다.
+function drawBoxStack(x, y, scale, wood) {
+  const w1 = 5 * scale, h1 = 3 * scale, w2 = 3.4 * scale, h2 = 2.4 * scale;
+  const totalH = h1 + h2;
+  propBefore(x, y, w1, totalH, scale, Math.max(1, scale * 0.3));
+  ctx.fillStyle = wood ? wood.edge : C.deskEdge;
+  fillRectA(x, y + h2, w1, h1);
+  ctx.fillStyle = wood ? wood.top : C.deskTop;
+  fillRectA(x + (w1 - w2) / 2, y, w2, h2);
+  ctx.strokeStyle = 'rgba(10,8,6,.3)';
+  ctx.lineWidth = Math.max(1, scale * 0.15);
+  ctx.strokeRect(x + 1, y + h2 + 1, w1 - 2, h1 - 2);
+  propAfter(x, y, w1, totalH, scale, Math.max(1, scale * 0.3));
+}
+
+function drawChair(cx, cy, scale, wood) {
+  const s = 8 * scale, rad = s * 0.3;
+  const x = cx - s / 2, y = cy - s / 2;
+  propBefore(x, y, s, s, scale, rad);
+  ctx.fillStyle = wood ? wood.chair : C.chair;
+  roundRect(x, y, s, s, rad);
+  ctx.fill();
+  propAfter(x, y, s, s, scale, rad);
+}
+
+
+function drawSign(ox, oy, w, h, scale, label) {
+  const t = TILE * scale;
+  // 글자 크기를 scale 에 그대로 곱하지 않는다 — 작은 캔버스에서 몇 픽셀로
+  // 찌부러져 못 읽는 걸 막는 하한(10px)을 둔다. 그래도 방 폭을 넘으면
+  // 글자를 더 줄이는 대신(가독성이 우선) 라벨 자체를 fitText 로 줄인다.
+  const fontPx = Math.max(10 * dpr, 7 * scale);   // 10px 하한도 CSS px 기준 — dpr 곱해야 실제로 10px 유지된다
+  ctx.font = `${fontPx}px ui-monospace,monospace`;
+  const padX = 6 * scale, padY = 3 * scale;
+  const maxTextW = Math.max(0, w - 4 * scale - padX * 2);
+  label = fitText(label, maxTextW);
+  const tw = ctx.measureText(label).width;
+  const sw = tw + padX * 2, sh = fontPx + padY * 2;
+  // 방 안(출입구 바로 위)이 아니라 출입구 자체에 건다 — 아래 문처럼 보이는 자리다.
+  // 알약 중심을 문 한가운데에 두면 방 안쪽 바닥이 통째로 비어 사람 설 자리가
+  // 넓어지고, 간판도 방마다 같은 높이에 줄을 선다.
+  const scx = ox + w / 2, scy = oy + h - t / 2;   // 출입구 한가운데
+  ctx.fillStyle = C.wallDark;
+  roundRect(scx - sw / 2 - 1, scy - sh / 2 - 1, sw + 2, sh + 2, 3 * scale);
+  ctx.fill();
+  ctx.fillStyle = C.tagBg;
+  roundRect(scx - sw / 2, scy - sh / 2, sw, sh, 3 * scale);
+  ctx.fill();
+  ctx.fillStyle = C.tagText;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, scx, scy + 1);
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawRoom(room, hasActive) {
+  const scale = layout.scale, P = TILE * scale, t = P;
+  const ox = layout.offsetX + room.gx * P, oy = layout.offsetY + room.gy * P;
+  const w = ROOM_W * P, h = ROOM_H * P;
+  const flash = computeFlash(room.role);
+
+  drawWalls(ox, oy, w, h, scale);
+  drawFloor(ox, oy, w, h, scale, room.accent, room.floor);
+
+  const ix = ox + t, iy = oy + t;
+  const iw = (ROOM_W - 2) * P, ih = (ROOM_H - 2) * P;
+
+  drawRug(ix, iy, iw, ih, scale);
+
+  // 상단 벽면 게시판 2개 — 높이를 서로 다르게 띄워 "다 일렬" 로 안 보이게 한다 (defect5)
+  drawWallBoard(ix + 0.5 * P, oy + t * 0.34, scale);
+  drawWallBoard(ix + iw - 0.5 * P, oy + t * 0.62, scale);
+
+  const seed = room.seed !== undefined ? room.seed : hashSeed(room.role);
+  const wood = room.wood || woodTone(seed);
+  const item1 = seed % 3, item2 = (seed >> 2) % 3;
+
+  // defect5: 뒷벽 책상 둘을 틈을 두고 따로 놓는다 — 예전엔 한 판(plank)처럼 붙어
+  // 있었다. 각자 모니터+의자+소품 한 점을 갖는다. 방 실내가 5x4 타일로 좁아진 만큼
+  // (defect1/2) 책상도 그 폭에 맞춰 작게 잡는다.
+  const deskW = 1.3 * P;
+  drawDesk(ix + 1.0 * P, iy, deskW, scale, wood, item1);
+  drawMonitor(ix + 1.65 * P, iy, scale, hasActive, flash);
+  drawChair(ix + 1.65 * P, iy + 1.5 * P, scale, wood);
+  drawDesk(ix + 2.6 * P, iy, deskW, scale, wood, item2);
+  drawMonitor(ix + 3.25 * P, iy, scale, hasActive, flash);
+  drawChair(ix + 3.25 * P, iy + 1.5 * P, scale, wood);
+
+
+  // 오른쪽 벽 쪽, 책상 옆 빈자리에 역할별 가구 한 점
+  drawRoleFurniture(room.role, ix + iw - 1.0 * P, iy + 0.05 * P, 0.85 * P, 1.05 * P, scale, wood, flash);
+
+
+  // A3(iter6): 아래 절반(개방 바닥)이 허전해 보이지 않게 낮은 소품 둘을 더한다 —
+  // 일꾼이 서는 밴드(SLOT_ROWS_Y)와 기존 소품을 다 피해서 자리를 잡았다.
+  // 오른쪽 벽 구석, 역할 가구 아래 빈 틈에 상자 더미.
+  drawBoxStack(ix + iw - 0.6 * P, iy + 1.9 * P, scale * 0.9, wood);
+
+  // 왼쪽 벽 — 일꾼 슬롯이 x 0.8 부터라 여기는 늘 비어 있다. 방 성격에 맞는 수납을 둔다.
+  drawFloorUnit(ix + 0.1 * P, iy + ih - 2.1 * P, 0.65 * P, 1.9 * P, scale, wood,
+                ROOM_UNIT[room.role] || 'cabinet', flash);
+  // 오른쪽 아래 구석 휴지통.
+  drawBin(ix + iw - 0.35 * P, iy + ih - 0.25 * P, scale * 0.9);
+
+}
+
+// 방 하나의 화면 좌표. drawRoom / drawDoor / drawSign 이 같은 계산을 세 번 하지
+// 않도록 한 군데로 모았다.
+function roomRect(room) {
+  const scale = layout.scale, P = TILE * scale;
+  return {
+    ox: layout.offsetX + room.gx * P, oy: layout.offsetY + room.gy * P,
+    w: ROOM_W * P, h: ROOM_H * P, scale,
+  };
+}
+
+function drawCorridor() {
+  ctx.fillStyle = C.corridor;
+  fillRectA(0, 0, cv.width, cv.height);
+  const P = TILE * layout.scale, step = 4 * P;
+  ctx.strokeStyle = C.corridorLine;
+  ctx.lineWidth = 1;
+  for (let x = 0; x < cv.width; x += step) {
+    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, cv.height); ctx.stroke();
+  }
+  for (let y = 0; y < cv.height; y += step) {
+    ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(cv.width, y + 0.5); ctx.stroke();
+  }
+}
+
+// --- 작업자(캐릭터) ---------------------------------------------------------
+// dungeon 시트에서 사람으로 읽히는 칸만 골랐다(상자·검·물약·박쥐·거미는 뺐다).
+// 예전엔 진입점(cli/vscode/desktop)으로 3종만 썼는데, 화면에 늘 같은 둘만 보였다 —
+// 진입점은 어차피 화면 어디에도 설명이 없어서 세션마다 다른 얼굴을 주는 편이 낫다.
+const CHARS = [84, 85, 86, 87, 88, 96, 97, 98, 99, 100, 109, 111, 112, 121];
+function charFor(key) { return CHARS[hashSeed(key) % CHARS.length]; }
+const avatars = {};   // "proj|sid[:sub]" -> {x,y,tx,ty,face,idx,proj,sid,role}
+const roomFlashAt = {};   // role -> performance.now(), 그 방에 이벤트가 막 들어온 시각 (모니터 플래시용)
+
+// --- iter7: 캐릭터 애니메이션 상수 ------------------------------------------
+// 스프라이트가 프레임 하나뿐이라(walk cycle 없음) 전부 transform 으로만 만든다.
+// 픽셀 단위(BREATH_PX 등)로 진폭을 잡는 건 layout.scale(정수, 줌 배율)이 바뀌어도
+// "화면상 몇 픽셀 흔들리는가"가 그대로이게 하려는 것 — 비율로 잡으면 확대할수록
+// 캐릭터가 더 심하게 출렁인다.
+const BREATH_PERIOD_MS = 2000, BREATH_PX = 1.5;      // 항상 도는 숨쉬기
+const SQUASH_MS = 200, SQUASH_PX = 4;                // 도착 스쿼시
+const BOB_MS = 550, BOB_CYCLES = 3.5, BOB_PX = 3;    // 타이핑(이벤트) bob
+const LEAN_MAX = 0.045;                              // 걷기 중 진행방향 기울임, 라디안(~2.6도)
+// 상태마다 다른 동작. 전부 코드로만 만든다(시트에 걷기·동작 프레임이 없다).
+const WAIT_PING_MS = 5200;                           // 응답 대기: 주기적으로 '!' 를 띄운다
+const GLANCE_MS = 1900;                              // 응답 대기: 좌우로 두리번거리는 반주기
+const STRETCH_EVERY_MS = 9000, STRETCH_MS = 900, STRETCH_PX = 3;   // 작업 중: 가끔 기지개
+
+// 방(= 지금 하는 일)마다 가만히 있을 때의 몸짓이 다르다. Kenney 시트에는 동작
+// 프레임이 한 장뿐이라 전부 위치·방향 변형으로만 만든다.
+//   sway  좌우로 흔들 진폭(px)      nod   주기적으로 짧게 까딱(ms 주기)
+//   hop   가끔 폴짝(ms 주기)        glance 좌우로 고개 돌리는 반주기(ms)
+//   think 가끔 '…' 말풍선(ms 주기)  faceCenter 방 가운데를 본다
+const IDLE = {
+  plan:     { emote: 7000, sway: 1.0 },          // 고민한다
+  research: { emote: 6200, glance: 2800 },       // 뒤적이며 두리번
+  design:   { emote: 7600, sway: 2.4 },          // 리듬 타듯
+  meeting:  { emote: 5400, nod: 2400, faceCenter: true },  // 서로 보고 끄덕인다
+  explore:  { emote: 6800, glance: 1400 },       // 뭘 찾는 중이다
+  frontend: { emote: 7200, nod: 1700 },          // 타이핑하듯 까딱
+  backend:  { emote: 7200, nod: 1500 },
+  infra:    { emote: 7000, nod: 2100, sway: 1.2 },
+  qa:       { emote: 6000, nod: 1100 },          // 빠르게 확인하듯
+  release:  { emote: 6600, hop: 5200 },          // 가끔 폴짝
+  waiting:  { emote: WAIT_PING_MS, glance: GLANCE_MS, sway: 1.6 },   // 사람을 찾는다
+  done:     { emote: 14000 },                    // 끝났다 — 아주 가끔 😴 만
+};
+const NOD_MS = 260, NOD_PX = 2, HOP_MS = 420, HOP_PX = 5, SWAY_PERIOD_MS = 1400;
+
+// --- 제스처: 버튼을 켜고 캐릭터를 클릭한다 -------------------------------
+// 때리기는 '채찍질하면 더 빨리 일한다' 밈을 그대로 옮긴 건데, 이 앱은 트랜스크립트를
+// 읽기만 하고 돌아가는 세션에 뭘 보낼 통로가 없다 — 그래서 진짜로 빨라지지는 않고
+// 잠깐 바쁘게 움직이는 연출만 한다. 버튼 title 에도 그렇게 적어 뒀다.
+const REACT_MS = 700, HASTE_MS = 8000, HASTE_K = 2.2;
+// 계속 때리면 아파하다가 -> 화나다가 -> 악마가 된다. 한동안 안 때리면 풀리고,
+// 쓰다듬으면 바로 풀린다.
+const MOOD_DECAY_MS = 25000;
+// 양 끝을 대칭으로 둔다 — 계속 때리면 악마까지, 계속 쓰다듬으면 천사까지 간다.
+const HIT_FACES = ['😵', '😣', '😠', '😡', '👿', '😈'];
+const PET_FACES = ['😊', '😄', '🥰', '😍', '🤩', '😇'];
+// 한 번 때릴 때마다 표정이 바뀌면 너무 빨리 악마까지 간다 — 단계당 이만큼씩 필요하다.
+const MOOD_STAGE_HITS = 5;
+let gesture = null;
+
+const stageIdx = (count, faces) => Math.min(Math.floor(((count || 1) - 1) / MOOD_STAGE_HITS), faces.length - 1);
+const stageFace = (faces, count) => faces[stageIdx(count, faces)];
+
+// 때리는 쪽과 쓰다듬는 쪽이 대칭이다 — 계속 때리면 화가 올라가고, 계속 쓰다듬으면
+// 기분이 올라간다. 반대 행동을 하면 상대쪽 누계는 0 으로 내려간다.
+function applyGesture(a, kind) {
+  armGestureTimeout();          // 쓸 때마다 10초를 다시 센다
+  const now = performance.now();
+  a.reactStart = now; a.reactKind = kind;
+  if (kind === 'hit') {
+    if (!a.moodAt || now - a.moodAt > MOOD_DECAY_MS) a.hitCount = 0;
+    a.hitCount = (a.hitCount || 0) + 1;
+    a.petCount = 0;
+    a.moodAt = now;
+    a.reactFace = stageFace(HIT_FACES, a.hitCount);
+    a.hasteUntil = now + HASTE_MS;
+    spawnPuff(a.x, a.y, stageIdx(a.hitCount, HIT_FACES) >= 1 ? '#ff6b5a' : '#ffd76e');
+  } else {
+    if (!a.moodAt || now - a.moodAt > MOOD_DECAY_MS) a.petCount = 0;
+    a.petCount = (a.petCount || 0) + 1;
+    a.hitCount = 0;
+    a.moodAt = now;
+    a.reactFace = stageFace(PET_FACES, a.petCount);
+    spawnPuff(a.x, a.y, stageIdx(a.petCount, PET_FACES) >= 1 ? '#ffa6d6' : '#ff9db1');
+  }
+}
+
+// 지금 기분. 없으면 null — 그때는 방·상태 표정으로 돌아간다.
+// 1단계(=처음 10번)까지는 반응할 때만 표정이 뜨고, 2단계부터는 가만히 있을 때도
+// 그 표정을 유지한다 — 그때부터가 "화났다 / 기분 좋다" 로 읽히는 구간이다.
+function moodFace(a, now) {
+  if (!a.moodAt || now - a.moodAt > MOOD_DECAY_MS) return null;
+  if (stageIdx(a.hitCount, HIT_FACES) >= 1) return stageFace(HIT_FACES, a.hitCount);
+  if (stageIdx(a.petCount, PET_FACES) >= 1) return stageFace(PET_FACES, a.petCount);
+  return null;
+}
+
+// 켜 둔 채 잊어버리면 다음 클릭이 엉뚱하게 액션으로 나간다(더블클릭 이동도 막힌다).
+// 7초 동안 아무 데도 안 쓰면 스스로 꺼진다.
+const GESTURE_IDLE_MS = 7000;
+let gestureTimer = null;
+function armGestureTimeout() {
+  clearTimeout(gestureTimer);
+  if (gesture) gestureTimer = setTimeout(() => setGesture(null), GESTURE_IDLE_MS);
+}
+
+function setGesture(next) {
+  gesture = next;
+  for (const el of document.getElementById('gestures').children) {
+    el.classList.toggle('on', el.dataset.g === gesture);
+  }
+  cv.style.cursor = gesture ? 'pointer' : 'grab';
+  armGestureTimeout();
+}
+
+function idleMotion(a, now, seed, scale, k) {
+  const spec = IDLE[a.role] || {};
+  k = k || 1;   // 가속 중이면 주기를 나눠 더 바쁘게 움직인다
+  const m = { dx: 0, dy: 0, face: null, glyph: null };
+  if (spec.sway) m.dx = Math.sin((now + seed) / (SWAY_PERIOD_MS / k)) * spec.sway * scale;
+  if (spec.nod) {
+    const t = (now + seed) % (spec.nod / k);
+    if (t < NOD_MS) m.dy = Math.sin((t / NOD_MS) * Math.PI) * NOD_PX * scale;
+  }
+  if (spec.hop) {
+    const t = (now + seed) % (spec.hop / k);
+    if (t < HOP_MS) m.dy = Math.sin((t / HOP_MS) * Math.PI) * HOP_PX * scale;
+  }
+  if (spec.glance) m.face = (((now + seed) % (spec.glance * 2 / k)) < spec.glance / k) ? 1 : -1;
+  if (spec.faceCenter) {
+    const room = ROOM_BY_ROLE[a.role];
+    if (room) m.face = a.x < room.gx + 1 + (ROOM_W - 2) / 2 ? 1 : -1;
+  }
+  if (spec.emote && ((now + seed) % spec.emote) < EMOTE_MS) m.glyph = true;   // 어떤 표정인지는 호출부가 정한다
+  return m;
+}
+const EMOTE_MS = 1500, EMOTE_FADE_MS = 400;          // 말풍선 수명
+const FLASH_MS = 350;                                // 모니터 플래시 지속시간
+
+function computeFlash(role) {
+  const at = roomFlashAt[role];
+  if (at === undefined) return 0;
+  const t = performance.now() - at;
+  if (t < 0 || t > FLASH_MS) return 0;
+  return 1 - t / FLASH_MS;
+}
+
+// t01 in [0,1) — 도착 스쿼시 곡선: 착지 순간 확 눌렸다가(1) 살짝 반동을 남기고(작은
+// 2차 진동) 0으로 잦아든다. exp 감쇠 곡선이라 "스프링" 느낌을 tween 라이브러리 없이 낸다.
+function squashCurve(t01) {
+  return Math.exp(-t01 * 4) * Math.cos(t01 * Math.PI * 2.2);
+}
+
+// 이벤트 하나가 어떤 종류인지 -> 말풍선에 그릴 아이콘 종류. 서버가 보내는 필드
+// (name·label) 만 본다 — 새로 뭘 가져오지 않는다(프라이버시 제약 그대로).
+// 툴 이벤트가 올 때 머리 위에 뜨는 표정. 예전엔 벡터로 '>_' 같은 아이콘을 그렸는데
+// 이모지 표정으로 통일한 뒤로는 그것만 튀어 보였다.
+const TOOL_EMOJI = {
+  Edit: '✏️', Write: '✏️', NotebookEdit: '✏️',
+  Read: '📖', Grep: '🔎', Glob: '🔎',
+  Bash: '💻', WebSearch: '🌐', WebFetch: '🌐',
+  Agent: '✨', Task: '✨',
+  TodoWrite: '📋', AskUserQuestion: '🙋',
+};
+function glyphFor(name, label) {
+  if (name === 'Bash' && /^git(\s|$)/.test(label || '')) return '🔀';
+  if (typeof name === 'string' && name.startsWith('mcp__')) return '🔌';
+  return TOOL_EMOJI[name] || '🧩';
+}
+
+// --- iter7: 파티션(먼지 퍼프) — 스폰/디스폰 연출, 개수 상한 -----------------------
+// 이벤트 폭주(스톰)에도 무한정 안 늘어나게 총량을 캡 걸고, 넘치면 가장 오래된 것부터
+// 버린다. 좌표는 타일 단위로 저장해두고 그릴 때마다 현재 layout(줌/팬)으로 다시
+// 투영한다 — 퍼프가 떠 있는 짧은 동안에도 카메라가 움직이면 같이 움직여야 하니까.
+const MAX_PARTICLES = 60;
+const particles = [];
+function spawnPuff(tx, ty, color) {
+  const now = performance.now();
+  for (let i = 0; i < 4; i++) particles.push({ tx, ty, i, n: 4, start: now, dur: 420, color });
+  while (particles.length > MAX_PARTICLES) particles.shift();
+}
+function drawParticles() {
+  const scale = layout.scale, P = TILE * scale;
+  const now = performance.now();
+  for (let idx = particles.length - 1; idx >= 0; idx--) {
+    const p = particles[idx];
+    const t = now - p.start;
+    if (t > p.dur) { particles.splice(idx, 1); continue; }
+    const cx = layout.offsetX + (p.tx + 0.5) * P, cy = layout.offsetY + (p.ty + 0.5) * P;
+    // 화면(뷰포트) 밖이면 그리지 않는다 — 팬/줌 이후에도 살아있는 파티클이 쌓여도 비용 없게.
+    if (cx < -24 || cx > cv.width + 24 || cy < -24 || cy > cv.height + 24) continue;
+    const f = t / p.dur;
+    const angle = (p.i / p.n) * Math.PI * 2;
+    const dist = f * 6 * scale;
+    const px = cx + Math.cos(angle) * dist, py = cy + Math.sin(angle) * dist * 0.6;
+    const r = Math.max(1, (1 - f) * 2.2 * scale);
+    ctx.save();
+    ctx.globalAlpha = (1 - f) * 0.55;
+    ctx.fillStyle = p.color || '#e8ddc8';
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+const state = {
+  sessionInfo: {},     // "proj|sid" -> {entry, active, title}
+  ticker: [],
+};
+
+function avatarKey(ev) { return `${ev.proj}|${ev.sid}${ev.sub ? ':sub' : ''}`; }
+
+// 방 안 개방구역: 실내 상대좌표(타일), 2열까지.
+// A1(iter6): 예전엔 이 슬롯들이 실내 상단 절반(책상 바로 아래)에 있어서 명찰이 책상·
+// 모니터 줄을 덮었다. ROOM_H 가 7(실내 높이 5타일: 0~5, 0이 책상 줄)로 커진 지금,
+// 일꾼은 아예 아래 절반(개방 바닥)에 세우고 명찰은 그 머리 위 살짝에만 뜬다 — 책상
+// 구역(의자 바닥 ~1.75)과는 최소 0.25타일 이상 떨어지게 잡았다(DESK_CLEAR 로 재확인).
+const SLOTS_PER_ROW = 4;
+const SLOT_X0 = 0.8, SLOT_X1 = (ROOM_W - 2) - 0.8;
+const SLOT_DX = (SLOT_X1 - SLOT_X0) / (SLOTS_PER_ROW - 1);
+const SLOT_ROWS_Y = [2.7, 3.6];   // ROOM_H 7 (실내 높이 5타일) 기준 — 개방 바닥, 출입구 위
+const COL_STAGGER = 0.3;         // 홀수 열은 살짝 더 아래로 — 명찰을 굳이 위로 안 밀어도(책상 쪽으로 안 가도) 옆 명찰과 높이가 갈린다
+const DESK_CLEAR = 1.9;          // 이 타일 y 위로는(책상·모니터·의자 구역) 명찰이 절대 못 들어간다 — drawWorker 클램프
+// 출입구(문) 바로 위까지 — 이 아래로는 안 세운다. 실내 높이 5타일(0~5) 기준 여유 0.3.
+const SLOT_Y_BOTTOM = (ROOM_H - 2) - 0.3;
+
+// 버그: row 를 SLOT_ROWS_Y.length-1(=1)로 클램프하면 9번째부터는 col 만 돌고 row 는
+// 그대로라, i 가 SLOTS_PER_ROW 만큼 차이 나는 두 사람(예: 5번째·9번째)이 같은
+// (row,col) → 같은 좌표에 겹쳐 선다. 고정 2줄 대신, 필요한 줄 수만큼 동적으로 만들고
+// 그 줄들을 DESK_CLEAR~SLOT_Y_BOTTOM 밴드 안에 균등하게 눌러 담는다 — 인원이 많아지면
+// 줄 간격이 좁아질 뿐(cheap fix: "간격을 줄인다" 쪽을 택했다), 좌표가 겹치는 일은 없다.
+function slotRowY(row, rows) {
+  if (rows <= SLOT_ROWS_Y.length) return SLOT_ROWS_Y[Math.min(row, SLOT_ROWS_Y.length - 1)];
+  const gap = (SLOT_Y_BOTTOM - SLOT_ROWS_Y[0]) / (rows - 1);
+  return SLOT_ROWS_Y[0] + row * gap;
+}
+
+// --- 배회: 방 바닥 안에서만 왔다 갔다 -------------------------------------
+// 슬롯에 붙박이로 서 있으면 방이 정물화로 보인다. 자기 슬롯 주변으로 목적지만 다시
+// 잡아 주면 이동 연출(bounce·lean·도착 스쿼시)은 이미 있는 걸 그대로 탄다 — 새로
+// 그리는 코드가 없다.
+// 롤백: WANDER 를 false 로 두면 예전처럼 슬롯에 붙박이로 선다(이 기능 전체가 꺼진다).
+const WANDER = true;
+const WANDER_PAUSE = [4500, 13000];   // 한 번 걷고 다음까지 서 있는 시간(ms)
+const WANDER_TRIP = 2.2;             // 한 번에 갈 수 있는 최대 거리(타일) — 덩치로 나눈다
+const WANDER_MIN = 0.5;              // 이보다 짧은 목적지가 나오면 곧 다시 뽑는다(타일)
+const WALK_SPEED = 0.75;             // 방 안을 어슬렁거리는 속도(타일/초) — 등속이다
+const WALK_ROOM_SPEED = 4.0;         // 다른 방으로 옮겨 갈 때의 속도(타일/초)
+const WALK_MAX_S = 0.8;              // 아무리 멀어도 이 시간 안에는 도착한다(초)
+                                     // — 예전 lerp(0.14) 가 맵을 가로지르던 시간이 이만큼이다
+const WALK_BOB_MS = 700, WALK_BOB_PX = 1;   // 걷는 동안 위아래로 흔들리는 주기(ms)·폭(px)
+const CRAMP_MUL = 1.5;               // 스프라이트가 이 배 이상이면 "이 방은 좁다"
+const CRAMP_FACES = ['\u{1F605}', '\u{1F616}', '\u{1F975}', '\u{1FAE0}', '\u{1F62E}\u{200D}\u{1F4A8}'];
+
+// 발이 밟아도 되는 바닥. 실내는 벽 안쪽(gx+1..gx+ROOM_W-1 / gy+1..gy+ROOM_H-1)이고
+// 위쪽 DESK_CLEAR 는 책상·의자 구역이라 뺀다. a.x/a.y 는 스프라이트 칸의 왼쪽 위라
+// 가로 중심은 a.x+0.5, 발은 a.y+1 이다 — 덩치(h 타일)만큼 벽에서 더 떨어뜨리고,
+// 덩치가 크면 머리도 그만큼 위로 크므로 윗벽에서도 더 내려온다.
+function wanderBox(a, h) {
+  const room = ROOM_BY_ROLE[a.role];
+  if (!room) return null;
+  const x0 = room.gx + 0.5 + h / 2, x1 = room.gx + ROOM_W - 1.5 - h / 2;
+  const y0 = room.gy + Math.max(DESK_CLEAR, h), y1 = room.gy + ROOM_H - 2.2;
+  return (x1 < x0 || y1 < y0) ? null : { x0, x1, y0, y1 };
+}
+
+function isCramped(a) { return tokenSizeMul(tokensOf(a)) >= CRAMP_MUL; }
+const isMoving = (a) => Math.abs(a.tx - a.x) > 0.02 || Math.abs(a.ty - a.y) > 0.02;
+
+// 걷는 동안 몸이 위아래로 조금 흔들린다. 시트에 걷기 프레임이 한 장뿐이라 이게
+// 유일한 걷기 신호다 — 없으면 미끄러지듯 보인다.
+// 예전엔 abs(sin) 으로 튀어 올랐는데(뜀뛰기 아치) 그건 걷는 게 아니라 점프로 읽혔다.
+// 그냥 사인파를 아주 얕게 쓴다. 남은 거리가 줄면 진폭도 같이 죽어 부드럽게 서고,
+// 사람마다 위상을 흔들어 전원이 같은 박자로 흔들리지 않게 한다.
+function walkBob(a, now) {
+  if (!isMoving(a)) return 0;
+  const rest = Math.hypot(a.tx - a.x, a.ty - a.y);
+  return Math.sin((now + hashSeed(a.key)) / WALK_BOB_MS * Math.PI * 2)
+       * WALK_BOB_PX * layout.scale * Math.min(1, rest / 0.7);
+}
+
+// 다음 목적지. 방 전체를 도는 게 아니라 자기 슬롯 주변만 — 그래야 옆사람 자리를
+// 침범하지 않고 명찰도 덜 엉킨다. 덩치가 클수록 반경이 좁아(WANDER_R / h) 큰 애는
+// 몇 발짝 못 가고 벽에 막힌다 — 그게 "좁아서 불편하다"의 재료다.
+function pickWander(a, now) {
+  a.strolling = true;          // 산책이다 — 느린 속도로 간다(방 이동은 layoutRoomOccupants 가 잡는다)
+  a.wanderAt = now + WANDER_PAUSE[0] + Math.random() * (WANDER_PAUSE[1] - WANDER_PAUSE[0]);
+  const h = tokenSizeMul(tokensOf(a));
+  const box = wanderBox(a, h);
+  if (!box) { a.tx = a.homeX; a.ty = a.homeY; return; }
+  // 바닥 전체를 쓴다 — 슬롯은 이제 처음 서는 자리이자 방을 옮길 때 돌아갈 자리일 뿐이다.
+  // 후보를 셋 뽑아 그중 제일 먼 데로 간다: 하나만 균등하게 뽑으면 자주 발밑이 걸려
+  // 찔끔거리고, 각도로 방향을 정하면(예전 방식) 결국 좌우로만 걷는다.
+  let bx = a.x, by = a.y, far = -1;
+  for (let i = 0; i < 3; i++) {
+    const cx = box.x0 + Math.random() * (box.x1 - box.x0);
+    const cy = box.y0 + Math.random() * (box.y1 - box.y0);
+    const d = Math.hypot(cx - a.x, cy - a.y);
+    if (d > far) { far = d; bx = cx; by = cy; }
+  }
+  // 한 번에 가는 거리를 잘라 천천히 조금씩 옮겨 다니게 한다. 덩치가 크면 그 거리가
+  // 더 짧다. 상자(wanderBox)는 볼록하고 지금 자리도 그 안이라, 중간 지점으로 당겨도
+  // 바닥 밖으로 나가지 않는다.
+  const k = far > WANDER_TRIP / h ? (WANDER_TRIP / h) / far : 1;
+  a.tx = a.x + (bx - a.x) * k;
+  a.ty = a.y + (by - a.y) * k;
+  // 세로로만 갈 때 좌우 방향이 깜빡이지 않게 죽은 구간을 둔다.
+  if (Math.abs(a.tx - a.x) > 0.15) a.face = a.tx >= a.x ? 1 : -1;
+  // 거의 제자리인 목적지가 나왔으면 곧 다시 뽑는다 — 찔끔 한 발로 안 끝나게.
+  if (far * k < WANDER_MIN) a.wanderAt = now + WANDER_PAUSE[0];
+  // 덩치가 크면 한 번에 갈 수 있는 거리가 반토막이라 늘 끊어 간다 — 도착할 때 가끔
+  // 답답해한다(매번 띄우면 말풍선이 계속 떠 있다). drawWorker 가 그걸 그린다.
+  a.bumped = h >= CRAMP_MUL && Math.random() < 0.25;
+}
+
+// ponytail: 구성원이 바뀔 때마다 방 전체를 다시 정렬한다 — 사람이 들고 날 때
+// 다른 사람도 살짝 자리를 옮길 수 있다. 안정적인 슬롯 유지가 거슬리면 개선.
+function layoutRoomOccupants(role) {
+  const room = ROOM_BY_ROLE[role];
+  if (!room) return;
+  const occupants = Object.keys(avatars).filter(k => avatars[k].role === role).sort().map(k => avatars[k]);
+  // 자리를 사람마다 기억한다. 예전엔 키 정렬 순서로 매번 다시 매겨서, 누가 들어오면
+  // 이미 있던 사람들이 자리를 서로 바꿔 앉았다. 이미 자리가 있으면 그대로 두고,
+  // 새로 온 사람만 비어 있는 가장 앞 번호를 가져간다.
+  const taken = new Set();
+  for (const a of occupants) {
+    if (a.slotIdx === undefined || taken.has(a.slotIdx)) continue;
+    taken.add(a.slotIdx);
+  }
+  for (const a of occupants) {
+    if (a.slotIdx !== undefined && taken.has(a.slotIdx)) continue;
+    let i = 0;
+    while (taken.has(i)) i++;
+    a.slotIdx = i; taken.add(i);
+  }
+  const rows = Math.max(1, Math.ceil(Math.max(...occupants.map(a => a.slotIdx + 1), 0) / SLOTS_PER_ROW));
+  occupants.forEach((a) => {
+    const i = a.slotIdx;
+    const row = Math.floor(i / SLOTS_PER_ROW);
+    const col = i % SLOTS_PER_ROW;
+    // 슬롯을 왼쪽부터 채우지 않고 그 줄에 있는 인원만큼 가운데로 모은다. 예전엔
+    // 혼자 있어도 왼쪽 벽에 붙어 섰는데, 그러면 머리 위 명찰을 '중앙'에 놓을 수
+    // 있는 폭이 방 폭의 40%밖에 안 돼 이름이 심하게 잘렸다. 가운데로 오면 명찰이
+    // 방 폭을 다 쓸 수 있고, 한 명뿐인 방도 덜 허전해 보인다.
+    const inRow = Math.min(occupants.length - row * SLOTS_PER_ROW, SLOTS_PER_ROW);
+    const rowX0 = SLOT_X0 + ((SLOT_X1 - SLOT_X0) - (inRow - 1) * SLOT_DX) / 2;
+    const nx = room.gx + 1 + rowX0 + col * SLOT_DX;
+    // A1: 명찰끼리 안 겹치게 하는 지그재그를 명찰이 아니라 "일꾼 자체"의 y 에 심는다 —
+    // 명찰은 항상 자기 일꾼 머리 바로 위 고정 간격이므로, 일꾼이 갈리면 명찰도 저절로
+    // 갈린다(옛 방식은 명찰만 위로 밀어 올려서 책상 구역을 침범할 수 있었다).
+    const stagger = (col % 2 === 1) ? COL_STAGGER : 0;
+    const ny = room.gy + 1 + slotRowY(row, rows) + stagger;
+    // 배회 중이면 목적지를 뺏지 않는다 — 이 함수는 이벤트가 올 때마다 도는데, 그때마다
+    // 슬롯으로 되돌리면 한 발짝 뗄 때마다 도로 끌려간다. 자리가 바뀐 사람만 다시 보낸다.
+    const moved = a.homeX !== nx || a.homeY !== ny;
+    a.homeX = nx; a.homeY = ny;
+    if (!WANDER || moved) {
+      a.face = nx >= a.tx ? 1 : -1;
+      a.tx = nx; a.ty = ny;
+      a.strolling = false;     // 자리 배치(주로 방 이동)다 — 어슬렁거리지 않고 빠르게 간다
+      a.wanderAt = performance.now() + Math.random() * WANDER_PAUSE[1];
+    }
+    a.slotCol = col;
+  });
+}
+
+function moveAvatar(ev) {
+  const key = avatarKey(ev);
+  let a = avatars[key];
+  const isNew = !a;
+  const prevRole = a ? a.role : null;
+  if (!a) {
+    a = avatars[key] = {
+      x: 0, y: 0, tx: 0, ty: 0, face: 1,
+      idx: ev.sub ? T.charSlime : charFor(key),   // 서브에이전트는 슬라임 고정
+      proj: ev.proj, sid: ev.sid, role: ev.role, key,
+    };
+  }
+  a.workRole = ev.role;         // 업무 구역은 따로 기억한다 — 상태 구역에 가 있어도 돌아올 자리
+  a.proj = ev.proj; a.sid = ev.sid;
+  // 툴팁용: 마지막 툴 이름/라벨/시각. 이미 이벤트에 실려오는 값이므로 새로 뭔가를
+  // 가져오지 않는다 — 프로젝트 슬러그·세션 제목처럼 이미 브라우저에 와 있는 정보만 쓴다.
+  if (ev.name) {
+    a.lastTool = ev.name; a.lastLabel = ev.label || ''; a.lastAt = Date.now();
+    // 최근 이벤트 시각만 들고 있는다(내용은 안 담는다) — "몰아치는 중"인지 판단용.
+    // 파일을 '고친' 이벤트만 기억한다 — 읽기는 겹쳐도 사고가 아니다.
+    if (WRITE_TOOLS.has(ev.name) && ev.label) {
+      a.writes = a.writes || {};
+      a.writes[ev.label] = Date.now();
+    }
+    a.evTimes = (a.evTimes || []).filter(t => Date.now() - t < BUSY_WINDOW_MS);
+    a.evTimes.push(Date.now());
+    // B: "이벤트가 막 들어왔다" 신호 셋 — 타이핑 bob, 말풍선, 그 방 모니터 플래시.
+    // 전부 같은 트리거(이벤트 도착)를 쓴다, 서버에서 새로 뭘 받아오지 않는다.
+    a.bobStart = performance.now();
+    a.emoteStart = performance.now();
+    a.emoteGlyph = glyphFor(ev.name, ev.label);
+    roomFlashAt[ev.role] = performance.now();
+  }
+  a.role = roomForState(a);
+  if (prevRole !== a.role) a.slotIdx = undefined;   // 방을 옮기면 그 방에서 자리를 새로 받는다
+  if (prevRole && prevRole !== a.role) layoutRoomOccupants(prevRole);
+  layoutRoomOccupants(a.role);
+  if (!prevRole) { a.x = a.tx; a.y = a.ty; }   // 새로 생기면 (0,0) 에서 미끄러져 오지 않는다
+  if (isNew) spawnPuff(a.x, a.y);   // B: 스폰 퍼프 — 자리 잡은 뒤 좌표로
+}
+
+let lastStep = 0;
+function stepAvatars() {
+  const now = performance.now();
+  // 프레임 간격만큼 움직인다 — 화면 주사율이 달라도 걷는 속도는 같아야 한다. 상한을
+  // 두는 건 창을 최소화했다 돌아왔을 때 한 프레임에 순간이동하지 않게 하려는 것.
+  const dt = lastStep ? Math.min(0.1, (now - lastStep) / 1000) : 0;
+  lastStep = now;
+  for (const a of Object.values(avatars)) {
+    // 도착했고 쉬는 시간도 지났으면 다음 목적지를 잡는다. 완료는 안 돌아다닌다 —
+    // 끝난 세션이 계속 움직이면 아직 뭔가 하는 줄로 읽힌다(숨쉬기를 끄는 것과 같은 이유).
+    // 이미 걷던 중이면 마저 걸어서 제자리에 선다.
+    if (WANDER && a.homeX !== undefined && workerState(a) !== 'done'
+        && now >= (a.wanderAt || 0) && !isMoving(a)) pickWander(a, now);
+    const dx = a.tx - a.x, dy = a.ty - a.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) continue;
+    // 목적지가 바뀌면 그 거리로 속도를 한 번 정하고, 걷는 동안은 등속이다.
+    // 예전엔 lerp(남은 거리의 6%씩)이라 처음에 확 갔다가 슬금슬금 기어들었다 —
+    // 그게 '걷는다'가 아니라 '한 번에 이동한다'로 보인 이유다.
+    // 방 안 산책은 느리게, 방을 옮겨 갈 때는 빠르게. 거리로 짐작하지 않고 누가
+    // 목적지를 정했는지(a.strolling)로 가른다 — 거리로 나누면 옆방처럼 가까운 이사가
+    // 산책 취급을 받아 벽을 기어서 넘는다.
+    if (a.tx !== a.ptx || a.ty !== a.pty) {
+      a.ptx = a.tx; a.pty = a.ty;
+      a.speed = a.strolling ? WALK_SPEED : Math.max(WALK_ROOM_SPEED, dist / WALK_MAX_S);
+    }
+    const step = a.speed * dt;
+    if (dist <= step) { a.x = a.tx; a.y = a.ty; }        // 지나치지 않게 딱 세운다
+    else { a.x += dx / dist * step; a.y += dy / dist * step; }
+  }
+}
+
+function isActive(a) {
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  return info ? info.active : false;
+}
+
+function roomOccCount(role) {
+  let n = 0;
+  for (const x of Object.values(avatars)) if (x.role === role) n++;
+  return n;
+}
+
+// A: 방에 혼자면 "프로젝트 · 제목" 전체를, 둘 이상이면 제목은 버리고 프로젝트
+// 짧은 이름만 — 넓은 알약 4개가 좁은 방 안에서 서로 겹치는 게 근본 원인이라, 겹칠
+// "재료"(폭) 자체를 줄인다. 전체 정보는 호버 툴팁에 그대로 남아 있다.
+function nameTagText(a) {
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  const title = info ? info.title : '';
+  const proj = shortLabel(a.proj);
+  const occ = roomOccCount(a.role);
+  // 다섯 명을 넘으면 이름을 아무리 줄여도 방 안쪽 폭에 안 들어간다 — 밀어내기로도
+  // 못 풀고 글자만 뭉갠다(실측: 탐색 방 8명). 그 구간에선 글자를 통째로 버리고
+  // 상태 점만 남긴다. 누가 누구인지는 호버 툴팁에, 인원수는 방 호버에 그대로 있다.
+  if (occ > 5) return '';
+  // 제목을 앞에 둔다. 프로젝트 이름은 여러 세션이 같은 값을 갖는 일이 흔해서
+  // (한 저장소에서 여러 세션을 돌리면 전부 같다) 누가 누구인지 못 가른다.
+  // 무엇을 하던 세션인지는 제목에만 있다.
+  if (!title) return proj;
+  if (occ >= 2) return title;          // 붐비면 제목만 — 폭이 모자란다
+  return `${title} · ${proj}`;
+}
+
+// 명찰 알약의 기하(중심·크기)만 계산 — 실제로 그리는 drawWorker 와 검증용
+// debugStats 둘 다 이 하나의 함수를 거치게 해서 "명찰이 책상 구역을 안 넘는다"는
+// 불변식을 두 곳에서 따로 계산하다 어긋나는 일이 없게 한다.
+// defect 2: 방 벽을 넘지 않게 — 텍스트 최대폭을 "방 하나 크기"가 아니라 이 알약이
+// 실제로 설 방의 안쪽 폭(iw) 기준으로 잡고, 그래도 안 맞으면 중심을 방 안쪽으로
+// 밀어 넣는다(잘라내지 않고 자리만 옮긴다).
+function tagBox(a, px, py, bounce) {
+  const scale = layout.scale, P = TILE * scale;
+  const room = ROOM_BY_ROLE[a.role];
+  // A: 둘 이상 있는 방은 알약 자체를 작게 — 폰트도, 여백도, 상태 점도.
+  const compact = roomOccCount(a.role) >= 2;
+  const dotR = (compact ? 1.1 : 1.4) * scale, dotGap = (compact ? 1.7 : 2.5) * scale;
+  const padX = (compact ? 2 : 3) * scale, padY = (compact ? 1.3 : 2) * scale;
+  // scale 을 그대로 곱하지 않는 하한(9px, compact 는 8px) — 작은 캔버스에서도 읽혀야
+  // 한다. 안 맞으면(라벨이 길면) 글자를 더 줄이는 대신 아래 fitText 로 라벨을 줄인다.
+  const tagFontPx = compact ? Math.max(8 * dpr, 5 * scale) : Math.max(9 * dpr, 6 * scale);
+  ctx.font = `${tagFontPx}px ui-monospace,monospace`;
+  let ix = 0, iw = (ROOM_W - 2.5) * P + dotR * 2 + dotGap + padX * 2;   // room 없을 때의 대비책
+  if (room) { ix = layout.offsetX + (room.gx + 1) * P; iw = (ROOM_W - 2) * P; }
+  const chrome = dotR * 2 + dotGap + padX * 2;   // 점·간격·좌우 여백 — 글자 말고 알약이 먹는 폭
+  let maxTextW = Math.max(0, iw - chrome);
+  // 알약이 자기 캐릭터 머리 위 '중앙'에 오게 하려면, 중앙에 놓았을 때 방 안에
+  // 들어가는 폭까지만 써야 한다. 예전엔 폭을 방 전체로 잡고 넘치면 좌우로 밀어
+  // 넣었는데, 벽 쪽에 선 사람은 알약이 통째로 옆으로 밀려 누구 것인지 흐려졌다.
+  const cx0 = px + TILE * scale / 2;
+  if (room) {
+    const fitCentered = 2 * Math.min(cx0 - ix, (ix + iw) - cx0);
+    maxTextW = Math.max(0, Math.min(maxTextW, fitCentered - chrome));
+  }
+  // A: push-apart(resolveTagOverlaps)만으론 안 되는 경우가 있다 — 긴 프로젝트 이름
+  // 둘만으로도 폭 합이 방 안쪽 폭(iw)을 넘으면 아무리 밀어도 방 밖으로 밀려날 뿐이다.
+  // 그래서 애초에 "한 방에 occCount 명이 나란히 서도 겹치지 않을 최대 폭"으로 텍스트
+  // 자체를 제한한다 — 슬롯은 한 줄에 최대 SLOTS_PER_ROW(4)명이므로 그 이상은 4로 캡.
+  if (compact && room) {
+    const perRow = Math.min(roomOccCount(a.role), SLOTS_PER_ROW);
+    const perSlotW = iw / perRow - 4 * scale;
+    maxTextW = Math.max(0, Math.min(maxTextW, perSlotW - (dotR * 2 + dotGap + padX * 2)));
+  }
+  const label = fitText(nameTagText(a), maxTextW);
+  const tw = ctx.measureText(label).width;
+  const contentW = dotR * 2 + dotGap + tw;
+  const pw = contentW + padX * 2, ph = tagFontPx + padY * 2;
+  // defect 3 / A1: 같은 방에 여럿 있으면 명찰이 겹친다 — 옆 사람과 다른 높이인 건
+  // layoutRoomOccupants 의 COL_STAGGER 가 일꾼 자체의 y 를 갈라서 만든다(명찰은 그
+  // 결과를 따라갈 뿐). 그와 별개로, A1(iter6): 명찰은 책상·모니터·의자 구역
+  // (DESK_CLEAR 위)으로는 무슨 경우에도 못 들어가게 마지막에 한 번 더 못박는다 —
+  // 위 스태거 계산이 틀려도(혹은 나중에 값이 바뀌어도) 이 클램프가 불변식을 지킨다.
+  // 걷는 중에는 이름표를 방 안으로 가두지 않는다. 방을 옮길 때 a.role 이 먼저 바뀌어
+  // 이름표만 목적지 방에 가 붙고, 캐릭터는 아직 복도에 있어서 둘이 따로 논다
+  // (말풍선은 이름표에 매달려 있으니 같이 떨어져 나간다).
+  const moving = isMoving(a);
+  let pcx = cx0;
+  // 스프라이트가 토큰량만큼 커지면(최대 2배) 머리 꼭대기도 그만큼 위로 간다.
+  // 기본 크기 기준으로 잡으면 커진 캐릭터를 알약이 덮어버린다 — 실제 크기로 잡는다.
+  const spriteTop = (py - bounce + P) - TILE * spriteScaleFor(a, scale);
+  let pcy = spriteTop - 6 * scale;
+  if (room && !moving) {
+    const deskClearPx = layout.offsetY + (room.gy + 1 + DESK_CLEAR) * P;
+    pcy = Math.max(pcy, deskClearPx + ph / 2);
+    // 위 클램프(책상 구역 침범 금지)보다 "캐릭터를 덮지 않는다"가 우선이다.
+    // 큰 캐릭터는 머리가 책상 구역까지 올라오는데, 거기서 알약을 도로 내리면
+    // 얼굴을 가린다. 둘 중 하나를 포기해야 하면 가리지 않는 쪽을 택한다.
+    pcy = Math.min(pcy, spriteTop - ph / 2 - scale);
+    pcx = Math.max(ix + pw / 2, Math.min(ix + iw - pw / 2, pcx));
+  }
+  return { pcx, pcy, pw, ph, dotR, dotGap, contentW, label, role: a.role, key: a.key, moving };
+}
+
+// A: tagBox 는 "자기 일꾼 머리 위"만 보고 계산하므로 옆 사람 알약과 겹칠 수 있다
+// (특히 붐비는 방). 매 프레임 전원의 알약을 한 번에 모아 쌍(pair)마다 겹치면 좌우로
+// 밀어 떼어놓는다 — 방으로 나눠 검사해도 되지만 일꾼 수가 수십 명 수준이라 전수조사
+// (O(n^2))도 비용이 미미하다. 3라운드면 4명 정도 붐비는 방에서 수렴한다(직접 확인).
+let tagLayout = {};
+function computeTagLayout() {
+  const scale = layout.scale, P = TILE * scale;
+  const now = performance.now();
+  const boxes = [];
+  for (const a of Object.values(avatars)) {
+    const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
+    // 명찰은 걷기 흔들림도 방 몸짓도 안 따라간다 — 글자가 같이 떨리면 읽기 나쁘다.
+    // 흔들림이 1px 라 가만히 둬도 머리가 명찰을 뚫지 않는다.
+    boxes.push(tagBox(a, px, py, 0));
+  }
+  resolveTagOverlaps(boxes);
+  const next = {};
+  for (const b of boxes) next[b.key] = b;
+  tagLayout = next;
+}
+
+function clampTagToRoom(box) {
+  if (box.moving) return;          // 걷는 중이면 캐릭터를 따라간다 — tagBox 와 같은 이유
+  const room = ROOM_BY_ROLE[box.role];
+  if (!room) return;
+  const scale = layout.scale, P = TILE * scale;
+  const ix = layout.offsetX + (room.gx + 1) * P, iw = (ROOM_W - 2) * P;
+  box.pcx = Math.max(ix + box.pw / 2, Math.min(ix + iw - box.pw / 2, box.pcx));
+}
+
+function resolveTagOverlaps(boxes) {
+  const ROUNDS = 3;
+  for (let round = 0; round < ROUNDS; round++) {
+    let moved = false;
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        const A = boxes[i], B = boxes[j];
+        const dx = B.pcx - A.pcx, dy = B.pcy - A.pcy;
+        const overlapX = (A.pw + B.pw) / 2 - Math.abs(dx);
+        const overlapY = (A.ph + B.ph) / 2 - Math.abs(dy);
+        if (overlapX > 0 && overlapY > 0) {
+          const push = overlapX / 2 + 0.5;
+          const sign = dx === 0 ? (i < j ? -1 : 1) : Math.sign(dx);
+          A.pcx -= sign * push; B.pcx += sign * push;
+          clampTagToRoom(A); clampTagToRoom(B);
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+}
+
+
+// B: 이벤트마다 뜨는 말풍선 — 1.5초, 마지막 400ms 는 페이드. tagTop 은 명찰 알약의
+// 위쪽 끝(그 위에 겹치지 않게 그 자리에서 더 위로 띄운다).
+// 스프라이트에 표정 프레임이 없으니 머리 위 말풍선으로 대신한다. 예전엔 벡터로
+// 아이콘을 그리는 원형 말풍선이었는데, 이모지·문자는 폭이 있어서 원 안에 안
+// 들어간다 — 폭에 맞춰 늘어나는 알약 하나로 통일했다.
+// 문자 표정(>_<)으로 시작했는데 이모지가 상황을 훨씬 많이 담는다. 캔버스 fillText 는
+// 시스템 이모지 폰트로 알아서 떨어진다(Windows: Segoe UI Emoji).
+const FACE = {
+  hit: '😵', pet: '😊',
+  busy: '🔥',    // 최근에 툴을 몰아친 상태 — 고생 중
+  slow: '🤔',    // 작업 중인데 한참 조용하다 — 고민 중
+};
+// 방(= 지금 하는 일)마다의 기본 표정. 위 두 개가 우선한다.
+const ROOM_EMOJI = {
+  plan: '📝', research: '📚', design: '🎨', meeting: '💬',
+  explore: '🔍', frontend: '🖥️', backend: '⚙️', infra: '🔧',
+  qa: '🧪', release: '🚀', waiting: '👀', done: '😴',
+};
+const BUSY_WINDOW_MS = 30000, BUSY_EVENTS = 6, SLOW_AFTER_MS = 45000;
+
+// 여러 세션을 같은 저장소에 돌리면 서로 같은 파일을 고쳐 덮어쓰는 사고가 난다.
+// 지금은 터지고 나서야 아는데, 라벨에 파일 경로가 이미 실려 오므로 미리 알 수 있다.
+// 라벨은 40자에서 잘리지만 같은 경로면 잘린 모양도 같아서 비교에는 문제가 없다.
+const WRITE_TOOLS = new Set(['Edit', 'Write', 'NotebookEdit']);
+const CONFLICT_WINDOW_MS = 10 * 60 * 1000;
+
+function findConflicts() {
+  const now = Date.now(), byFile = new Map();
+  for (const a of Object.values(avatars)) {
+    for (const f in (a.writes || {})) {
+      if (now - a.writes[f] > CONFLICT_WINDOW_MS) continue;
+      if (!byFile.has(f)) byFile.set(f, []);
+      byFile.get(f).push(a);
+    }
+  }
+  const pairs = [];
+  for (const [f, list] of byFile) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        // 같은 세션의 서브에이전트끼리는 사고가 아니다.
+        if (list[i].sid === list[j].sid && list[i].proj === list[j].proj) continue;
+        pairs.push({ file: f, a: list[i], b: list[j] });
+      }
+    }
+  }
+  return pairs;
+}
+
+// 충돌한 둘을 선으로 잇고 가운데에 경고를 띄운다.
+function drawConflicts() {
+  const pairs = findConflicts();
+  if (!pairs.length) return;
+  const scale = layout.scale, P = TILE * scale;
+  ctx.save();
+  for (const { a, b } of pairs) {
+    const ax = layout.offsetX + (a.x + 0.5) * P, ay = layout.offsetY + (a.y + 0.5) * P;
+    const bx = layout.offsetX + (b.x + 0.5) * P, by = layout.offsetY + (b.y + 0.5) * P;
+    ctx.strokeStyle = '#ff6b5a';
+    ctx.globalAlpha = 0.55 + 0.25 * Math.sin(performance.now() / 260);
+    ctx.lineWidth = Math.max(1, scale * 0.5);
+    ctx.setLineDash([3 * scale, 2 * scale]);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    drawFaceBubble((ax + bx) / 2, (ay + by) / 2, scale, '⚠️', 0);
+  }
+  ctx.restore();
+}
+
+// 이 사람이 지금 어떤 표정일지. 최근 이벤트 밀도로 "몰아치는 중 / 한참 조용" 을 가른다 —
+// 툴 결과는 안 받으므로(프라이버시) 성공·실패는 알 수 없고, 리듬만 알 수 있다.
+function faceFor(a, st, now) {
+  const mood = moodFace(a, now);
+  if (mood) return mood;                         // 기분은 방·상태보다 우선한다
+  // 덩치가 커서 방이 좁은 사람 — 세 번에 한 번쯤 답답한 표정이 나온다.
+  if (WANDER && st !== 'done' && isCramped(a)) {
+    const n = Math.floor((now + hashSeed(a.key)) / 6000);
+    if (n % 3 === 0) return CRAMP_FACES[n % CRAMP_FACES.length];
+  }
+  if (st === 'done') return ROOM_EMOJI.done;
+  if (st === 'waiting') return ROOM_EMOJI.waiting;
+  const cut = Date.now() - BUSY_WINDOW_MS;
+  const recent = (a.evTimes || []).filter(t => t > cut).length;
+  if (recent >= BUSY_EVENTS) return FACE.busy;
+  if (a.lastAt && now - a.lastAt > SLOW_AFTER_MS) return FACE.slow;
+  return ROOM_EMOJI[a.role] || FACE.slow;
+}
+
+function drawFaceBubble(cx, tagTop, scale, text, t) {
+  const alpha = t > EMOTE_MS - EMOTE_FADE_MS ? Math.max(0, (EMOTE_MS - t) / EMOTE_FADE_MS) : 1;
+  if (alpha <= 0) return;
+  const fontPx = Math.max(14 * dpr, 9 * scale);   // 이모지는 작으면 뭔지 안 보인다
+  ctx.save();
+  ctx.font = `${fontPx}px ui-monospace,monospace`;
+  const tw = ctx.measureText(text).width;
+  const padX = 4 * scale, padY = 3 * scale;
+  const bw = tw + padX * 2, bh = fontPx + padY * 2;
+  const cy = tagTop - 8 * scale - bh / 2;   // 명찰과 너무 붙어 있어서 띄웠다
+  ctx.globalAlpha = alpha * 0.95;
+  ctx.fillStyle = C.tagBg;
+  roundRect(cx - bw / 2, cy - bh / 2, bw, bh, 3 * scale);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(10,8,6,.5)';
+  ctx.lineWidth = Math.max(1, scale * 0.25);
+  ctx.stroke();
+  ctx.beginPath();                       // 꼬리
+  ctx.moveTo(cx - 2 * scale, cy + bh / 2 - 0.5);
+  ctx.lineTo(cx, cy + bh / 2 + 2.6 * scale);
+  ctx.lineTo(cx + 2 * scale, cy + bh / 2 - 0.5);
+  ctx.closePath();
+  ctx.fillStyle = C.tagBg;
+  ctx.fill();
+  ctx.fillStyle = C.tagText;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, cy + 1);
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+}
+
+
+function drawWorker(a) {
+  const scale = layout.scale, P = TILE * scale;
+  const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
+  const now = performance.now();
+  const st = workerState(a);
+  const seed = hashSeed(a.key);
+  const moving = isMoving(a);
+  // 때린 직후에는 잠깐 바쁘게 움직인다(겉보기 가속). 진짜 세션은 안 바뀐다.
+  const hasted = a.hasteUntil !== undefined && now < a.hasteUntil;
+  const idle = moving ? { dx: 0, dy: 0, face: null, glyph: null }
+                      : idleMotion(a, now, seed, layout.scale, hasted ? HASTE_K : 1);
+  // 제스처 반응: 맞으면 부르르 떨며 움찔하고, 쓰다듬으면 기분 좋게 들썩인다.
+  let reactDX = 0, reactSq = 1, reactGlyph = null;
+  if (a.reactStart !== undefined) {
+    const rt = now - a.reactStart;
+    if (rt >= 0 && rt < REACT_MS) {
+      const f = 1 - rt / REACT_MS;
+      if (a.reactKind === 'hit') {
+        reactDX = Math.sin(rt / 18) * (3 + Math.min(a.hitCount || 1, 6)) * layout.scale * f;
+        reactSq = 1 - 0.18 * f;
+        reactGlyph = a.reactFace || FACE.hit;
+      } else {
+        reactSq = 1 + (0.12 + 0.03 * Math.min(a.petCount || 1, 5)) * f * Math.sin((rt / REACT_MS) * Math.PI * 3);
+        reactGlyph = a.reactFace || FACE.pet;
+      }
+    }
+  }
+  const bounce = walkBob(a, now);
+
+  // B: 걷기->정지 엣지에서 도착 스쿼시를 튕긴다.
+  if (a.wasMoving === undefined) a.wasMoving = false;
+  if (a.wasMoving && !moving) {
+    a.squashStart = now;
+    // 벽에 막혀서 멈췄다 — 덩치가 커서 방이 좁은 애만 티를 낸다.
+    if (a.bumped) {
+      a.emoteStart = now;
+      a.emoteGlyph = CRAMP_FACES[(hashSeed(a.key) + Math.round(now / 1000)) % CRAMP_FACES.length];
+      a.bumped = false;
+    }
+  }
+  a.wasMoving = moving;
+
+  // B: 진행방향 기울임 — 스냅 없이 부드럽게 들어오고 빠지게 lerp.
+  if (a.lean === undefined) a.lean = 0;
+  a.lean += ((moving ? 1 : 0) - a.lean) * 0.25;
+
+  // B: 항상 도는 숨쉬기 — 전원이 같은 박자로 안 흔들리게 키(아바타 key)로 위상을 흔든다.
+  if (a.breathSeed === undefined) a.breathSeed = (hashSeed(a.key) % 1000) / 1000 * BREATH_PERIOD_MS;
+  const breathPhase = ((now + a.breathSeed) / BREATH_PERIOD_MS) * Math.PI * 2;
+  // 완료는 숨도 안 쉰다 — 끝난 세션이 계속 꼬물거리면 아직 뭔가 하는 줄로 읽힌다.
+  const breathSq = st === 'done' ? 1 : 1 + (BREATH_PX / P) * Math.sin(breathPhase);
+
+  let arrivalSq = 1;
+  if (a.squashStart !== undefined) {
+    const st = now - a.squashStart;
+    if (st >= 0 && st < SQUASH_MS) arrivalSq = 1 - (SQUASH_PX / P) * squashCurve(st / SQUASH_MS);
+  }
+  // 작업 중인데 제자리인 사람은 가끔 기지개를 켠다 — 숨쉬기만 돌면 정지 화면처럼 보인다.
+  let stretchSq = 1;
+  if (st === 'working' && !moving) {
+    const t = (now + seed) % STRETCH_EVERY_MS;
+    if (t < STRETCH_MS) stretchSq = 1 + (STRETCH_PX / P) * Math.sin((t / STRETCH_MS) * Math.PI);
+  }
+  const hScale = breathSq * arrivalSq * stretchSq * reactSq;
+
+  // B: 이벤트 도착 시 짧고 빠른 bob — 3.5사이클, 감쇠 엔벨로프로 다시 idle 로.
+  let bob = 0;
+  if (a.bobStart !== undefined) {
+    const bt = now - a.bobStart;
+    if (bt >= 0 && bt < BOB_MS) {
+      const envelope = 1 - bt / BOB_MS;
+      bob = Math.sin((bt / BOB_MS) * Math.PI * 2 * BOB_CYCLES) * BOB_PX * envelope;
+    }
+  }
+
+  // 가속 중이면 계속 까딱인다 — 타이핑을 몰아치는 느낌.
+  const hasteBob = hasted ? Math.abs(Math.sin(now / 70)) * 1.5 * layout.scale : 0;
+  const topY = py - bounce - bob - idle.dy - hasteBob;
+  const feetX = px + P / 2 + idle.dx + reactDX, feetY = topY + P;
+  // 방 몸짓이 방향을 정하면 그걸 쓴다(두리번, 마주보기). a.face 자체는 배치가 정하는
+  // 값이라 건드리지 않고 그리는 순간에만 갈아끼운다.
+  const face = idle.face !== null ? idle.face : a.face;
+  const leanAngle = a.lean * face * LEAN_MAX;
+
+  ctx.save();
+  // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.
+  ctx.globalAlpha = { working: 1, waiting: 0.85, done: 0.45 }[workerState(a)];
+  ctx.translate(feetX, feetY);
+  ctx.rotate(leanAngle);
+  ctx.translate(-feetX, -feetY);
+  // 토큰을 많이 쓴 세션일수록 크게. 배율은 정수라 도트가 안 뭉갠다.
+  // 커진 만큼 발이 바닥에서 뜨거나 옆으로 밀리면 안 되므로, 발(feetX/feetY)을
+  // 기준으로 가로 가운데·세로 아래를 맞춰 좌표를 다시 잡는다.
+  const sScale = spriteScaleFor(a, scale);
+  const sSize = TILE * sScale;
+  const sx = feetX - sSize / 2, sy = feetY - sSize;
+  if (face < 0) {
+    ctx.translate(sx + sSize / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(sx + sSize / 2), 0);
+  }
+  drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale, hScale);
+  ctx.restore();
+
+  const tb = tagLayout[a.key] || tagBox(a, px, py, bounce);
+  const { pcx, pcy, pw, ph, dotR, dotGap, contentW, label } = tb;
+  ctx.save();
+  ctx.globalAlpha = { working: 0.92, waiting: 0.85, done: 0.5 }[workerState(a)];
+  ctx.fillStyle = C.wallDark;
+  roundRect(pcx - pw / 2 - 1, pcy - ph / 2 - 1, pw + 2, ph + 2, 3 * scale);
+  ctx.fill();
+  ctx.fillStyle = C.tagBg;
+  roundRect(pcx - pw / 2, pcy - ph / 2, pw, ph, 3 * scale);
+  ctx.fill();
+  const dotCx = pcx - contentW / 2 + dotR;
+  ctx.fillStyle = C[STATE_DOT[workerState(a)]] || C.statusIdle;
+  ctx.beginPath();
+  ctx.arc(dotCx, pcy, dotR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = C.tagText;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, dotCx + dotR + dotGap, pcy + 1);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.restore();
+
+  // 주기적으로 지금 상황에 맞는 표정을 띄운다. 사람마다 위상을 흔들어 전원이
+  // 동시에 깜빡이지 않게 한다.
+  if (reactGlyph) drawFaceBubble(pcx, pcy - ph / 2, scale, reactGlyph, now - a.reactStart);
+  if (idle.glyph) {
+    const gt = (now + seed) % IDLE[a.role].emote;
+    drawFaceBubble(pcx, pcy - ph / 2, scale, faceFor(a, st, now), gt);
+  }
+  if (a.emoteStart !== undefined) {
+    const et = now - a.emoteStart;
+    if (et >= 0 && et < EMOTE_MS) drawFaceBubble(pcx, pcy - ph / 2, scale, a.emoteGlyph, et);
+  }
+}
+
+// --- HUD · 티커 --------------------------------------------------------
+// 'working' | 'waiting' | 'done'. 서버가 안 준 아바타(스냅샷 직후 등)는 done 취급.
+function workerState(a) {
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  // 아직 sessions 페이로드가 안 온 아바타는 방금 툴 이벤트로 생긴 것뿐이다 —
+  // 그건 일하는 중이지 완료가 아니다. done 으로 기본값을 잡으면 새로 생긴
+  // 사람이 완료 방으로 순간이동했다가 돌아온다.
+  if (!info) return 'working';
+  return info.state || (info.active ? 'working' : 'done');
+}
+
+function tokensOf(a) {
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  return info ? (info.tokens || 0) : 0;
+}
+
+// 오늘(한국 시간) 쓴 토큰. 서버가 KST 날짜로 갈라서 세어 준다 — 트랜스크립트 시각은
+// UTC 라 그대로 자르면 오전 9시에 날이 바뀐다.
+function tokensTodayOf(a) {
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  return info ? (info.tokensToday || 0) : 0;
+}
+
+// 토큰량 -> 캐릭터 배율 1.0~1.5. 실측 분포가 5만~4천만이라 세 자릿수 차이다 —
+// 선형으로 하면 큰 세션 하나가 나머지를 전부 1.0 으로 눌러버려서 로그를 쓴다.
+// 상한 2배. 1.5배로 낮췄더니 차이가 눈에 안 들어와서 되돌렸다.
+const TOK_BASE = 100e3, TOK_TOP = 10e6, TOK_MAX_MUL = 2;
+function tokenSizeMul(tokens) {
+  if (!(tokens > TOK_BASE)) return 1;
+  const t = Math.log10(tokens / TOK_BASE) / Math.log10(TOK_TOP / TOK_BASE);
+  return 1 + (TOK_MAX_MUL - 1) * Math.max(0, Math.min(1, t));
+}
+
+// 스프라이트 배율도 줌과 같은 0.5 격자에 맞춘다(quantZoom). TILE 이 16 이라 0.5
+// 배수는 항상 정수 픽셀 크기라 타일 경계가 깨지지 않고, 배율 1.0 이 정확히 "그 줌에서의
+// 기본 크기"가 된다. 예전엔 정수로만 반올림했는데, 줌이 0.5 로 잘게 쪼개진 지금은
+// 정수로 올리면 작은 세션까지 덩달아 커져서 기준이 어긋난다.
+// scale=1 이면 1·1.5·2 세 단계, scale=2 면 2·2.5·3·3.5·4 로 나온다.
+function spriteScaleFor(a, scale) {
+  const mul = tokenSizeMul(tokensOf(a));
+  return Math.max(scale, Math.min(scale * TOK_MAX_MUL, quantZoom(scale * mul)));
+}
+
+function formatTokens(n) {
+  if (!n) return '-';
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 10e6 ? 0 : 1) + 'M';
+  if (n >= 1e3) return Math.round(n / 1e3) + 'K';
+  return String(n);
+}
+
+// 실제로 서 있을 방. 일하는 중이면 그 작업의 업무 구역, 아니면 상태 구역이다.
+function roomForState(a) {
+  const st = workerState(a);
+  if (st === 'working') return a.workRole || a.role;
+  return st;   // 'waiting' | 'done' — 방 role 과 같은 이름을 쓴다
+}
+
+// 상태가 바뀌면 사람을 그 방으로 옮긴다. 걸어가는 건 stepAvatars 가 알아서 한다.
+function reroomAvatars() {
+  for (const a of Object.values(avatars)) {
+    const want = roomForState(a);
+    if (want === a.role) continue;
+    const prev = a.role;
+    a.role = want;
+    a.slotIdx = undefined;                          // 방을 옮기면 자리도 새로
+    layoutRoomOccupants(prev);
+    layoutRoomOccupants(want);
+  }
+}
+
+const STATE_DOT = { working: 'statusActive', waiting: 'statusWaiting', done: 'statusDone' };
+const STATE_LABEL = { working: '작업 중', waiting: '응답 대기', done: '완료' };
+
+function computeRoomActivity() {
+  const counts = {};
+  for (const a of Object.values(avatars)) {
+    if (isActive(a)) counts[a.role] = (counts[a.role] || 0) + 1;
+  }
+  return counts;
+}
+
+function updateHud(activeCounts) {
+  const by = { working: 0, waiting: 0, done: 0 };
+  let today = 0;
+  for (const a of Object.values(avatars)) { by[workerState(a)]++; today += tokensTodayOf(a); }
+  // 완료는 세지만 방 이름까지 늘어놓지 않는다 — 줄이 길어지기만 하고 볼 게 없다.
+  const head = ['working', 'waiting', 'done']
+    .filter(k => by[k])
+    .map(k => `${STATE_LABEL[k]} ${by[k]}명`)
+    .join('  ·  ') || '세션 없음';
+  const parts = ROOMS.filter(r => activeCounts[r.role]).map(r => `${r.label} ${activeCounts[r.role]}`);
+  hud.textContent = head + (parts.length ? '  ·  ' + parts.join('  ') : '');
+  // 토큰은 한도 막대와 같은 성격이라 그 상자에 넣는다. HUD 줄에 두면 줄이 길어져
+  // 가운데 상자에 가려졌다.
+  const tok = document.getElementById('usage-tok');
+  if (tok) {
+    tok.textContent = today ? `오늘 ${formatTokens(today)}` : '';
+    tok.style.display = today ? 'inline' : 'none';
+    syncUsageBox();
+  }
+}
+
+function drawTicker() {
+  // 캔버스가 이제 디바이스 픽셀이라 여기 상수(글자 크기·줄간격·여백)도 dpr 을
+  // 곱해야 화면상 물리 크기가 그대로 유지된다 — 안 곱하면 고배율에서 반토막 난다.
+  ctx.font = `${10 * dpr}px ui-monospace,monospace`;
+  ctx.textAlign = 'left';
+  const lines = state.ticker.slice(-6);
+  const lineH = 13 * dpr, baseY = cv.height - 28 * dpr;   // HUD 라인 바로 위
+  lines.forEach((line, i) => {
+    ctx.globalAlpha = 0.35 + i * 0.11;
+    ctx.fillStyle = C.tagText;
+    ctx.fillText(line, 10 * dpr, baseY - (lines.length - 1 - i) * lineH);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// --- 메인 루프 -----------------------------------------------------------
+// ponytail: 방(바닥·벽·가구) 을 오프스크린 캔버스에 한 번만 그려 캐싱하는 최적화는
+// 안 넣었다 — 일꾼 12명 + 파티클 활성 상태로 실측(playwright, 1280x687)한 프레임
+// 시간이 평균 ~1.4ms, p95 ~2ms, worst ~3.3ms(600프레임 x 3회)로 60fps 예산(16.6ms)의
+// 10~20% 뿐이라 병목이 아니다. 방 개수(10개)가 크게 늘거나 저사양 기기에서 실측치가
+// 이 정도를 벗어나면, drawRoom 을 오프스크린 캔버스에 한 번 그려두고 layout(scale/
+// offset)이나 방 구성이 바뀔 때만 다시 그리는 방식으로 올리면 된다.
+function draw() {
+  drawCorridor();
+  const activeCounts = computeRoomActivity();
+  for (const room of ROOMS) {
+    // 응답 대기 방은 사람이 있으면 불을 켠다 — 이 앱을 켜 두는 이유가 "내 차례인
+    // 세션이 있나"를 한눈에 보는 거라, 그 방만은 활동이 아니라 재실로 켠다.
+    const lit = room.role === 'waiting' ? roomOccCount('waiting') > 0 : !!activeCounts[room.role];
+    drawRoom(room, lit);
+  }
+  // 벽을 공유하므로 문과 간판은 모든 방을 그린 뒤에 따로 얹는다 — 아래 방의 윗벽이
+  // 위 방의 문·간판을 덮지 않게 하려면 순서가 이래야 한다.
+  for (const room of ROOMS) { const r = roomRect(room); drawDoor(r.ox, r.oy, r.w, r.h, r.scale); }
+  for (const room of ROOMS) { const r = roomRect(room); drawSign(r.ox, r.oy, r.w, r.h, r.scale, room.label); }
+  drawRoomHighlight();
+  computeTagLayout();
+  for (const a of Object.values(avatars)) drawWorker(a);
+  drawConflicts();
+  drawParticles();
+  drawTicker();
+  updateHud(activeCounts);
+}
+
+// --- 인터랙션: 휠 줌 · 드래그 팬 · 호버 툴팁 · 방 하이라이트 -------------------
+let hoveredRoom = null, hoveredWorker = null;
+let lastMouseDevX = -1, lastMouseDevY = -1;   // 디바이스 px, 마지막으로 안 곳
+let dragState = null;
+
+function drawRoomHighlight() {
+  if (!hoveredRoom) return;
+  const scale = layout.scale, P = TILE * scale;
+  const ox = layout.offsetX + hoveredRoom.gx * P, oy = layout.offsetY + hoveredRoom.gy * P;
+  const w = ROOM_W * P, h = ROOM_H * P;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = '#f0e6d8';
+  ctx.lineWidth = Math.max(2, Math.round(scale * 0.5));
+  ctx.strokeRect(ox + ctx.lineWidth / 2, oy + ctx.lineWidth / 2, w - ctx.lineWidth, h - ctx.lineWidth);
+  ctx.restore();
+}
+
+function timeAgo(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 1) return '방금';
+  if (s < 60) return `${s}초 전`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}분 전`;
+  return `${Math.floor(m / 60)}시간 전`;
+}
+
+// 상태 옆에 붙일 시간. '언제'가 상태마다 뜻이 다르다 — 일하는 중이면 마지막
+// 움직임, 내 차례면 기다린 시간, 끝났으면 마지막으로 뭔가 한 시각이다.
+// 기준은 서버가 주는 mtime(기록 파일이 마지막으로 쓰인 시각)이다. lastAt 은 이
+// 앱이 켜진 뒤 본 이벤트만이라, 켜기 전부터 있던 세션은 값이 없다.
+function stateAge(a) {
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  const at = info && info.mtime ? info.mtime * 1000 : a.lastAt;
+  if (!at) return '';
+  const ago = timeAgo(Date.now() - at);
+  const st = workerState(a);
+  if (st === 'waiting') return `${ago.replace(' 전', '째')} 기다리는 중`;
+  if (st === 'done') return `${ago} 마지막 활동`;
+  return `마지막 활동 ${ago}`;
+}
+
+const tooltipEl = document.getElementById('tooltip');
+function showTooltip(text, clientX, clientY) {
+  tooltipEl.textContent = text;
+  tooltipEl.style.display = 'block';
+  const pad = 14;
+  let left = clientX + pad, top = clientY + pad;
+  const tw = tooltipEl.offsetWidth, th = tooltipEl.offsetHeight;
+  if (left + tw > window.innerWidth) left = clientX - tw - pad;
+  if (top + th > window.innerHeight) top = clientY - th - pad;
+  tooltipEl.style.left = Math.max(2, left) + 'px';
+  tooltipEl.style.top = Math.max(2, top) + 'px';
+}
+function hideTooltip() { tooltipEl.style.display = 'none'; }
+
+// 마지막 마우스 위치로 매 프레임 다시 맞춰본다(드래그로 사람이 움직여 들어와도
+// 마우스가 안 움직였어도 반영되게) — 루프 비용은 방 10개·일꾼 수십 명 수준이라 미미하다.
+function updateHoverHit() {
+  if (dragState || lastMouseDevX < 0) { return; }
+  const scale = layout.scale, P = TILE * scale;
+  let hitWorker = null;
+  for (const a of Object.values(avatars)) {
+    const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
+    if (lastMouseDevX >= px - 2 * scale && lastMouseDevX <= px + P + 2 * scale &&
+        lastMouseDevY >= py - 8 * scale && lastMouseDevY <= py + P) { hitWorker = a; break; }
+  }
+  hoveredWorker = hitWorker;
+  if (hitWorker) {
+    hoveredRoom = null;
+    const info = state.sessionInfo[`${hitWorker.proj}|${hitWorker.sid}`];
+    const title = info && info.title ? info.title : '(제목 없음)';
+    // 마지막으로 쓴 도구. 이 앱이 켜지기 전부터 있던 세션은 본 이벤트가 없어
+    // 빈 값이다 — 예전엔 그 자리에 '-' 를 찍어 줄만 잡아먹었다. 없으면 줄을 뺀다.
+    const tool = hitWorker.lastTool ? `${hitWorker.lastTool} · ${hitWorker.lastLabel || ''}`.trim() : '';
+    const age = stateAge(hitWorker);
+    // 명찰(nameTagText)은 shortLabel 을 거치는데 툴팁은 원본 슬러그를 그대로 보여주고
+    // 있었다 — 같은 프로젝트인데 명찰·툴팁 표기가 달라 보이는 문제. 여기도 통일한다.
+    showTooltip([
+      shortLabel(hitWorker.proj),
+      title,
+      `${STATE_LABEL[workerState(hitWorker)]}${age ? ' · ' + age : ''}`,
+      tool,
+      `토큰 오늘 ${formatTokens(tokensTodayOf(hitWorker))} · 누적 ${formatTokens(tokensOf(hitWorker))}`,
+    ].filter(Boolean).join('\n'), lastMouseClientX, lastMouseClientY);
+    return;
+  }
+  let hitRoom = null;
+  for (const room of ROOMS) {
+    const ox = layout.offsetX + room.gx * P, oy = layout.offsetY + room.gy * P;
+    const w = ROOM_W * P, h = ROOM_H * P;
+    if (lastMouseDevX >= ox && lastMouseDevX <= ox + w && lastMouseDevY >= oy && lastMouseDevY <= oy + h) { hitRoom = room; break; }
+  }
+  hoveredRoom = hitRoom;
+  if (hitRoom) {
+    const count = Object.values(avatars).filter(x => x.role === hitRoom.role).length;
+    showTooltip(`${hitRoom.label} · ${count}명`, lastMouseClientX, lastMouseClientY);
+  } else {
+    hideTooltip();
+  }
+}
+
+let lastMouseClientX = 0, lastMouseClientY = 0;
+function trackMouse(e) {
+  lastMouseClientX = e.clientX; lastMouseClientY = e.clientY;
+  const rect = cv.getBoundingClientRect();
+  lastMouseDevX = (e.clientX - rect.left) * dpr;
+  lastMouseDevY = (e.clientY - rect.top) * dpr;
+}
+
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  trackMouse(e);
+  zoomStep(e.deltaY < 0 ? 1 : -1, lastMouseDevX, lastMouseDevY);
+}, { passive: false });
+
+document.getElementById('gestures').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) setGesture(gesture === b.dataset.g ? null : b.dataset.g);
+});
+
+cv.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  trackMouse(e);
+  // 제스처가 켜져 있고 캐릭터 위에서 눌렀다면 그건 팬이 아니라 액션이다.
+  if (gesture && hoveredWorker) { applyGesture(hoveredWorker, gesture); return; }
+  cam.animTo = null;
+  dragState = { x: e.clientX, y: e.clientY, offX: cam.offX, offY: cam.offY };
+  cv.style.cursor = 'grabbing';
+  hideTooltip();
+});
+window.addEventListener('mousemove', e => {
+  trackMouse(e);
+  if (!dragState) return;
+  cam.userAdjusted = true;
+  cam.animTo = null;
+  const dx = (e.clientX - dragState.x) * dpr, dy = (e.clientY - dragState.y) * dpr;
+  const c = clampOffset(cam.scale, dragState.offX + dx, dragState.offY + dy);
+  cam.offX = c.x; cam.offY = c.y;
+});
+window.addEventListener('mouseup', () => {
+  if (dragState) { dragState = null; cv.style.cursor = 'grab'; }
+});
+cv.addEventListener('mouseleave', () => {
+  lastMouseDevX = -1; hoveredRoom = null; hoveredWorker = null; hideTooltip();
+});
+// 더블클릭: 캐릭터 위면 그 세션을 연 창을 앞으로 가져오고, 빈 곳이면 카메라 리셋.
+// 창 제목으로 찾는 것이라 창 단위까지만 간다 — 탭까지는 못 간다.
+cv.addEventListener('dblclick', () => {
+  const a = hoveredWorker;
+  // 제스처가 켜져 있으면 연타 중이라는 뜻이라 이동시키지 않는다.
+  if (gesture) return;
+  if (!a) { resetCamera(); return; }
+  const info = state.sessionInfo[`${a.proj}|${a.sid}`];
+  const api = window.claudetown;
+  if (!api) { toast('브라우저에서는 창 이동을 못 한다 — 데스크톱 앱에서만 된다'); return; }
+  toast('세션 창을 찾는 중…');
+  // 폴더 이름 후보들(VSCode 제목에 들어간다)과 세션 제목(Claude Code 가 터미널
+  // 제목으로 걸어준다)을 같이 넘긴다 — 어느 쪽이 맞을지는 창을 봐야 안다.
+  api.focusSession(projTerms(a.proj), info ? info.title : '', info ? info.entry : 'cli')
+    .then(r => toast(r && r.ok
+      ? (r.tab ? '세션 창과 탭으로 이동했다' : '세션 창으로 이동했다')
+      : `못 찾았다 — ${r && r.reason}`))
+    .catch(e => toast(`실패 — ${e.message}`));
+});
+
+// --- 사용량 막대 (5시간 / 7일 한도) ---------------------------------------
+// 데스크톱 앱에서만 값을 받을 수 있다(메인 프로세스가 앤쓰로픽에 묻는다).
+// 브라우저로 열면 이 상자는 그냥 안 보인다.
+const USAGE_UI_MS = 30000;
+
+// 창이 작아지면 상자도 같이 작아져야 한다 — 고정 크기로 두면 좁은 창에서 화면의
+// 절반을 먹는다. 캔버스는 정수 배율이라 따라 붙일 수 없으니 폭 비율로 줄인다.
+// 기준 1280px, 0.6배 아래로는 글자가 안 읽혀서 거기서 멈춘다.
+function syncUsageScale() {
+  const el = document.getElementById('usage');
+  if (!el) return;
+  const k = Math.max(0.6, Math.min(1, window.innerWidth / 1280));
+  el.style.transform = `translateX(-50%) scale(${k})`;
+}
+
+function untilText(ms) {
+  const left = ms - Date.now();
+  if (!(left > 0)) return '곧';
+  const h = Math.floor(left / 3600000), m = Math.round((left % 3600000) / 60000);
+  if (h >= 24) return `${Math.floor(h / 24)}일 뒤`;
+  if (h > 0) return `${h}시간 ${m}분 뒤`;
+  return `${m}분 뒤`;
+}
+
+function renderUsage(usage) {
+  const el = document.getElementById('usage-bars');
+  if (!usage || !usage.windows || !usage.windows.length) {
+    // 왜 없는지 적어 준다 — 빈칸이면 앱 탓인지 로그인 탓인지 알 수가 없다.
+    el.innerHTML = usage && usage.error
+      ? `<span class="u-item"><span class="u-sub">한도 못 받음 — ${usage.error}</span></span>`
+      : '';
+    syncUsageBox();
+    return;
+  }
+  el.innerHTML = usage.windows.map(w => {
+    const pct = Math.max(0, Math.min(100, Number(w.used) || 0));
+    const cls = pct >= 85 ? 'hot' : pct >= 60 ? 'warn' : '';
+    return `<span class="u-item">` +
+           `<span class="u-top"><span>${w.label}</span>` +
+           `<span class="u-bar ${cls}"><i style="width:${pct}%"></i></span>` +
+           `<span class="u-pct">${Math.round(pct)}%</span></span>` +
+           `<span class="u-sub">${w.resetsAt ? untilText(w.resetsAt) + ' 초기화' : '초기화 시각 모름'}</span>` +
+           `</span>`;
+  }).join('');
+  syncUsageBox();
+}
+
+// 한도 막대도 오늘 토큰도 없으면 상자를 통째로 숨긴다(브라우저로 열었을 때).
+function syncUsageBox() {
+  const box = document.getElementById('usage');
+  const has = document.getElementById('usage-bars').innerHTML !== ''
+           || document.getElementById('usage-tok').style.display === 'inline';
+  box.style.display = has ? 'flex' : 'none';
+}
+
+// --- Claude 앱의 채팅/Cowork 대화 -------------------------------------------
+//
+// 이 대화들은 트랜스크립트를 안 남겨 서버가 모른다. 데스크톱 셸이 Claude 앱의
+// 접근성 트리에서 제목과 실행 중/유휴만 읽어다 준다(main.js 참고). 그래서 여기
+// 사람들은 토큰도 도구도 작업 폴더도 없다 — 제목과 상태뿐이다.
+const DESKTOP_PROJ = 'claude-desktop-chat';
+// 슬러그->폴더 표에 'Claude' 를 넣어 둔다. 명찰에 'Claude' 로 뜨고, 창을 찾을 때
+// 쓰는 검색어(projTerms)도 'Claude' 가 된다 — Claude 앱 창 제목이 그것이다.
+projCwd[DESKTOP_PROJ] = 'Claude';
+const desktopChats = {};     // sid -> { title, state, seenAt }
+let desktopSeenAt = 0;       // 마지막으로 '채팅 탭을 실제로 읽은' 시각
+
+// 제목에서 안정적인 id 를 만든다. 대화에는 세션 id 가 없어서 제목이 신원이다.
+function chatSid(title) {
+  let h = 0;
+  for (let i = 0; i < title.length; i++) h = (h * 31 + title.charCodeAt(i)) | 0;
+  return 'c' + (h >>> 0).toString(36);
+}
+
+// 서버가 준 세션 표에 채팅 대화를 얹는다. sessions 페이로드는 통째로 갈아치우므로
+// 그때마다 다시 얹어야 한다.
+function mergeDesktopChats(info, liveKeys) {
+  for (const [sid, c] of Object.entries(desktopChats)) {
+    const sk = `${DESKTOP_PROJ}|${sid}`;
+    info[sk] = {
+      entry: 'claude-desktop-chat', active: c.state === 'working', state: c.state,
+      title: c.title, tokens: 0, tokensToday: 0, mtime: Math.floor(c.seenAt / 1000),
+    };
+    if (liveKeys) liveKeys.add(sk);   // 서버 목록에 없다고 내보내면 안 된다
+  }
+}
+
+function pollDesktop() {
+  const api = window.claudetown;
+  if (!api || !api.getDesktopChats) return;
+  api.getDesktopChats().then(res => {
+    if (!res || !Array.isArray(res.items) || !res.at) return;
+    const fresh = res.at !== desktopSeenAt;   // 채팅 탭을 실제로 읽어 온 결과인가
+    if (!fresh) return;
+    desktopSeenAt = res.at;
+    const now = Date.now();
+    // 이중 방어: 서버가 아는 세션과 제목이 같으면 그건 Code 탭 목록을 읽은 것이다.
+    // 셸이 이미 탭을 가려내지만(main.js), 그쪽이 틀려도 여기서 한 번 더 막는다 —
+    // 트랜스크립트가 있는 세션은 이미 화면에 있으니 두 번 세울 이유가 없다.
+    const known = new Set();
+    for (const [sk, v] of Object.entries(state.sessionInfo)) {
+      if (!sk.startsWith(DESKTOP_PROJ + '|') && v.title) known.add(v.title);
+    }
+    if (res.items.some(it => known.has(it.title))) return;
+    const seen = new Set();
+    for (const it of res.items) {
+      const sid = chatSid(it.title);
+      seen.add(sid);
+      const prev = desktopChats[sid];
+      // 답하는 중이면 작업 중. 멈춰 있고 지금 열어 둔 대화면 내 차례다(응답 대기).
+      // 열어 두지도 않은 지난 대화는 완료로 둔다 — 사이드바에 남아 있다고 다
+      // 응답 대기로 세우면 대기 방이 옛 대화로 가득 찬다.
+      const state = it.running ? 'working'
+        : it.open ? 'waiting'
+        : prev && prev.state === 'working' ? 'waiting'
+        : 'done';
+      desktopChats[sid] = { title: it.title, state, seenAt: now };
+      moveAvatar({ proj: DESKTOP_PROJ, sid, role: 'meeting' });
+      // 알림은 여기서 직접 낸다. sessions 핸들러의 알림 루프는 '직전 표' 와
+      // 비교하는데, 방금 위에서 그 표를 갱신해 버려 차이가 안 남는다.
+      if (state === 'waiting' && prev && prev.state === 'working') {
+        api.notifyWaiting('Claude', it.title, ['Claude'], 'claude-desktop-chat').catch(() => {});
+      }
+    }
+    // 방금 읽은 목록에 없으면 사이드바에서 빠진 것이다. 탭이 다른 동안에는
+    // 애초에 여기 오지 않으므로(fresh 가 아니다) 잘못 지울 일은 없다.
+    // 사이드바를 접었을 땐(partial) 목록 자체를 못 본 것이라 지우면 안 된다 —
+    // 열어 둔 대화 하나만 알 뿐이다.
+    for (const sid of res.partial ? [] : Object.keys(desktopChats)) {
+      if (seen.has(sid)) continue;
+      delete desktopChats[sid];
+      const key = `${DESKTOP_PROJ}|${sid}`;
+      for (const [k, a] of Object.entries(avatars)) {
+        if (a.proj === DESKTOP_PROJ && a.sid === sid) {
+          spawnPuff(a.x, a.y); delete avatars[k]; layoutRoomOccupants(a.role);
+        }
+      }
+      delete state.sessionInfo[key];
+    }
+    mergeDesktopChats(state.sessionInfo, null);
+  }).catch(() => {});
+}
+pollDesktop();
+setInterval(pollDesktop, 5000);
+
+function pollUsage() {
+  const api = window.claudetown;
+  if (!api || !api.getUsage) return;
+  api.getUsage().then(u => {
+    renderUsage(u);
+    // 앱을 막 켰을 때는 메인이 아직 값을 못 받아온 상태다. 30초를 기다리면
+    // 상자가 한참 비어 있으니, 값이 들어올 때까지만 짧게 다시 묻는다.
+    if (!u || (!u.windows && !u.error)) setTimeout(pollUsage, 3000);
+  }).catch(() => {});
+}
+pollUsage();
+syncUsageScale();
+setInterval(pollUsage, USAGE_UI_MS);
+
+// 힌트 자리를 그대로 써서 짧게 알린다 — 별도 UI 를 새로 만들 만한 일이 아니다.
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('hint');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2600);
+}
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && gesture) { setGesture(null); return; }
+  if (e.key === '+' || e.key === '=') { zoomStep(1, cv.width / 2, (cv.height - UI_BAND * dpr) / 2); }
+  else if (e.key === '-' || e.key === '_') { zoomStep(-1, cv.width / 2, (cv.height - UI_BAND * dpr) / 2); }
+  else if (e.key === '0') { resetCamera(); }
+  else if (e.key.startsWith('Arrow')) {
+    const step = 48 * dpr;
+    const dx = e.key === 'ArrowLeft' ? step : e.key === 'ArrowRight' ? -step : 0;
+    const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0;
+    if (dx || dy) { panBy(dx, dy); e.preventDefault(); }
+    return;
+  } else return;
+  e.preventDefault();
+});
+
+// 첫 실행에서만 한 번 뜨는 안내 — localStorage 접근은 일부 컨텍스트(프라이빗 모드 등)에서
+// 던질 수 있어 try/catch 로 감싼다.
+function initHint() {
+  let seen = false;
+  try { seen = localStorage.getItem('claudetown_hint_seen') === '1'; } catch (e) {}
+  if (seen) return;
+  try { localStorage.setItem('claudetown_hint_seen', '1'); } catch (e) {}
+  const hintEl = document.getElementById('hint');
+  hintEl.style.opacity = '1';
+  setTimeout(() => { hintEl.style.opacity = '0'; }, 3500);
+}
+
+// 백킹 스토어를 CSS px 가 아니라 디바이스 px(= CSS px * dpr)로 잡는다. 안 그러면
+// 윈도 125%/150% 배율이나 브라우저 줌에서 브라우저가 이 캔버스를 통째로
+// 업스케일해 그려 넣어 fillText 로 그린 글자(명찰·간판)가 뭉갠다.
+// CSS 크기(cv.style.*)는 그대로 뷰포트에 맞추고, 픽셀 버퍼만 키운다.
+function fitCanvas() {
+  dpr = window.devicePixelRatio || 1;
+  cv.style.width = window.innerWidth + 'px';
+  cv.style.height = window.innerHeight + 'px';
+  cv.width = Math.round(window.innerWidth * dpr);
+  cv.height = Math.round(window.innerHeight * dpr);
+  ctx.imageSmoothingEnabled = false;
+  computeLayout();
+}
+
+// 리사이즈를 rAF 루프에만 맡기지 않는다 — 루프가 스로틀되면(창이 가려지거나
+// 최소화되면 Chromium 이 그렇게 한다) 캔버스가 옛 크기로 남아 화면이 잘린다.
+// resize 이벤트는 그 상태에서도 오므로, 여기서 바로 맞추고 한 장 그려 둔다.
+// 창이 뒤로 가거나 최소화되면 Chromium 은 이 루프를 아예 세운다(측정: vis=hidden
+// 에서 프레임 카운터가 고정). 그 상태에서 창 크기가 바뀌면 캔버스가 옛 크기로
+// 남아 화면이 잘린다. 배경에서도 계속 돌리는(backgroundThrottling:false) 쪽은
+// 안 쓴다 — 하루 종일 켜 두는 앱이라 노트북 CPU 를 계속 태운다. 대신 루프가
+// 자는 동안에도 오는 이벤트에서 직접 맞춘다.
+const refit = () => { fitCanvas(); draw(); syncUsageScale(); };
+window.addEventListener('resize', refit);
+// 리사이즈가 루프가 자는 동안 일어났다면, 다시 보일 때 한 번 더 맞춰야 한다.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refit(); });
+window.addEventListener('focus', refit);
+
+function tick() {
+  try {
+  const cssW = window.innerWidth, cssH = window.innerHeight;
+  const r = window.devicePixelRatio || 1;
+  const wantW = Math.round(cssW * r);
+  const wantH = Math.round(cssH * r);
+  // 리사이즈뿐 아니라 dpr 변화(줌, 모니터 이동)도 여기서 같이 잡는다 — 매 프레임
+  // 도는 rAF 루프에 얹는 쪽이 별도 matchMedia 리스너보다 간단하다.
+  //
+  // 백킹 스토어(cv.width)만 비교하면 안 된다 — 그건 cssW * dpr 이라, dpr 이
+  // 바뀌면서 cssW 가 반대로 움직이면 곱이 그대로다. 배율이 다른 모니터로
+  // 옮기거나 최소화했다 복원할 때 실제로 일어난다:
+  //   전:  innerWidth 687,  dpr 2  ->  cv.width 1374, cv.style.width '687px'
+  //   후:  innerWidth 1374, dpr 1  ->  wantW    1374  == cv.width  -> 리사이즈 안 함
+  // 그러면 cv.style.width 가 '687px' 로 남아 캔버스가 창의 왼쪽 절반만 덮는다.
+  // CSS 크기도 같이 비교해서, 둘 중 하나라도 뷰포트와 어긋나면 다시 맞춘다.
+  if (cv.width !== wantW || cv.height !== wantH
+      || cv.style.width !== cssW + 'px' || cv.style.height !== cssH + 'px') fitCanvas();
+  else computeLayout();   // 리사이즈가 없어도 줌 트윈·드래그 팬은 매 프레임 갱신해야 한다
+  stepAvatars();
+  draw();
+  updateHoverHit();
+  } catch (e) {
+    // 한 프레임이 던졌다고 루프가 영영 죽으면 화면이 그 자리에 얼어붙는다 —
+    // 하루 종일 켜 두는 앱에서 그건 곧 "앱이 고장난 것"으로 보인다. 삼키고 계속 돈다.
+    console.error('tick 프레임에서 예외:', e);
+  }
+  requestAnimationFrame(tick);
+}
+
+// 이 툴들이 뜨면 사람이 답해야 진행된다 — 옛 PreToolUse 훅이 알려주던 자리다.
+// 이건 트랜스크립트에 남는 툴이라 이 앱이 대신할 수 있다(권한 요청은 안 남는다).
+const ASK_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode']);
+let liveEvents = false;      // 첫 snapshot 재생 때는 알리지 않는다
+
+function applyEvent(ev) {
+  moveAvatar(ev);
+  if (liveEvents && ASK_TOOLS.has(ev.name)) {
+    const api = window.claudetown;
+    const info = state.sessionInfo[`${ev.proj}|${ev.sid}`];
+    if (api) {
+      api.notifyWaiting(shortLabel(ev.proj), info ? info.title : '',
+                        projTerms(ev.proj), ev.entry, 'ask').catch(() => {});
+    }
+  }
+  state.ticker.push(`${shortLabel(ev.proj)} · ${ev.name} ${ev.label}`);
+  state.ticker.splice(0, Math.max(0, state.ticker.length - 40));
+}
+
+function connect() {
+  const es = new EventSource('/events');
+  es.addEventListener('snapshot', e => {
+    state.ticker = [];
+    JSON.parse(e.data).recent.forEach(applyEvent);
+    liveEvents = true;      // 여기부터는 진짜 새 이벤트다
+  });
+  es.addEventListener('tool', e => applyEvent(JSON.parse(e.data)));
+  es.addEventListener('sessions', e => {
+    const live = JSON.parse(e.data);
+    const info = {};
+    const liveKeys = new Set();
+    for (const [proj, rooms] of Object.entries(live)) {
+      for (const r of rooms) {
+        const sk = `${proj}|${r.sid}`;
+        if (r.cwd) projCwd[proj] = r.cwd;
+        info[sk] = { entry: r.entry, active: r.active, state: r.state || (r.active ? 'working' : 'done'), title: r.title || '', tokens: r.tokens || 0, tokensToday: r.tokensToday || 0, mtime: r.mtime || 0 };
+        liveKeys.add(sk);
+      }
+    }
+    mergeDesktopChats(info, liveKeys);
+    // B: 세션이 방 목록(서버가 유지하는 프로젝트당 최근 MAX_ROOMS)에서 빠지면
+    // "나갔다"로 보고 디스폰 퍼프 후 지운다. 첫 payload(state.sessionInfo 가 아직
+    // 비어있을 때)는 건너뛴다 — 스냅샷으로 미리 만들어진 아바타가 로드 직후
+    // 우르르 사라지는 깜빡임을 막는다.
+    if (Object.keys(state.sessionInfo).length) {
+      for (const [key, a] of Object.entries(avatars)) {
+        const sk = `${a.proj}|${a.sid}`;
+        if (state.sessionInfo[sk] && !liveKeys.has(sk)) {
+          spawnPuff(a.x, a.y);
+          delete avatars[key];
+          layoutRoomOccupants(a.role);
+        }
+      }
+    }
+    // 상태가 '응답 대기'로 넘어가는 순간 알린다. 첫 payload 는 건너뛴다 —
+    // 앱을 켜자마자 기존 대기 세션들로 알림이 우르르 쏟아지면 못 쓴다.
+    const api = window.claudetown;
+    if (api && Object.keys(state.sessionInfo).length) {
+      for (const sk in info) {
+        const prev = state.sessionInfo[sk], next = info[sk];
+        if (!prev || prev.state === 'waiting' || next.state !== 'waiting') continue;
+        const proj = sk.slice(0, sk.lastIndexOf('|'));
+        api.notifyWaiting(shortLabel(proj), next.title || '', projTerms(proj), next.entry)
+          .catch(() => {});
+      }
+    }
+    state.sessionInfo = info;
+    if (api) {
+      const waiting = Object.values(info).filter(r => r.state === 'waiting').length;
+      api.setWaitingCount(waiting);
+    }
+
+    // 서버가 아는 세션인데 아직 사람이 없으면 세운다. 예전엔 툴 이벤트가 한 번은
+    // 와야 사람이 생겨서, 앱을 막 켜면 과거 세션이 화면에 아예 안 나왔다 —
+    // 완료·응답 대기를 보라고 만든 상태인데 정작 볼 사람이 없었다.
+    // name 이 없는 합성 이벤트라 말풍선·타이핑·모니터 플래시는 안 터진다.
+    // 그건 "방금 뭔가 했다"는 신호라서 과거 세션에는 맞지 않는다.
+    for (const [proj, rooms] of Object.entries(live)) {
+      for (const r of rooms) {
+        // role 이 null 이면 서버도 마지막 방을 모른다는 뜻 — 아무 방에나 세우지 않는다.
+        if (r.role && !avatars[`${proj}|${r.sid}`]) {
+          moveAvatar({ proj, sid: r.sid, entry: r.entry, role: r.role, sub: false });
+        }
+      }
+    }
+    reroomAvatars();
+  });
+  es.onerror = () => { hud.textContent = '연결 끊김 — 재연결 중'; };
+}
+
+initRooms();
+connect();
+initHint();
+loadSheets().then(tick);
+</script>

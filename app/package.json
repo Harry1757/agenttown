@@ -1,0 +1,62 @@
+{
+  "name": "claudetown-app",
+  "version": "1.0.4",
+  "description": "ClaudeTown 데스크톱 셸 - claudetown.py 를 띄우고 창/트레이로 보여준다 (Windows/WSL·macOS)",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "icon": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/make-icon.ps1",
+    "install-app": "node tools/sync-server.js && electron tools/install.js",
+    "uninstall-app": "electron tools/install.js --uninstall",
+    "sync-server": "node tools/sync-server.js",
+    "dist": "node tools/sync-server.js && electron-builder --win nsis",
+    "dist:mac": "node tools/sync-server.js && electron-builder --mac dir",
+    "dist:mac-dmg": "node tools/sync-server.js && electron-builder --mac dmg",
+    "install-app:mac": "npm run dist:mac && rm -rf '/Applications/ClaudeTown.app' && cp -R dist/mac*/ClaudeTown.app /Applications/"
+  },
+  "private": true,
+  "devDependencies": {
+    "electron": "43.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.claudetown.app",
+    "productName": "ClaudeTown",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": false,
+    "files": [
+      "src/**",
+      "server/**",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/claudetown.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ClaudeTown"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    },
+    "compression": "maximum",
+    "electronLanguages": [
+      "ko",
+      "en-US"
+    ]
+  }
+}
