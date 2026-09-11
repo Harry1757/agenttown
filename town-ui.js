@@ -5,7 +5,15 @@
   const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
   const savedFavorites = read('codextown.favorites', []);
   const favorites = new Set(Array.isArray(savedFavorites) ? savedFavorites : []);
+  const storedDismissed = read('codextown.dismissed', {});
+  const dismissed = new Map(Object.entries(storedDismissed && typeof storedDismissed==='object' ? storedDismissed : {}).filter(([,at])=>Number.isFinite(at)));
+  const saveDismissed = () => save('codextown.dismissed',Object.fromEntries(dismissed));
   const ui = window.townUI = {
+    isDismissed(key, at) {
+      if(!dismissed.has(key))return false;
+      if(Number(at)>dismissed.get(key)){dismissed.delete(key);saveDismissed();return false;}
+      return true;
+    },
     roomView: read('codextown.roomView', 'focus'), selectedKey: null, filter: 'all', project: '', query: '', favoritesOnly: false, connected: false,
     motionReduced: read('codextown.reducedMotion', window.matchMedia('(prefers-reduced-motion: reduce)').matches),
     matches(key) {
@@ -123,6 +131,24 @@
       if (window.innerWidth<=1100) setRoster(false);
     };
     $('star-selected').onclick=()=>{ if(favorites.has(row.key)) favorites.delete(row.key); else favorites.add(row.key);save('codextown.favorites',[...favorites]);render(); };
+    const remove=document.createElement('button');
+    remove.id='dismiss-selected';remove.textContent='마을에서 삭제';
+    remove.style.cssText='margin-top:14px;padding:8px 12px;color:var(--muted);font-size:12px';
+    remove.title='대화 기록은 보존하며 새 활동이 생기면 다시 나타납니다';
+    remove.onclick=()=>{
+      dismissed.set(row.key,Math.max(Date.now()/1000,row.mtime||0));saveDismissed();
+      const saved=state.sessionInfo[row.key];
+      delete state.sessionInfo[row.key];
+      for(const [key,a] of Object.entries(avatars))if(`${a.proj}|${a.sid}`===row.key){spawnPuff(a.x,a.y);delete avatars[key];layoutRoomOccupants(a.role);}
+      ui.selectedKey=null;hideTooltip();hoveredWorker=null;render();refit();
+      $('task-search').focus({preventScroll:true});
+      toast('마을에서 삭제했어요. 새 활동이 생기면 돌아옵니다.',()=>{
+        dismissed.delete(row.key);saveDismissed();
+        if(saved)state.sessionInfo[row.key]=saved;
+        render();toast('삭제를 취소했어요. 곧 다시 나타납니다.');
+      });
+    };
+    el.append(remove);
     el.scrollTop=detailScroll;
     if(focusId) $(focusId)?.focus({preventScroll:true});
     lastDetailKey=row.key;lastDetail=signature;

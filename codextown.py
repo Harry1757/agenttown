@@ -21,14 +21,14 @@ CODEX_HOME = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).exp
 PORT = int(os.environ.get('CODEXTOWN_PORT', '8766'))
 
 
-def auxiliary_session(meta, cwd, record, state):
+def auxiliary_session(meta, cwd, record, state, last_tool=None):
     parts = str(cwd).replace('\\', '/').split('/')
     fixture = any(part in ('messenger-relay-check', 'agent-messenger-codex-fixture')
                   or part.startswith('desktop-test-') for part in parts)
     if fixture:
         return True
     return state == 'done' and (meta.get('model') == 'codex-auto-review'
-        or (meta.get('source') == 'exec' and not record.get('title')))
+        or (not record.get('title') and (meta.get('source') == 'exec' or last_tool == '')))
 
 
 def tool_details(payload):
@@ -268,7 +268,7 @@ class Tailer(town.Tailer):
                 continue
             state = 'waiting' if path in self._requests else 'done' if now - mtime > town.DONE_AFTER else 'waiting' if self._turn_ended.get(path) else 'working'
             cwd = self._cwd.get(path, '')
-            if path not in self._requests and auxiliary_session(meta, cwd, record, state):
+            if path not in self._requests and auxiliary_session(meta, cwd, record, state, self._last_tools.get(path, '')):
                 continue
             result.setdefault(self._project(path), []).append({
                 **meta, 'cwd': cwd, 'title': str(record.get('title') or Path(cwd).name or 'Codex 작업')[:180],

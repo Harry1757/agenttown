@@ -1712,7 +1712,7 @@ function moveAvatar(ev) {
   if(prevRole) changeRoom(a,want);
   else {a.role=want;layoutRoomOccupants(a.role);}
   if (!prevRole) { a.x = a.tx; a.y = a.ty; }   // 새로 생기면 (0,0) 에서 미끄러져 오지 않는다
-  if (isNew) spawnPuff(a.x, a.y);   // B: 스폰 퍼프 — 자리 잡은 뒤 좌표로
+  if (isNew) {spawnPuff(a.x, a.y);a.summonAt=performance.now();}
 }
 
 let lastStep = 0;
@@ -2084,6 +2084,20 @@ function drawWorker(a) {
   const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
   const now = performance.now();
   const reduced = Boolean(window.townUI?.motionReduced);
+  const summonAge=now-(a.summonAt??-Infinity);
+  const summoning=!reduced && summonAge>=0 && summonAge<1200;
+  if(reduced)a.summonAt=undefined;
+  if(summoning){
+    const t=summonAge/1200,fade=Math.min(1,t*6,(1-t)*4),cx=px+P*.5,cy=py+P;
+    ctx.save();ctx.globalAlpha=fade;ctx.strokeStyle='#e0b6ff';ctx.lineWidth=Math.max(1,scale);
+    for(const radius of [.65,.85]){ctx.beginPath();ctx.ellipse(cx,cy,P*radius,P*radius*.25,0,0,Math.PI*2);ctx.stroke();}
+    for(let i=0;i<6;i++){
+      const angle=i*Math.PI/3+t*3,x=cx+Math.cos(angle)*P*.75,y=cy+Math.sin(angle)*P*.2-t*P*1.3,r=2*scale;
+      ctx.fillStyle=i%2?'#ffe6a2':'#ffc7e9';ctx.beginPath();ctx.moveTo(x,y-r*2);ctx.lineTo(x+r*.5,y-r*.5);ctx.lineTo(x+r*2,y);ctx.lineTo(x+r*.5,y+r*.5);ctx.lineTo(x,y+r*2);ctx.lineTo(x-r*.5,y+r*.5);ctx.lineTo(x-r*2,y);ctx.lineTo(x-r*.5,y-r*.5);ctx.closePath();ctx.fill();
+    }
+    if(t>.35){ctx.fillStyle='#ffe6f2';ctx.font=`600 ${Math.max(11*dpr,6*scale)}px 'Apple SD Gothic Neo',sans-serif`;ctx.textAlign='center';ctx.fillText('짠!',cx+P*.9,cy-P*(.7+t*.35));}
+    ctx.restore();
+  }
   const st = workerState(a);
   const seed = hashSeed(a.key);
   const moving = isMoving(a);
@@ -2187,6 +2201,10 @@ function drawWorker(a) {
     const size=Math.max(0,p<.5?1-p/.45:(p-.55)/.45);
     ctx.translate(feetX,feetY);ctx.scale(size,size);ctx.translate(-feetX,-feetY);
     ctx.globalAlpha*=size;
+  }
+  if(summoning){
+    const appear=Math.min(1,summonAge/450),size=.65+.35*Math.sin(appear*Math.PI/2);
+    ctx.translate(feetX,feetY);ctx.scale(size,size);ctx.translate(-feetX,-feetY);ctx.globalAlpha*=appear;
   }
   drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale, hScale);
   ctx.restore();
@@ -2648,12 +2666,14 @@ setInterval(pollUsage, USAGE_UI_MS);
 
 // 힌트 자리를 그대로 써서 짧게 알린다 — 별도 UI 를 새로 만들 만한 일이 아니다.
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, undo) {
   const el = document.getElementById('hint');
   el.textContent = msg;
   el.style.opacity = '1';
+  el.style.pointerEvents=undo?'auto':'none';
+  if(undo){const button=document.createElement('button');button.textContent='삭제 취소';button.style.cssText='margin-left:10px;padding:4px 8px';button.onclick=undo;el.append(button);}
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2600);
+  toastTimer = setTimeout(() => { el.style.opacity = '0';el.style.pointerEvents='none'; }, undo?8000:2600);
 }
 
 window.addEventListener('keydown', e => {
@@ -2754,6 +2774,7 @@ const ASK_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode']);
 let liveEvents = false;      // 첫 snapshot 재생 때는 알리지 않는다
 
 function applyEvent(ev) {
+  if(window.townUI?.isDismissed(`${ev.proj}|${ev.sid}`,Date.parse(ev.ts)/1000))return;
   moveAvatar(ev);
   if (liveEvents && ASK_TOOLS.has(ev.name)) {
     const api = window.codextown;
@@ -2778,6 +2799,7 @@ function connect() {
   es.addEventListener('tool', e => applyEvent(JSON.parse(e.data)));
   es.addEventListener('sessions', e => {
     const live = JSON.parse(e.data);
+    for(const [proj,rows] of Object.entries(live))live[proj]=rows.filter(r=>!window.townUI?.isDismissed(`${proj}|${r.sid}`,r.mtime));
     const info = {};
     const liveKeys = new Set();
     for (const [proj, rooms] of Object.entries(live)) {

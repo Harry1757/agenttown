@@ -45,7 +45,8 @@ class CodexTests(unittest.TestCase):
         self.t.scan(); self.assertEqual(self.row()['tokens'],180)
 
     def test_resting_expires_at_48_hours_and_returns_on_new_call(self):
-        self.meta(); self.add('event_msg', {'type':'task_complete'})
+        self.meta(); self.add('response_item', {'type':'function_call', 'name':'exec_command', 'arguments':'{}'})
+        self.add('event_msg', {'type':'task_complete'})
         self.t.seed()
         ended = datetime.fromisoformat(self.ts).timestamp()
         # A later background write must not extend the completed session's life.
@@ -79,6 +80,8 @@ class CodexTests(unittest.TestCase):
         self.assertFalse(auxiliary_session({'source':'exec'}, '/work/projects', {}, 'working'))
         self.assertFalse(auxiliary_session({}, '/work/workspace', {}, 'done'))
         self.assertTrue(auxiliary_session({'model':'codex-auto-review'}, '/work/project', {}, 'done'))
+        self.assertTrue(auxiliary_session({}, '/work/projects', {}, 'done', ''))
+        self.assertFalse(auxiliary_session({}, '/work/projects', {'title':'대화 작업'}, 'done', ''))
 
     def test_fixture_does_not_emit_ghost_avatar_event(self):
         self.add('session_meta', {'id':'fixture', 'cwd':'/tmp/desktop-test-abc', 'source':'exec'})
