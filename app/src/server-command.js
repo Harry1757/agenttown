@@ -8,6 +8,8 @@ function serverCommands({ platform, resourcesPath, dir, env, exists }) {
   if (platform === 'win32') {
     const bundled = path.join(resourcesPath, 'backend', 'codextown-server.exe');
     if (exists(bundled)) return [{ binary: bundled, args: ['--no-browser'] }];
+    const python = path.join(resourcesPath, 'python', 'python.exe');
+    if (exists(python)) return [{ binary: python, args: [script, '--no-browser'] }];
   }
   if (env.CODEXTOWN_PYTHON) candidates.push({ binary: env.CODEXTOWN_PYTHON, args: [script, '--no-browser'] });
   const binaries = platform === 'win32' ? ['python', 'python3'] : ['/opt/homebrew/bin/python3', '/usr/local/bin/python3', '/usr/bin/python3', 'python3'];

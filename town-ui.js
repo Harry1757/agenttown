@@ -155,7 +155,7 @@
   $('zoom-in').onclick=()=>zoomStep(1,cv.width/2,cv.height/2);
   $('zoom-out').onclick=()=>zoomStep(-1,cv.width/2,cv.height/2);
   $('map-reset').onclick=()=>{resetCamera();ui.selectedKey=null;render();};
-  $('motion-toggle').onclick=()=>{ui.motionReduced=!ui.motionReduced;save('codextown.reducedMotion',ui.motionReduced);render();};
+  $('motion-toggle').onclick=()=>{ui.motionReduced=!ui.motionReduced;setGesture(null);save('codextown.reducedMotion',ui.motionReduced);render();};
   $('mobile-roster').onclick=()=>setRoster(!$('workspace').classList.contains('roster-open'));
   $('close-roster').onclick=()=>setRoster(false);
   document.addEventListener('keydown',e=>{

@@ -1867,13 +1867,14 @@ function drawFaceBubble(cx, tagTop, scale, text, t) {
 function drawWorker(a) {
   const scale = layout.scale, P = TILE * scale;
   const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
-  const now = window.townUI?.motionReduced ? 0 : performance.now();
+  const now = performance.now();
+  const reduced = Boolean(window.townUI?.motionReduced);
   const st = workerState(a);
   const seed = hashSeed(a.key);
   const moving = isMoving(a);
   // 때린 직후에는 잠깐 바쁘게 움직인다(겉보기 가속). 진짜 세션은 안 바뀐다.
   const hasted = a.hasteUntil !== undefined && now < a.hasteUntil;
-  const idle = moving ? { dx: 0, dy: 0, face: null, glyph: null }
+  const idle = moving || reduced ? { dx: 0, dy: 0, face: null, glyph: null }
                       : idleMotion(a, now, seed, layout.scale, hasted ? HASTE_K : 1);
   // 제스처 반응: 맞으면 부르르 떨며 움찔하고, 쓰다듬으면 기분 좋게 들썩인다.
   let reactDX = 0, reactSq = 1, reactGlyph = null;
@@ -1891,11 +1892,11 @@ function drawWorker(a) {
       }
     }
   }
-  const bounce = walkBob(a, now);
+  const bounce = reduced ? 0 : walkBob(a, now);
 
   // B: 걷기->정지 엣지에서 도착 스쿼시를 튕긴다.
   if (a.wasMoving === undefined) a.wasMoving = false;
-  if (a.wasMoving && !moving) {
+  if (!reduced && a.wasMoving && !moving) {
     a.squashStart = now;
     // 벽에 막혀서 멈췄다 — 덩치가 커서 방이 좁은 애만 티를 낸다.
     if (a.bumped) {
@@ -1927,7 +1928,7 @@ function drawWorker(a) {
     const t = (now + seed) % STRETCH_EVERY_MS;
     if (t < STRETCH_MS) stretchSq = 1 + (STRETCH_PX / P) * Math.sin((t / STRETCH_MS) * Math.PI);
   }
-  const hScale = breathSq * arrivalSq * stretchSq * reactSq;
+  const hScale = reduced ? 1 : breathSq * arrivalSq * stretchSq * reactSq;
 
   // B: 이벤트 도착 시 짧고 빠른 bob — 3.5사이클, 감쇠 엔벨로프로 다시 idle 로.
   let bob = 0;
@@ -1941,12 +1942,12 @@ function drawWorker(a) {
 
   // 가속 중이면 계속 까딱인다 — 타이핑을 몰아치는 느낌.
   const hasteBob = hasted ? Math.abs(Math.sin(now / 70)) * 1.5 * layout.scale : 0;
-  const topY = py - bounce - bob - idle.dy - hasteBob;
-  const feetX = px + P / 2 + idle.dx + reactDX, feetY = topY + P;
+  const topY = reduced ? py : py - bounce - bob - idle.dy - hasteBob;
+  const feetX = px + P / 2 + (reduced ? 0 : idle.dx + reactDX), feetY = topY + P;
   // 방 몸짓이 방향을 정하면 그걸 쓴다(두리번, 마주보기). a.face 자체는 배치가 정하는
   // 값이라 건드리지 않고 그리는 순간에만 갈아끼운다.
   const face = idle.face !== null ? idle.face : a.face;
-  const leanAngle = a.lean * face * LEAN_MAX;
+  const leanAngle = reduced ? 0 : a.lean * face * LEAN_MAX;
 
   ctx.save();
   // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.

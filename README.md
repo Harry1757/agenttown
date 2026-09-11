@@ -80,7 +80,26 @@ node --test app/test-notifications.js
 원본 `~/projects/claudetown`은 수정하지 않았습니다.
 
 
-## Windows 설치 파일
+## Windows ZIP 설치 (GitHub 없이 전달)
+
+`downloads/CodexTown-Windows-x64.zip`을 그대로 전달합니다. 받는 사람은 전체 압축을 풀고
+`설치.cmd`를 더블클릭하면 됩니다. 현재 사용자 폴더에 설치되고 바탕화면·시작 메뉴에
+바로가기가 생깁니다. Node.js와 Python은 별도로 설치하지 않습니다.
+
+동봉된 실행 파일과 리소스 구성은 검사했으며, 실제 Windows PC 설치·알림·Codex 연동은
+아직 실행 확인 전입니다. 이 ZIP은 테스트 배포본입니다.
+
+패키지를 다시 만들려면 `app` 폴더에서 `@electron/get`의 `downloadArtifact`로
+Electron 43.4.0 / win32 / x64 아카이브를 받고(체크섬 검증 포함), 저장소 루트에서 실행합니다.
+
+```sh
+python3 tools/package-windows-zip.py /path/to/electron-v43.4.0-win32-x64.zip
+```
+
+공식 Python Windows 내장 런타임을 함께 넣습니다. 앱 소스·이미지·실행 엔진만 포함하며
+세션·인증 정보·개인 설정은 포함하지 않습니다. ZIP 옆에 SHA-256 체크섬도 생성합니다.
+
+## Windows EXE 설치 파일 (추가 빌드 방법)
 
 Windows x64용 `CodexTown-1.0.0-Windows-x64-Setup.exe`를 만드는 구성이 포함되어 있습니다.
 설치 파일에는 Python 실행 엔진이 들어가므로, 받는 사람은 Python이나 Node.js를 따로 설치할 필요가 없습니다.
