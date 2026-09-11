@@ -16,7 +16,7 @@
     select(key) {
       ui.selectedKey = key;
       render();
-      if (window.innerWidth <= 570) setRoster(true);
+      if (window.innerWidth <= 900) setRoster(true);
     },
   };
   const statusOf = row => row.needsInput ? 'input' : row.state;
@@ -115,7 +115,7 @@
       const scale=cam.fitScale+cam.zoomSteps;
       const off=clampOffset(scale,cv.width/2-(a.x+.5)*TILE*scale,cv.height/2-(a.y+.5)*TILE*scale);
       cam.offX=off.x;cam.offY=off.y;
-      if (window.innerWidth<=570) setRoster(false);
+      if (window.innerWidth<=900) setRoster(false);
     };
     $('star-selected').onclick=()=>{ if(favorites.has(row.key)) favorites.delete(row.key); else favorites.add(row.key);save('codextown.favorites',[...favorites]);render(); };
     el.scrollTop=detailScroll;
@@ -130,7 +130,15 @@
       window.location.href=`codex://threads/${row.sid}`;
     }
   }
-  function setRoster(open) {$('workspace').classList.toggle('roster-open',open);$('mobile-roster').setAttribute('aria-expanded',String(open));}
+  function setRoster(open) {
+    $('workspace').classList.toggle('roster-open',open);
+    $('mobile-roster').setAttribute('aria-expanded',String(open));
+    if (!open && $('roster').contains(document.activeElement) && window.innerWidth<=900) $('mobile-roster').focus({preventScroll:true});
+  }
+  document.querySelector('.office').addEventListener('click',e=>{
+    if(window.innerWidth<=900 && $('workspace').classList.contains('roster-open')) {e.stopPropagation();setRoster(false);}
+  },true);
+  window.matchMedia('(max-width:900px)').addEventListener('change',()=>setRoster(false));
   $('task-search').addEventListener('input',e=>{ui.query=e.target.value.trim().toLocaleLowerCase();render();});
   $('project-filter').addEventListener('change',e=>{ui.project=e.target.value;render();});
   document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{

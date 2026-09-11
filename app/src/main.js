@@ -72,7 +72,7 @@ async function focusSession(sid) {
 async function start() {
   try { notificationsEnabled = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')).notifications !== false; } catch {}
   await startServer();
-  win = new BrowserWindow({ width: 1440, height: 920, minWidth: 680, minHeight: 600, title: 'CodexTown',
+  win = new BrowserWindow({ width: 1440, height: 920, minWidth: 380, minHeight: 460, title: 'CodexTown',
     backgroundColor: '#122623', icon: path.join(ASSETS, 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });

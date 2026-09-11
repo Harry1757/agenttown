@@ -11,5 +11,40 @@
 @media(min-width:1600px){.workspace{grid-template-columns:minmax(0,1fr) 370px}.roster-head{padding:24px}.task-button{padding:13px}.task-title{font-size:13px}.task-meta{font-size:11px}}
 @media(max-width:1050px){.workspace{grid-template-columns:minmax(0,1fr) 288px}.topbar{padding-inline:18px}.header-time{display:none}.office-heading{padding:15px 16px 0}.office-legend{display:none}.map-help{display:none}.statusbar{grid-template-columns:135px minmax(0,1fr);gap:18px;padding-inline:18px}.usage-note{display:none}#usage-bars{gap:17px}.today-value{font-size:20px}.roster-head{padding:19px 14px 12px}#hint{left:calc((100% - 288px)/2)}}
 @media(max-width:760px){body{grid-template-rows:66px minmax(0,1fr) 89px}.workspace{grid-template-columns:minmax(0,1fr) 252px}.brand h1{font-size:19px}.brand-icon{width:27px;height:27px}.brand small{font-size:9px}.topbar{padding-inline:13px}.live{font-size:10px}.quiet-button{font-size:0;padding:8px}.quiet-button svg{width:15px}.header-actions{gap:8px}.office{grid-template-rows:56px minmax(0,1fr) 42px}.office-heading{padding:13px 12px 0}.office-heading h2{font-size:13px}.office-subtitle{font-size:10px}.map-toolbar{padding-inline:8px;gap:3px}.map-controls{gap:1px}.motion-button{display:none}.map-controls #gestures{padding-left:3px;margin-left:3px}.roster-head{padding:15px 12px 10px}.roster-title{margin-bottom:10px}.filters button{font-size:10px;padding:6px 0}.filters .count{margin-left:2px}.task-button{gap:6px;padding:9px 7px;grid-template-columns:29px minmax(0,1fr) 6px}.mini-avatar{width:28px;height:28px}.task-title{font-size:11px}.task-meta{font-size:9px}.task-project{max-width:80px}#task-detail{padding:12px 14px;max-height:60%}.detail-title{font-size:13px}.detail-info{font-size:10px;grid-template-columns:48px 1fr}.detail-actions{flex-wrap:wrap}.statusbar{grid-template-columns:103px minmax(0,1fr);gap:12px;padding:10px 13px}#usage{flex-direction:row;max-width:none;width:100%}#usage-bars{gap:12px}#usage .u-top{font-size:10px}#usage .u-item{min-width:90px}#usage .u-pct{font-size:10px}.today-value{font-size:18px}.today-value span{display:block;margin:4px 0 0;font-size:9px}.today-note{display:none}#hint{left:50%;bottom:105px}}
-@media(max-width:570px){.workspace{grid-template-columns:minmax(0,1fr);position:relative}.roster{position:absolute;right:0;top:0;bottom:0;width:min(320px,88vw);z-index:10;box-shadow:-15px 0 40px #071b1880;display:none}.workspace.roster-open .roster{display:flex}.office-heading{padding-inline:17px}.office-legend{display:flex}.mobile-roster-toggle{display:block!important}.statusbar{grid-template-columns:85px minmax(0,1fr);gap:12px}#usage .u-item{min-width:87px}.map-help{display:block;font-size:9px}.today-value{font-size:16px}.live{display:none}}.mobile-roster-toggle{display:none;font-size:11px;padding:7px 10px}.close-roster{display:none}@media(max-width:570px){.close-roster{display:block;border:0;font-size:17px;padding:0 4px}}
+@media(max-width:900px){.workspace{grid-template-columns:minmax(0,1fr);position:relative}.roster{position:absolute;right:0;top:0;bottom:0;width:min(320px,88vw);z-index:10;box-shadow:-15px 0 40px #071b1880;display:none}.workspace.roster-open .roster{display:flex}.office-heading{padding-inline:17px}.office-legend{display:flex}.mobile-roster-toggle{display:block!important}.statusbar{grid-template-columns:85px minmax(0,1fr);gap:12px}#usage .u-item{min-width:87px}.map-help{display:block;font-size:9px}.today-value{font-size:16px}.live{display:none}}.mobile-roster-toggle{display:none;font-size:11px;padding:7px 10px}.close-roster{display:none}@media(max-width:900px){.close-roster{display:block;border:0;font-size:17px;padding:0 4px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Compact windows keep the map usable; task details scroll with the roster. */
+body{height:100dvh;min-width:360px}
+.statusbar>div{min-width:0}
+#task-list,#task-detail{overscroll-behavior:contain}
+@media(max-width:900px){
+  .roster{width:min(360px,92vw)}
+  .office-legend{display:none}
+  .map-help{display:none}
+  #hint{left:50%}
+  .workspace.roster-open .office{opacity:.65}
+  .roster{overflow-y:auto;overscroll-behavior:contain}
+  .roster-head{flex-shrink:0}
+  #task-list{flex:1 0 120px;max-height:45vh}
+  #task-detail{max-height:none;overflow:visible}
+  .detail-placeholder{flex-shrink:0}
+}
+@media(max-height:650px){
+  body{grid-template-rows:56px minmax(0,1fr) 72px}
+  .brand small,.today-note{display:none}
+  .office{grid-template-rows:46px minmax(0,1fr) 36px}
+  .office-heading{padding-top:8px}
+  .office-heading h2{font-size:12px;margin-bottom:3px}
+  .statusbar{padding-block:7px}
+  .roster-head{padding-block:10px 8px}
+  .roster-title{margin-bottom:8px}
+  .filters{padding-top:7px}.project-row{margin-top:6px}
+}
+@media(max-width:450px){
+  .topbar{gap:8px;padding-inline:10px}
+  .brand{gap:7px}.brand h1{font-size:17px}
+  .mobile-roster-toggle{padding:8px;font-size:10px}
+  .office-subtitle{font-size:10px}
+  .statusbar{grid-template-columns:75px minmax(0,1fr);gap:9px;padding-inline:10px}
+}
