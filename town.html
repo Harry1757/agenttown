@@ -1366,6 +1366,11 @@ function spawnPuff(tx, ty, color) {
   for (let i = 0; i < 4; i++) particles.push({ tx, ty, i, n: 4, start: now, dur: 420, color });
   while (particles.length > MAX_PARTICLES) particles.shift();
 }
+function celebrateCompletion(a) {
+  if(window.townUI?.motionReduced)return;
+  for(let i=0;i<6;i++)particles.push({tx:a.x,ty:a.y-.3,i,n:6,start:performance.now(),dur:850,color:i%2?'#b2f0cb':'#ffe19b',star:true});
+  while(particles.length>MAX_PARTICLES)particles.shift();
+}
 function drawParticles() {
   const scale = layout.scale, P = TILE * scale;
   const now = performance.now();
@@ -1378,13 +1383,17 @@ function drawParticles() {
     if (cx < -24 || cx > cv.width + 24 || cy < -24 || cy > cv.height + 24) continue;
     const f = t / p.dur;
     const angle = (p.i / p.n) * Math.PI * 2;
-    const dist = f * 6 * scale;
+    const dist = f * (p.star ? 15 : 6) * scale;
     const px = cx + Math.cos(angle) * dist, py = cy + Math.sin(angle) * dist * 0.6;
     const r = Math.max(1, (1 - f) * 2.2 * scale);
     ctx.save();
     ctx.globalAlpha = (1 - f) * 0.55;
     ctx.fillStyle = p.color || '#e8ddc8';
-    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+    if(p.star){
+      if(window.townUI?.motionReduced){ctx.restore();continue;}
+      ctx.globalAlpha=1-f;
+      ctx.beginPath();ctx.moveTo(px,py-r*2);ctx.lineTo(px+r*.6,py-r*.6);ctx.lineTo(px+r*2,py);ctx.lineTo(px+r*.6,py+r*.6);ctx.lineTo(px,py+r*2);ctx.lineTo(px-r*.6,py+r*.6);ctx.lineTo(px-r*2,py);ctx.lineTo(px-r*.6,py-r*.6);ctx.closePath();ctx.fill();
+    }else{ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();}
     ctx.restore();
   }
 }
@@ -1599,6 +1608,16 @@ function changeRoom(a, want) {
   layoutRoomOccupants(prev);layoutRoomOccupants(want);
 }
 
+const PORTAL_DISTANCE = 22;
+const PORTAL_MS = 1100;
+function shortcutRoute(route, start) {
+  let distance=0, prev=start;
+  for(const point of route){distance+=Math.hypot(point.x-prev.x,point.y-prev.y);prev=point;}
+  if(distance<=PORTAL_DISTANCE || route.length<7)return route;
+  const entry=route[2], exit=route[route.length-4];
+  return [...route.slice(0,3),{...entry,portalTo:{...exit}},...route.slice(-3)];
+}
+
 function startPendingTrips() {
   for(const a of Object.values(avatars)) {
     if(!a.travelFrom || a.route?.length) continue;
@@ -1608,6 +1627,7 @@ function startPendingTrips() {
     // A newly needed room will be added once current crossings finish.
     if(!visibleTo && a.role!=='done') continue;
     a.route=roomRoute(visibleFrom,visibleTo,{x:a.x+.5,y:a.y+1},{x:a.homeX+.5,y:a.homeY+1});
+    if(visibleFrom && visibleTo)a.route=shortcutRoute(a.route,{x:a.x,y:a.y});
     if(!visibleFrom && a.route.length){a.x=a.route[0].x;a.y=a.route[0].y;}
     if(window.townUI?.motionReduced || !a.route.length){finishTrip(a);continue;}
     a.tx=a.route[0].x;a.ty=a.route[0].y;a.strolling=false;
@@ -1616,7 +1636,7 @@ function startPendingTrips() {
 
 function finishTrip(a) {
   roomLayoutHoldUntil=performance.now()+2000;
-  a.route=null;a.travelFrom=null;
+  a.route=null;a.travelFrom=null;a.portal=null;
   a.x=a.tx=a.homeX;a.y=a.ty=a.homeY;
   a.wasMoving=false;a.lean=0;
   a.wanderAt=performance.now()+WANDER_PAUSE[0];
@@ -1677,6 +1697,12 @@ function stepAvatars() {
   const dt = lastStep ? Math.min(0.1, (now - lastStep) / 1000) : 0;
   lastStep = now;
   for (const a of Object.values(avatars)) {
+    if(a.portal){
+      const progress=(now-a.portal.at)/PORTAL_MS;
+      if(progress>=.5){a.x=a.portal.to.x;a.y=a.portal.to.y;}
+      if(progress>=1)a.portal=null;
+      else continue;
+    }
     if(a.travelFrom && !a.route?.length) continue;
     if(a.route?.length) {
       let distance=WALK_ROOM_SPEED*dt;
@@ -1686,6 +1712,7 @@ function stepAvatars() {
         if(Math.abs(dx)>.01)a.face=dx>0?1:-1;
         if(length>distance){a.x+=dx/length*distance;a.y+=dy/length*distance;break;}
         a.x=point.x;a.y=point.y;distance-=length;a.route.shift();
+        if(point.portalTo){a.portal={at:now,from:{x:a.x,y:a.y},to:point.portalTo};break;}
       }
       if(!a.route.length)finishTrip(a);
       else {a.tx=a.route[0].x;a.ty=a.route[0].y;}
@@ -1989,6 +2016,42 @@ function drawFaceBubble(cx, tagTop, scale, text, t) {
 }
 
 
+function drawPortals() {
+  const P=TILE*layout.scale, now=performance.now();
+  for(const a of Object.values(avatars)){
+    if(!a.portal)continue;
+    const progress=Math.min(1,(now-a.portal.at)/PORTAL_MS);
+    const appear=Math.min(1,progress*6,(1-progress)*6);
+    for(const [i,point] of [a.portal.from,a.portal.to].entries()){
+      const x=layout.offsetX+(point.x+.5)*P,y=layout.offsetY+(point.y+1)*P;
+      ctx.save();ctx.globalAlpha=appear;
+      ctx.fillStyle=i?'#568f84':'#8261a4';ctx.strokeStyle=i?'#b2f0cb':'#dfc5ff';
+      ctx.lineWidth=Math.max(1,2*layout.scale);
+      ctx.beginPath();ctx.ellipse(x,y,P*.8,P*.3,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.ellipse(x,y,P*.55,P*.16,0,0,Math.PI*2);ctx.stroke();
+      for(let j=0;j<6;j++){
+        const angle=j*Math.PI/3+progress*Math.PI*2;
+        const px=x+Math.cos(angle)*P*.95,py=y+Math.sin(angle)*P*.4-P*.14;
+        ctx.fillStyle=j%2?'#fff1c6':ctx.strokeStyle;
+        const s=Math.max(2,layout.scale*1.5);
+        ctx.beginPath();ctx.moveTo(px,py-s*1.5);ctx.lineTo(px+s*.45,py-s*.45);
+        ctx.lineTo(px+s*1.5,py);ctx.lineTo(px+s*.45,py+s*.45);
+        ctx.lineTo(px,py+s*1.5);ctx.lineTo(px-s*.45,py+s*.45);
+        ctx.lineTo(px-s*1.5,py);ctx.lineTo(px-s*.45,py-s*.45);ctx.closePath();ctx.fill();
+      }
+      if(i && progress>.5){
+        const rise=(progress-.5)*P*.65, s=Math.max(1,layout.scale);
+        ctx.fillStyle='#ffc5db';
+        const heart=['0110110','1111111','1111111','0111110','0011100','0001000'];
+        heart.forEach((row,dy)=>[...row].forEach((v,dx)=>{if(v==='1')ctx.fillRect(x+P*.4+dx*s,y-P*.55-rise+dy*s,s,s);}));
+        ctx.font=`600 ${Math.max(11*dpr,6*layout.scale)}px 'Apple SD Gothic Neo',sans-serif`;
+        ctx.textAlign='center';ctx.fillStyle='#fff1d8';ctx.fillText('뿅!',x-P*.65,y-P*.35-rise);
+      }
+      ctx.restore();
+    }
+  }
+}
+
 function drawWorker(a) {
   const scale = layout.scale, P = TILE * scale;
   const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
@@ -1999,7 +2062,7 @@ function drawWorker(a) {
   const moving = isMoving(a);
   // 때린 직후에는 잠깐 바쁘게 움직인다(겉보기 가속). 진짜 세션은 안 바뀐다.
   const hasted = a.hasteUntil !== undefined && now < a.hasteUntil;
-  const idle = moving || reduced ? { dx: 0, dy: 0, face: null, glyph: null }
+  const idle = moving || reduced || a.portal ? { dx: 0, dy: 0, face: null, glyph: null }
                       : idleMotion(a, now, seed, layout.scale, hasted ? HASTE_K : 1);
   // 제스처 반응: 맞으면 부르르 떨며 움찔하고, 쓰다듬으면 기분 좋게 들썩인다.
   let reactDX = 0, reactSq = 1, reactGlyph = null;
@@ -2091,9 +2154,16 @@ function drawWorker(a) {
     ctx.scale(-1, 1);
     ctx.translate(-(sx + sSize / 2), 0);
   }
+  if(a.portal){
+    const p=Math.min(1,(now-a.portal.at)/PORTAL_MS);
+    const size=Math.max(0,p<.5?1-p/.45:(p-.55)/.45);
+    ctx.translate(feetX,feetY);ctx.scale(size,size);ctx.translate(-feetX,-feetY);
+    ctx.globalAlpha*=size;
+  }
   drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale, hScale);
   ctx.restore();
 
+  if(a.portal)return;
   if (window.townUI?.selectedKey === a.key) {
     ctx.save();ctx.strokeStyle = '#f0d18b';ctx.lineWidth = Math.max(2, scale);
     ctx.beginPath();ctx.ellipse(feetX, feetY + scale, sSize * .65, 3 * scale, 0, 0, Math.PI*2);ctx.stroke();ctx.restore();
@@ -2287,6 +2357,7 @@ function draw() {
   for (const room of displayedRooms) { const r = roomRect(room); drawSign(r.ox, r.oy, r.w, r.h, r.scale, room.label + (roomOccCount(room.role) ? ' ' + roomOccCount(room.role) : '')); }
   drawRoomHighlight();
   computeTagLayout();
+  drawPortals();
   for (const a of Object.values(avatars)) { if (displayedRooms.includes(ROOM_BY_ROLE[a.role]) || a.route?.length) drawWorker(a); }
   drawConflicts();
   drawParticles();
@@ -2689,18 +2760,22 @@ function connect() {
         liveKeys.add(sk);
       }
     }
-    // B: 세션이 방 목록(서버가 유지하는 프로젝트당 최근 MAX_ROOMS)에서 빠지면
-    // "나갔다"로 보고 디스폰 퍼프 후 지운다. 첫 payload(state.sessionInfo 가 아직
-    // 비어있을 때)는 건너뛴다 — 스냅샷으로 미리 만들어진 아바타가 로드 직후
-    // 우르르 사라지는 깜빡임을 막는다.
-    if (Object.keys(state.sessionInfo).length) {
+    // The session list is authoritative, including expired actors replayed by a snapshot.
+    {
       for (const [key, a] of Object.entries(avatars)) {
         const sk = `${a.proj}|${a.sid}`;
-        if (state.sessionInfo[sk] && !liveKeys.has(sk)) {
+        if (!liveKeys.has(sk)) {
           spawnPuff(a.x, a.y);
           delete avatars[key];
           layoutRoomOccupants(a.role);
         }
+      }
+    }
+    for(const [sk,next] of Object.entries(info)){
+      const prev=state.sessionInfo[sk];
+      if(prev?.state==='working' && next.state==='waiting' && !next.needsInput){
+        const a=avatars[sk] || avatars[sk+':sub'];
+        if(a)celebrateCompletion(a);
       }
     }
     // 상태가 '응답 대기'로 넘어가는 순간 알린다. 첫 payload 는 건너뛴다 —

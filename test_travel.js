@@ -3,6 +3,9 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const html = fs.readFileSync(`${__dirname}/town.html`, 'utf8');
 const body = html.match(/function roomRoute\(from, to, start, end\) \{([\s\S]*?)\n\}/)[1];
+const shortcutBody = html.match(/function shortcutRoute\(route, start\) \{([\s\S]*?)\n\}/)[1];
+const shortcut = new Function('PORTAL_DISTANCE', `return function(route,start){${shortcutBody}}`)(22);
+let portals = 0, walks = 0;
 let checked = 0;
 for (const cols of [2,3,4,6]) {
   const route = new Function('ROOM_W','ROOM_H','GUTTER_X','GUTTER_Y','MARGIN','ROOM_COLS',
@@ -11,6 +14,15 @@ for (const cols of [2,3,4,6]) {
   for (const from of rooms) for (const to of rooms) {
     if(from===to)continue;
     const start={x:from.gx+2,y:from.gy+4},end={x:to.gx+5,y:to.gy+4};
+    const full=route(from,to,start,end);
+    const shortened=shortcut(full,{x:start.x-.5,y:start.y-1});
+    const portal=shortened.find(p=>p.portalTo);
+    if(portal){
+      portals++;
+      assert.deepEqual(shortened.slice(0,3),full.slice(0,3),'walk out through source door');
+      assert.deepEqual(portal.portalTo,full.at(-4),'portal exits on destination road');
+      assert.deepEqual(shortened.slice(-3),full.slice(-3),'walk in through destination door');
+    }else{walks++;assert.strictEqual(shortened,full);}
     const points=[start,...route(from,to,start,end).map(p=>({x:p.x+.5,y:p.y+1}))];
     assert.deepEqual(points.at(-1),end);
     for(let i=1;i<points.length;i++) {
@@ -33,3 +45,5 @@ for (const cols of [2,3,4,6]) {
   assert.ok(route(rooms[0],null,{x:5,y:5},null).length,'hidden destination exits source door');
 }
 console.log(`Door and corridor routes: ${checked} room pairs pass`);
+assert.ok(portals>0 && walks>0);
+console.log(`Distance selection: ${walks} walks, ${portals} portal trips pass`);

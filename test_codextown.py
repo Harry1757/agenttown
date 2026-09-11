@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from datetime import datetime, timezone
-from codextown import Tailer, usage_windows
+from unittest.mock import patch
+from codextown import Tailer, usage_windows, auxiliary_session
 
 class CodexTests(unittest.TestCase):
     def setUp(self):
@@ -42,6 +43,48 @@ class CodexTests(unittest.TestCase):
         self.assertEqual(self.row()['tokens'],180)
         self.assertEqual(self.row()['tokensToday'],180)
         self.t.scan(); self.assertEqual(self.row()['tokens'],180)
+
+    def test_resting_expires_at_48_hours_and_returns_on_new_call(self):
+        self.meta(); self.add('event_msg', {'type':'task_complete'})
+        self.t.seed()
+        ended = datetime.fromisoformat(self.ts).timestamp()
+        # A later background write must not extend the completed session's life.
+        self.ts = datetime.fromtimestamp(ended + 47*3600, timezone.utc).isoformat()
+        self.add('event_msg', {'type':'token_count', 'info':{}})
+        self.t.scan()
+        with patch('codextown.time.time', return_value=ended + 48*3600 - 1):
+            self.assertEqual(self.row()['state'], 'done')
+        with patch('codextown.time.time', return_value=ended + 48*3600):
+            self.assertEqual(self.t.sessions(), {})
+        self.assertTrue(self.file.exists())
+        self.ts = datetime.fromtimestamp(ended + 49*3600, timezone.utc).isoformat()
+        self.add('response_item', {'type':'function_call', 'name':'exec_command', 'arguments':'{}'})
+        self.t.scan()
+        with patch('codextown.time.time', return_value=ended + 49*3600 + 1):
+            self.assertEqual(self.row()['state'], 'working')
+
+    def test_old_input_request_is_not_hidden_as_resting(self):
+        self.meta()
+        self.add('response_item', {'type':'function_call', 'name':'request_user_input_async', 'arguments':'{}'})
+        self.t.scan()
+        at = datetime.fromisoformat(self.ts).timestamp()
+        with patch('codextown.time.time', return_value=at + 49*3600):
+            self.assertTrue(self.row()['needsInput'])
+
+    def test_auxiliary_filter_preserves_real_named_and_active_work(self):
+        self.assertTrue(auxiliary_session({}, '/private/tmp/messenger-relay-check/workspace', {}, 'done'))
+        self.assertTrue(auxiliary_session({}, r'C:\Temp\desktop-test-abc', {}, 'working'))
+        self.assertTrue(auxiliary_session({'source':'exec'}, '/work/projects', {}, 'done'))
+        self.assertFalse(auxiliary_session({'source':'exec'}, '/work/projects', {'title':'Real task'}, 'done'))
+        self.assertFalse(auxiliary_session({'source':'exec'}, '/work/projects', {}, 'working'))
+        self.assertFalse(auxiliary_session({}, '/work/workspace', {}, 'done'))
+        self.assertTrue(auxiliary_session({'model':'codex-auto-review'}, '/work/project', {}, 'done'))
+
+    def test_fixture_does_not_emit_ghost_avatar_event(self):
+        self.add('session_meta', {'id':'fixture', 'cwd':'/tmp/desktop-test-abc', 'source':'exec'})
+        self.add('response_item', {'type':'function_call', 'name':'exec_command', 'arguments':'{}'})
+        self.assertEqual(self.t.scan(), [])
+        self.assertEqual(self.t.sessions(), {})
 
     def test_partial_line_and_truncate(self):
         self.meta(); self.t.seed()

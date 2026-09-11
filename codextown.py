@@ -21,6 +21,16 @@ CODEX_HOME = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).exp
 PORT = int(os.environ.get('CODEXTOWN_PORT', '8766'))
 
 
+def auxiliary_session(meta, cwd, record, state):
+    parts = str(cwd).replace('\\', '/').split('/')
+    fixture = any(part in ('messenger-relay-check', 'agent-messenger-codex-fixture')
+                  or part.startswith('desktop-test-') for part in parts)
+    if fixture:
+        return True
+    return state == 'done' and (meta.get('model') == 'codex-auto-review'
+        or (meta.get('source') == 'exec' and not record.get('title')))
+
+
 def tool_details(payload):
     """Classify recorded tool input locally; never publish command/code bodies."""
     name = str(payload.get('name', 'tool')).split('.')[-1]
@@ -78,6 +88,7 @@ class Tailer(town.Tailer):
         self._daily = {}
         self._requests = {}
         self._last_tools = {}
+        self._activity = {}
         self._identity = {}
         self._index_at = 0
         self._index = {}
@@ -126,12 +137,26 @@ class Tailer(town.Tailer):
                 return []
             source = p.get('source', '')
             sub = isinstance(source, dict) and 'subagent' in source
-            self._meta[path] = {'sid': sid, 'entry': 'codex-desktop' if 'Desktop' in str(p.get('originator')) else 'codex-cli', 'sub': sub}
+            self._meta[path] = {'sid': sid, 'entry': 'codex-desktop' if 'Desktop' in str(p.get('originator')) else 'codex-cli', 'sub': sub, 'source': source if isinstance(source, str) else 'subagent'}
             self._seen[path] = self._meta[path]
             self._cwd[path] = str(p.get('cwd', ''))
             self._last_role[path] = 'plan'
         if path not in self._meta:
             return []
+        # Background usage/metadata writes must not keep resting avatars alive.
+        meaningful = (kind == 'response_item' and p.get('type') in (
+            'message', 'function_call', 'custom_tool_call',
+            'function_call_output', 'custom_tool_call_output')) or (
+            kind == 'event_msg' and p.get('type') in (
+                'task_started', 'turn_started', 'user_message', 'agent_message',
+                'task_complete', 'task_completed', 'turn_complete', 'turn_aborted'))
+        if meaningful:
+            try:
+                at = datetime.fromisoformat(str(row.get('timestamp', '')).replace('Z', '+00:00')).timestamp()
+                if math.isfinite(at):
+                    self._activity[path] = max(self._activity.get(path, 0), at)
+            except (ValueError, OverflowError, OSError):
+                pass
         if kind == 'response_item' and p.get('type') == 'message' and p.get('role') == 'user':
             self._requests.pop(path, None)
             self._turn_ended[path] = False
@@ -206,7 +231,7 @@ class Tailer(town.Tailer):
                 start = self._offset.get(path, 0)
                 if st.st_size < start or self._identity.get(path, identity) != identity:
                     start = 0
-                    for mapping in (self._seen, self._meta, self._totals, self._tokens, self._daily, self._turn_ended, self._last_role, self._cwd, self._requests, self._last_tools):
+                    for mapping in (self._seen, self._meta, self._totals, self._tokens, self._daily, self._turn_ended, self._last_role, self._cwd, self._requests, self._last_tools, self._activity):
                         mapping.pop(path, None)
                 self._identity[path] = identity
                 with path.open('rb') as f:
@@ -225,7 +250,8 @@ class Tailer(town.Tailer):
                         continue
             except OSError:
                 continue
-        return events
+        visible = {r['sid'] for rows in self.sessions().values() for r in rows}
+        return [event for event in events if event['sid'] in visible]
 
     def sessions(self):
         self._refresh_index()
@@ -237,10 +263,13 @@ class Tailer(town.Tailer):
             except OSError:
                 continue
             record = self._index.get(meta['sid'], {})
-            if now - mtime > town.HIDE_AFTER or record.get('archived'):
+            mtime = self._activity.get(path, mtime)
+            if (now - mtime >= town.HIDE_AFTER and path not in self._requests) or record.get('archived'):
                 continue
             state = 'waiting' if path in self._requests else 'done' if now - mtime > town.DONE_AFTER else 'waiting' if self._turn_ended.get(path) else 'working'
             cwd = self._cwd.get(path, '')
+            if path not in self._requests and auxiliary_session(meta, cwd, record, state):
+                continue
             result.setdefault(self._project(path), []).append({
                 **meta, 'cwd': cwd, 'title': str(record.get('title') or Path(cwd).name or 'Codex 작업')[:180],
                 'active': state == 'working', 'state': state, 'mtime': mtime,
