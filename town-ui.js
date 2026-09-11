@@ -16,7 +16,7 @@
     select(key) {
       ui.selectedKey = key;
       render();
-      if (window.innerWidth <= 900) setRoster(true);
+      if (window.innerWidth <= 1100) setRoster(true);
     },
   };
   const statusOf = row => row.needsInput ? 'input' : row.state;
@@ -93,6 +93,7 @@
     }
     const selected=all.find(r=>r.key===ui.selectedKey);
     if (!selected && ui.selectedKey) { ui.selectedKey=null; lastDetail=''; }
+    $('roster').classList.toggle('show-detail',Boolean(selected));
     $('task-detail').hidden=!selected;
     $('detail-placeholder').hidden=Boolean(selected);
     if (selected) renderDetail(selected);
@@ -106,7 +107,8 @@
     const focusId=$('task-detail').contains(document.activeElement)?document.activeElement.id:null;
     const el=$('task-detail');
     const detailScroll = lastDetailKey === row.key ? el.scrollTop : 0;
-    el.innerHTML=`<div class="detail-eyebrow"><i class="dot ${statusOf(row)}"></i>${statusText(row)}${row.sub?' · 보조 에이전트':''}</div><h3 class="detail-title">${escapeHtml(row.title)}</h3><dl class="detail-info"><dt>프로젝트</dt><dd>${escapeHtml(shortLabel(row.proj))}</dd><dt>모델</dt><dd>${escapeHtml(row.model||'기록 없음')}</dd><dt>최근 도구</dt><dd>${escapeHtml(row.lastTool||'아직 없음')}</dd><dt>오늘 토큰</dt><dd>${formatTokens(row.tokensToday||0)} <span style="color:var(--muted)">/ 누적 ${formatTokens(row.tokens||0)}</span></dd></dl><div class="detail-actions"><button id="open-selected" class="open-task">Codex에서 열기</button><button id="locate-selected" class="locate">지도에서 찾기</button><button id="star-selected" class="star-button" aria-label="즐겨찾기" aria-pressed="${favorites.has(row.key)}">${favorites.has(row.key)?'★':'☆'}</button></div>`;
+    el.innerHTML=`<button id="back-to-list" class="back-to-list">← 작업 목록으로</button><div class="detail-eyebrow"><i class="dot ${statusOf(row)}"></i>${statusText(row)}${row.sub?' · 보조 에이전트':''}</div><h3 class="detail-title">${escapeHtml(row.title)}</h3><dl class="detail-info"><dt>프로젝트</dt><dd>${escapeHtml(shortLabel(row.proj))}</dd><dt>모델</dt><dd>${escapeHtml(row.model||'기록 없음')}</dd><dt>최근 도구</dt><dd>${escapeHtml(row.lastTool||'아직 없음')}</dd><dt>오늘 토큰</dt><dd>${formatTokens(row.tokensToday||0)} <span style="color:var(--muted)">/ 누적 ${formatTokens(row.tokens||0)}</span></dd></dl><div class="detail-actions"><button id="open-selected" class="open-task">Codex에서 열기</button><button id="locate-selected" class="locate">지도에서 찾기</button><button id="star-selected" class="star-button" aria-label="즐겨찾기" aria-pressed="${favorites.has(row.key)}">${favorites.has(row.key)?'★':'☆'}</button></div>`;
+    $('back-to-list').onclick=()=>{ui.selectedKey=null;render();$('task-search').focus({preventScroll:true});};
     $('open-selected').onclick=()=>openTask(row);
     $('locate-selected').onclick=()=>{
       const a=avatars[row.key];if (!a) return;
@@ -115,7 +117,7 @@
       const scale=cam.fitScale+cam.zoomSteps;
       const off=clampOffset(scale,cv.width/2-(a.x+.5)*TILE*scale,cv.height/2-(a.y+.5)*TILE*scale);
       cam.offX=off.x;cam.offY=off.y;
-      if (window.innerWidth<=900) setRoster(false);
+      if (window.innerWidth<=1100) setRoster(false);
     };
     $('star-selected').onclick=()=>{ if(favorites.has(row.key)) favorites.delete(row.key); else favorites.add(row.key);save('codextown.favorites',[...favorites]);render(); };
     el.scrollTop=detailScroll;
@@ -133,12 +135,12 @@
   function setRoster(open) {
     $('workspace').classList.toggle('roster-open',open);
     $('mobile-roster').setAttribute('aria-expanded',String(open));
-    if (!open && $('roster').contains(document.activeElement) && window.innerWidth<=900) $('mobile-roster').focus({preventScroll:true});
+    if (!open && $('roster').contains(document.activeElement) && window.innerWidth<=1100) $('mobile-roster').focus({preventScroll:true});
   }
   document.querySelector('.office').addEventListener('click',e=>{
-    if(window.innerWidth<=900 && $('workspace').classList.contains('roster-open')) {e.stopPropagation();setRoster(false);}
+    if(window.innerWidth<=1100 && $('workspace').classList.contains('roster-open')) {e.stopPropagation();setRoster(false);}
   },true);
-  window.matchMedia('(max-width:900px)').addEventListener('change',()=>setRoster(false));
+  window.matchMedia('(max-width:1100px)').addEventListener('change',()=>setRoster(false));
   $('task-search').addEventListener('input',e=>{ui.query=e.target.value.trim().toLocaleLowerCase();render();});
   $('project-filter').addEventListener('change',e=>{ui.project=e.target.value;render();});
   document.querySelectorAll('[data-filter]').forEach(button=>button.addEventListener('click',()=>{
