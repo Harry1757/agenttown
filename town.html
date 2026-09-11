@@ -244,7 +244,20 @@ function updateRoomView() {
   }
   const signature = rooms.map(r => r.role).join(',') + ':' + bestCols;
   // Keep streets stationary until everyone has finished crossing them.
-  if (Object.values(avatars).some(a => a.route?.length)) return;
+  if (Object.values(avatars).some(a => a.route?.length)) {
+    // Add destinations in unused slots without moving any existing room or route.
+    const added=rooms.filter(r=>!displayedRooms.includes(r));
+    if(added.length){
+      displayedRooms=[...displayedRooms,...added];
+      ROOM_ROWS=Math.ceil(displayedRooms.length/ROOM_COLS);
+      initRooms();
+      for(const r of added)layoutRoomOccupants(r.role);
+      roomViewSignature=displayedRooms.map(r=>r.role).join(',')+':'+ROOM_COLS;
+      computeLayout();
+    }
+    startPendingTrips();
+    return;
+  }
   if(performance.now()<roomLayoutHoldUntil && !Object.values(avatars).some(a=>a.travelFrom))return;
   if (signature === roomViewSignature) { startPendingTrips(); return; }
   const positions = new Map(Object.values(avatars).map(a => {
