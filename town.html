@@ -1300,6 +1300,33 @@ function setGesture(next) {
   armGestureTimeout();
 }
 
+function randomRoomPose(a, now, scale, allowed) {
+  const pose={dx:0,dy:0,sq:1,angle:0};
+  if(!allowed){a.roomAction=null;a.roomActionAt=now+1500;return pose;}
+  if(a.roomActionAt===undefined)a.roomActionAt=now+1000+Math.random()*4000;
+  if(a.roomAction && now-a.roomAction.at>=a.roomAction.duration){
+    a.roomAction=null;a.roomActionAt=now+4000+Math.random()*7000;
+  }
+  if(!a.roomAction && now>=a.roomActionAt){
+    // Pick a different little action each time, independently for each resident.
+    const kind=(a.lastRoomAction===undefined?Math.floor(Math.random()*4):(a.lastRoomAction+1+Math.floor(Math.random()*3))%4);
+    a.lastRoomAction=kind;
+    a.roomAction={kind,at:now,duration:[900,1200,1500,1600][kind]};
+  }
+  const action=a.roomAction;
+  if(!action)return pose;
+  const t=Math.max(0,(now-action.at)/action.duration), envelope=Math.sin(Math.PI*t);
+  if(action.kind<2){
+    const phase=(t*(action.kind===1?2:1))%1;
+    if(phase<.75){pose.dy=Math.sin(phase/.75*Math.PI)*7*scale;pose.sq=1+.08*Math.sin(phase/.75*Math.PI);}
+    else pose.sq=1-.14*Math.sin((phase-.75)/.25*Math.PI);
+  }else if(action.kind===2){
+    pose.angle=Math.sin(t*Math.PI*6)*.13*envelope;
+    pose.dx=Math.sin(t*Math.PI*6)*1.5*scale*envelope;
+  }else{pose.sq=1+.18*envelope;pose.angle=-.06*envelope;}
+  return pose;
+}
+
 function idleMotion(a, now, seed, scale, k) {
   const spec = IDLE[a.role] || {};
   k = k || 1;   // 가속 중이면 주기를 나눠 더 바쁘게 움직인다
@@ -1722,7 +1749,7 @@ function stepAvatars() {
     // 끝난 세션이 계속 움직이면 아직 뭔가 하는 줄로 읽힌다(숨쉬기를 끄는 것과 같은 이유).
     // 이미 걷던 중이면 마저 걸어서 제자리에 선다.
     if (WANDER && roomOccCount(a.role) <= 6 && a.homeX !== undefined && workerState(a) !== 'done'
-        && now >= (a.wanderAt || 0) && !isMoving(a)) pickWander(a, now);
+        && !a.roomAction && now >= (a.wanderAt || 0) && !isMoving(a)) pickWander(a, now);
     const dx = a.tx - a.x, dy = a.ty - a.y;
     const dist = Math.hypot(dx, dy);
     if (dist === 0) continue;
@@ -2060,9 +2087,10 @@ function drawWorker(a) {
   const st = workerState(a);
   const seed = hashSeed(a.key);
   const moving = isMoving(a);
+  const playful=randomRoomPose(a,now,scale,!reduced && !moving && !a.travelFrom && !a.portal && st!=='done' && !(now-a.reactStart<REACT_MS));
   // 때린 직후에는 잠깐 바쁘게 움직인다(겉보기 가속). 진짜 세션은 안 바뀐다.
   const hasted = a.hasteUntil !== undefined && now < a.hasteUntil;
-  const idle = moving || reduced || a.portal ? { dx: 0, dy: 0, face: null, glyph: null }
+  const idle = moving || reduced || a.portal || a.roomAction ? { dx: 0, dy: 0, face: null, glyph: null }
                       : idleMotion(a, now, seed, layout.scale, hasted ? HASTE_K : 1);
   // 제스처 반응: 맞으면 부르르 떨며 움찔하고, 쓰다듬으면 기분 좋게 들썩인다.
   let reactDX = 0, reactSq = 1, reactGlyph = null;
@@ -2112,11 +2140,11 @@ function drawWorker(a) {
   }
   // 작업 중인데 제자리인 사람은 가끔 기지개를 켠다 — 숨쉬기만 돌면 정지 화면처럼 보인다.
   let stretchSq = 1;
-  if (st === 'working' && !moving) {
+  if (st === 'working' && !moving && !a.roomAction) {
     const t = (now + seed) % STRETCH_EVERY_MS;
     if (t < STRETCH_MS) stretchSq = 1 + (STRETCH_PX / P) * Math.sin((t / STRETCH_MS) * Math.PI);
   }
-  const hScale = reduced ? 1 : breathSq * arrivalSq * stretchSq * reactSq;
+  const hScale = reduced ? 1 : breathSq * arrivalSq * stretchSq * reactSq * playful.sq;
 
   // B: 이벤트 도착 시 짧고 빠른 bob — 3.5사이클, 감쇠 엔벨로프로 다시 idle 로.
   let bob = 0;
@@ -2130,12 +2158,12 @@ function drawWorker(a) {
 
   // 가속 중이면 계속 까딱인다 — 타이핑을 몰아치는 느낌.
   const hasteBob = hasted ? Math.abs(Math.sin(now / 70)) * 1.5 * layout.scale : 0;
-  const topY = reduced ? py : py - bounce - bob - idle.dy - hasteBob;
-  const feetX = px + P / 2 + (reduced ? 0 : idle.dx + reactDX), feetY = topY + P;
+  const topY = reduced ? py : py - bounce - bob - idle.dy - hasteBob - playful.dy;
+  const feetX = px + P / 2 + (reduced ? 0 : idle.dx + reactDX + playful.dx), feetY = topY + P;
   // 방 몸짓이 방향을 정하면 그걸 쓴다(두리번, 마주보기). a.face 자체는 배치가 정하는
   // 값이라 건드리지 않고 그리는 순간에만 갈아끼운다.
   const face = idle.face !== null ? idle.face : a.face;
-  const leanAngle = reduced ? 0 : a.lean * face * LEAN_MAX;
+  const leanAngle = reduced ? 0 : a.lean * face * LEAN_MAX + playful.angle;
 
   ctx.save();
   // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.
