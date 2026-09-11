@@ -970,6 +970,102 @@ function drawSign(ox, oy, w, h, scale, label) {
   ctx.textBaseline = 'alphabetic';
 }
 
+// Furniture stays along the rear and side walls, leaving the walking area clear.
+function drawRoomInterior(room, ix, iy, scale, hasActive, flash) {
+  const role = room.role;
+  const palette = {
+    plan:['#9b87b4','#dac9aa'], research:['#68958e','#c69a64'],
+    design:['#bd8195','#dcc197'], meeting:['#b9976e','#d0ae7e'],
+    explore:['#7a91aa','#b9aa84'], frontend:['#6e9cba','#d1b080'],
+    backend:['#7d9c82','#b8ac85'], infra:['#8b959f','#ba9573'],
+    qa:['#a2a875','#cfbd8a'], release:['#b58e79','#d1b68b'],
+    waiting:['#8daa88','#d5b27b'], done:['#82908b','#b5a38d'],
+  }[role];
+  ctx.save(); ctx.translate(ix, iy); ctx.scale(scale, scale);
+  const box = (x,y,w,h,color) => {ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
+  const plant = (x,y) => {
+    box(x+2,y+9,7,7,'#735c48');box(x+1,y+8,9,3,'#c19672');
+    box(x+5,y+1,2,8,'#476845');box(x,y+1,5,5,'#729769');
+    box(x+6,y-2,5,6,'#9bb881');box(x+4,y+4,6,4,'#5b885c');
+  };
+  const shelf = (x,y,w) => {
+    box(x,y,w,23,'#594d40');box(x+2,y+1,w-4,20,'#302f2a');
+    const colors=['#91ada0','#c79b72','#be8180','#b5b988','#7794ab'];
+    for(let row=0;row<2;row++){
+      for(let col=0;col<Math.floor((w-5)/5);col++){
+        const h=6+(col+row)%3;
+        box(x+3+col*5,y+10+row*10-h,3,h,colors[(col+row)%colors.length]);
+        box(x+3+col*5,y+10+row*10-h+2,3,1,'#dfccb0');
+      }
+      box(x,y+10+row*10,w,2,palette[1]);
+    }
+    box(x,y,w,2,palette[1]);
+  };
+  const board = (x,y,w,h,kind) => {
+    box(x,y,w,h,'#526359');box(x+2,y+2,w-4,h-4,'#e0dfc9');
+    if(kind==='art'){
+      box(x+5,y+5,w-10,h-10,'#adc2c1');box(x+9,y+7,6,6,'#e7c084');
+      box(x+5,y+h-10,w-10,5,'#829775');box(x+10,y+h-14,9,5,'#688273');
+    }else{
+      for(let i=0;i<3;i++)for(let j=0;j<2;j++)box(x+5+i*(w-9)/3,y+5+j*6,5,4,['#c78e87','#c6b77c','#8fae9d'][i]);
+    }
+  };
+  const desk = (x,y,w,dual=false) => {
+    box(x+2,y+15,w,3,'#514938');box(x,y+2,w,14,palette[1]);
+    box(x,y,w,2,'#e0c597');box(x+2,y+16,3,5,'#76624a');box(x+w-5,y+16,3,5,'#76624a');
+    const screen=(sx)=>{box(sx,y-6,15,12,'#293c3c');box(sx+2,y-4,11,7,hasActive?'#a1c6bf':'#536b6c');box(sx+6,y+6,3,3,'#405252');
+      box(sx+4,y-2,5,1,'#deead7');box(sx+4,y,7,1,'#7d9f98');};
+    screen(x+5);if(dual)screen(x+23);
+    box(x+7,y+10,13,3,'#e2dcc4');box(x+w-6,y+7,3,4,'#eee1be');box(x+w-3,y+8,1,2,'#eee1be');
+    box(x+w/2-6,y+20,12,6,palette[0]);box(x+w/2-5,y+19,10,2,'#b5c3ad');
+  };
+  const rack = (x,y) => {
+    box(x,y,19,26,'#273a3a');box(x+1,y,17,2,'#7d9894');
+    for(let i=0;i<4;i++){box(x+2,y+3+i*5,15,4,'#4f6663');box(x+4,y+4+i*5,2,1,hasActive?'#b9d696':'#79857a');box(x+9,y+4+i*5,6,1,'#243a36');}
+  };
+  // Small windows and a warm picture break up the previously identical back walls.
+  box(5,-12,26,10,'#435c55');box(7,-10,22,6,'#a1b9ac');
+  box(8,-9,8,4,'#c7d4bd');box(17,-10,1,6,'#536f64');
+  box(64,-12,20,10,'#78644b');box(66,-10,16,6,palette[0]);box(72,-9,4,3,'#e4c796');
+
+  if(role==='waiting'||role==='done'){
+    box(22,1,49,23,'#4a6254');box(24,0,45,7,palette[0]);
+    for(let i=0;i<3;i++){box(25+i*14,8,12,11,'#a8b598');box(25+i*14,8,12,2,'#c2cbb0');}
+    box(20,5,5,17,palette[0]);box(68,5,5,17,palette[0]);
+    box(27,10,6,6,'#dec28e');box(58,10,6,6,'#bf8980');
+    // Coffee station, kept beside the sofa rather than in the walking area.
+    box(80,4,13,22,palette[1]);box(82,0,9,11,'#3b4a43');box(84,4,5,4,'#acb9a5');box(84,13,4,4,'#e3d9ba');
+    plant(3,6);board(2,35,9,15,'art');
+  }else if(role==='research'||role==='explore'){
+    shelf(2,0,32);desk(40,6,38);plant(84,6);
+    box(3,38,8,27,'#79674c');for(let i=0;i<3;i++)box(4,40+i*8,6,6,['#b3bc96','#c79b77','#93adb3'][i]);
+  }else if(role==='plan'||role==='design'){
+    board(3,-1,32,24,role==='design'?'art':'notes');desk(42,6,37);plant(84,6);
+    if(role==='design')for(let i=0;i<4;i++)box(2,37+i*6,7,4,['#c1838b','#d2b37f','#90ada1','#8695b0'][i]);
+    else shelf(1,39,10);
+  }else if(role==='meeting'){
+    box(22,0,49,20,palette[1]);box(22,18,49,4,'#82694c');
+    for(const x of [28,47,64]){box(x,-5,9,5,palette[0]);box(x,23,9,5,palette[0]);}
+    box(33,6,10,7,'#eee4c8');box(51,7,9,6,'#eee4c8');box(46,3,3,3,'#9dba8c');plant(4,5);plant(84,5);
+  }else if(role==='backend'||role==='infra'){
+    rack(2,0);desk(28,6,38,true);rack(74,0);plant(2,47);
+  }else if(role==='qa'){
+    desk(17,6,57);for(let i=0;i<3;i++){box(45+i*8,6,6,11,'#344b4b');box(46+i*8,7,4,7,['#a8c7b1','#c8be92','#9eb7c6'][i]);}
+    board(1,34,10,20,'notes');plant(84,5);
+  }else if(role==='release'){
+    desk(24,6,44);board(2,0,18,24,'notes');
+    for(let i=0;i<3;i++){box(80,3+i*8,12,7,palette[1]);box(85,3+i*8,2,7,'#e4cc98');}
+    plant(2,46);
+  }else{
+    desk(8,6,35);desk(49,6,39,true);plant(2,45);
+  }
+  plant(85,56);
+  // Woven borders stay low contrast so avatars and their labels remain prominent.
+  box(19,72,57,1,palette[0]);box(19,74,57,1,palette[0]);
+  for(let x=21;x<76;x+=5)box(x,71,1,5,palette[0]);
+  ctx.restore();
+}
+
 function drawRoom(room, hasActive) {
   const scale = layout.scale, P = TILE * scale, t = P;
   const ox = layout.offsetX + room.gx * P, oy = layout.offsetY + room.gy * P;
@@ -984,40 +1080,7 @@ function drawRoom(room, hasActive) {
 
   drawRug(ix, iy, iw, ih, scale);
 
-  // 상단 벽면 게시판 2개 — 높이를 서로 다르게 띄워 "다 일렬" 로 안 보이게 한다 (defect5)
-  drawWallBoard(ix + 0.5 * P, oy + t * 0.34, scale);
-  drawWallBoard(ix + iw - 0.5 * P, oy + t * 0.62, scale);
-
-  const seed = room.seed !== undefined ? room.seed : hashSeed(room.role);
-  const wood = room.wood || woodTone(seed);
-  const item1 = seed % 3, item2 = (seed >> 2) % 3;
-
-  // defect5: 뒷벽 책상 둘을 틈을 두고 따로 놓는다 — 예전엔 한 판(plank)처럼 붙어
-  // 있었다. 각자 모니터+의자+소품 한 점을 갖는다. 방 실내가 5x4 타일로 좁아진 만큼
-  // (defect1/2) 책상도 그 폭에 맞춰 작게 잡는다.
-  const deskW = 1.3 * P;
-  drawDesk(ix + 1.0 * P, iy, deskW, scale, wood, item1);
-  drawMonitor(ix + 1.65 * P, iy, scale, hasActive, flash);
-  drawChair(ix + 1.65 * P, iy + 1.5 * P, scale, wood);
-  drawDesk(ix + 2.6 * P, iy, deskW, scale, wood, item2);
-  drawMonitor(ix + 3.25 * P, iy, scale, hasActive, flash);
-  drawChair(ix + 3.25 * P, iy + 1.5 * P, scale, wood);
-
-
-  // 오른쪽 벽 쪽, 책상 옆 빈자리에 역할별 가구 한 점
-  drawRoleFurniture(room.role, ix + iw - 1.0 * P, iy + 0.05 * P, 0.85 * P, 1.05 * P, scale, wood, flash);
-
-
-  // A3(iter6): 아래 절반(개방 바닥)이 허전해 보이지 않게 낮은 소품 둘을 더한다 —
-  // 일꾼이 서는 밴드(SLOT_ROWS_Y)와 기존 소품을 다 피해서 자리를 잡았다.
-  // 오른쪽 벽 구석, 역할 가구 아래 빈 틈에 상자 더미.
-  drawBoxStack(ix + iw - 0.6 * P, iy + 1.9 * P, scale * 0.9, wood);
-
-  // 왼쪽 벽 — 일꾼 슬롯이 x 0.8 부터라 여기는 늘 비어 있다. 방 성격에 맞는 수납을 둔다.
-  drawFloorUnit(ix + 0.1 * P, iy + ih - 2.1 * P, 0.65 * P, 1.9 * P, scale, wood,
-                ROOM_UNIT[room.role] || 'cabinet', flash);
-  // 오른쪽 아래 구석 휴지통.
-  drawBin(ix + iw - 0.35 * P, iy + ih - 0.25 * P, scale * 0.9);
+  drawRoomInterior(room, ix, iy, scale, hasActive, flash);
 
 }
 
