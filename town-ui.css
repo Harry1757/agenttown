@@ -80,3 +80,17 @@ body{height:100dvh;min-width:360px}
   .office-subtitle{font-size:11px;line-height:1.4}
   .view-switch button{padding:5px 6px;font-size:11px}
 }
+
+/* Let the footer fit its text, including reset times, instead of clipping to 72px. */
+body{grid-template-rows:76px minmax(0,1fr) auto}
+.statusbar{padding:16px 24px;gap:24px;align-items:center}
+.today-label,.usage-heading{line-height:1.5;margin-bottom:9px}
+.today-value{line-height:1.25}
+#usage-bars{align-items:stretch;gap:24px;padding-bottom:2px}
+#usage .u-item{gap:8px}
+#usage .u-top{line-height:1.4;row-gap:8px}
+#usage .u-sub{font-size:11px;line-height:1.5}
+@media(max-width:1100px){.statusbar{grid-template-columns:112px minmax(0,1fr);gap:22px}.today-value span{display:inline;margin-left:4px}}
+@media(max-width:760px){body{grid-template-rows:66px minmax(0,1fr) auto}.statusbar{padding:14px 16px;grid-template-columns:90px minmax(0,1fr);gap:16px}#usage-bars{gap:18px}}
+@media(max-height:650px){body{grid-template-rows:56px minmax(0,1fr) auto}}
+@media(max-width:450px){.statusbar{padding-inline:12px;grid-template-columns:76px minmax(0,1fr);gap:12px}.today-label{font-size:10px}}
