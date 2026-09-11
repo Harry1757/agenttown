@@ -7,7 +7,8 @@
     "start": "electron .",
     "sync-server": "node tools/sync-server.js",
     "dist:mac": "node tools/sync-server.js && electron-builder --mac dir",
-    "dist:mac-dmg": "node tools/sync-server.js && electron-builder --mac dmg"
+    "dist:mac-dmg": "node tools/sync-server.js && electron-builder --mac dmg",
+    "dist:win": "node tools/sync-server.js && node tools/build-windows-backend.js && electron-builder --win nsis --x64 --publish never"
   },
   "private": true,
   "devDependencies": {
@@ -31,14 +32,21 @@
       "target": [
         "nsis"
       ],
-      "icon": "assets/claudetown.ico"
+      "icon": "assets/claudetown.ico",
+      "extraResources": [
+        {
+          "from": "backend-dist/codextown-server",
+          "to": "backend"
+        }
+      ]
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CodexTown"
+      "shortcutName": "CodexTown",
+      "artifactName": "CodexTown-${version}-Windows-${arch}-Setup.${ext}"
     },
     "mac": {
       "target": [

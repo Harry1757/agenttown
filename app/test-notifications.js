@@ -18,7 +18,7 @@ function harness() {
     shell: { openExternal: async url => opened.push(url) }, Notification,
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'src/main.js'), 'utf8'), {
-    require: name => name === 'electron' ? electron : require(name),
+    require: name => name === 'electron' ? electron : name === './server-command' ? require('./src/server-command') : require(name),
     __dirname: path.join(__dirname, 'src'), process, console, setTimeout,
   });
   return { handlers, shown, opened };

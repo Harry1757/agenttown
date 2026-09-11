@@ -275,10 +275,21 @@ def usage_windows(response):
 
 
 def codex_binary():
-    candidates = [os.environ.get('CODEXTOWN_CODEX'), shutil.which('codex'),
+    candidates = [os.environ.get('CODEXTOWN_CODEX'), shutil.which('codex.exe'), shutil.which('codex'),
                   '/Applications/Codex.app/Contents/Resources/codex',
                   '/Applications/ChatGPT.app/Contents/Resources/codex',
                   str(Path.home() / '.local/bin/codex')]
+    if os.name == 'nt':
+        # npm's .cmd wrapper cannot be launched directly without a shell.
+        # Resolve its shipped native binary instead; no shell interpolation.
+        npm_roots = [Path(os.environ.get('APPDATA', str(Path.home()))) / 'npm/node_modules/@openai']
+        shim = shutil.which('codex')
+        if shim:
+            npm_roots.append(Path(shim).parent / 'node_modules/@openai')
+        for root in npm_roots:
+            if root.is_dir():
+                candidates.extend(str(p) for p in sorted(root.glob('codex*/**/codex.exe')))
+        candidates = [p for p in candidates if p and Path(p).suffix.lower() == '.exe']
     return next((p for p in candidates if p and Path(p).is_file()), None)
 
 
@@ -287,7 +298,8 @@ def read_account_limits(binary=None, timeout=20):
     if not binary:
         raise RuntimeError('Codex 실행 파일을 찾지 못함')
     proc = subprocess.Popen([binary, 'app-server', '--stdio'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True)
+                            stderr=subprocess.DEVNULL, text=True, encoding='utf-8',
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     messages = queue.Queue()
     def read():
         for line in proc.stdout:

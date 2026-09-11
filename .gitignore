@@ -11,3 +11,6 @@ app/server/
 *-preview.png
 
 .serena/
+
+app/backend-dist/
+app/backend-build/

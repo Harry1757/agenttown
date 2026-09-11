@@ -73,8 +73,46 @@ node test_wander.js
 node --test app/test-notifications.js
 ```
 
-`claudetown.py`는 기존 도구 분류·정적 파일·이벤트 전송 코드를 재사용하는 내부 모듈입니다. Codex용 실행 진입점은 `codextown.py`입니다. Claude 전용 사용량 조회 및 Windows 설치 스크립트는 제거했습니다. 현재 배포 검증 대상은 macOS Apple Silicon입니다.
+`claudetown.py`는 기존 도구 분류·정적 파일·이벤트 전송 코드를 재사용하는 내부 모듈입니다. Codex용 실행 진입점은 `codextown.py`입니다. Claude 전용 사용량 조회 및 Windows 설치 스크립트는 제거했습니다. macOS Apple Silicon은 실행 검증을 마쳤습니다. Windows x64 설치 파일 구성은 추가했으며, 실제 Windows 빌드 결과와 설치 검증은 별도로 확인해야 합니다.
 
 원본의 미커밋 변경까지 보존한 기준 커밋: `a4e3d53`.
 별도 원본 백업: `../claudetown-backup-20260910-181812/`.
 원본 `~/projects/claudetown`은 수정하지 않았습니다.
+
+
+## Windows 설치 파일
+
+Windows x64용 `CodexTown-1.0.0-Windows-x64-Setup.exe`를 만드는 구성이 포함되어 있습니다.
+설치 파일에는 Python 실행 엔진이 들어가므로, 받는 사람은 Python이나 Node.js를 따로 설치할 필요가 없습니다.
+받는 사람의 PC에 Codex 사용 기록이 있어야 캐릭터가 표시됩니다. 기본 위치는 `%USERPROFILE%\.codex`입니다.
+Windows에서 직접 생성된 기록을 대상으로 하며 WSL 내부의 기록은 자동으로 찾지 않습니다.
+일반 ChatGPT 웹 대화를 읽는 앱은 아닙니다.
+
+계정 사용량은 로그인된 Codex 명령줄 실행 파일이 있을 때 조회합니다. 자동으로 찾지 못하면
+`CODEXTOWN_CODEX`에 실제 `codex.exe` 경로를 지정할 수 있습니다. 계정 조회가 안 되어도 로컬 세션은 표시됩니다.
+작업 바로 열기는 `codex://` 주소를 처리하는 Codex 앱이 설치되어 있어야 합니다.
+알림은 Windows의 알림 설정과 방해 금지 설정을 따르며 앱은 소리를 요청하지 않습니다.
+
+### Windows에서 빌드
+
+빌드하는 PC에는 Python 3.12와 Node.js 22가 필요합니다. PowerShell에서 저장소 루트를 열고 실행합니다.
+
+```powershell
+python -m pip install PyInstaller==6.22.2
+npm --prefix app ci
+npm --prefix app run dist:win
+python tools/check-packaged-server.py app/dist/win-unpacked/resources/backend/codextown-server.exe
+```
+
+결과는 `app/dist/` 아래의 `CodexTown-*-Setup.exe`입니다.
+동봉 실행 엔진은 Windows에서 빌드해야 합니다. macOS의 Python 실행 파일을 넣어 배포하지 않습니다.
+
+### GitHub에서 빌드
+
+저장소의 Actions → **Windows installer** → **Run workflow**를 실행하면
+Windows에서 테스트와 빌드를 수행하고 실행 엔진의 서버·화면·이미지를 확인합니다.
+성공한 실행의 `CodexTown-Windows-x64` 파일 묶음에는 설치 파일과 SHA-256 체크섬이 들어 있습니다.
+이 묶음은 30일 보관되며 GitHub 로그인이 필요합니다. 누구나 내려받는 링크는 검증한 설치 파일을
+공개 Releases 또는 별도 다운로드 페이지에 올려 제공해야 합니다. 이 작업은 자동 공개하지 않습니다.
+현재 빌드는 서명 없는 테스트 배포용입니다. 일반 공개용 배포 전에는 Windows에서 설치·삭제,
+Codex 세션 인식, 알림과 바로 열기를 확인해야 합니다.

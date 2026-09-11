@@ -4,6 +4,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
+const { serverCommands } = require('./server-command');
 const PORT = Number(process.env.CODEXTOWN_PORT || 8766);
 const URL = `http://127.0.0.1:${PORT}`;
 const ASSETS = path.join(__dirname, '..', 'assets');
@@ -38,13 +39,13 @@ async function startServer() {
   if (await health()) return;
   const packaged = path.join(__dirname, '..', 'server');
   const dir = fs.existsSync(path.join(packaged, 'codextown.py')) ? packaged : path.resolve(__dirname, '../..');
-  const candidates = [process.env.CODEXTOWN_PYTHON, '/opt/homebrew/bin/python3', '/usr/local/bin/python3',
-    '/usr/bin/python3', 'python3'].filter(Boolean);
+  const candidates = serverCommands({ platform: process.platform, resourcesPath: process.resourcesPath || '',
+    dir, env: process.env, exists: fs.existsSync });
   let problem = '';
-  for (const binary of candidates) {
+  for (const { binary, args } of candidates) {
     let failed = false;
-    server = spawn(binary, [path.join(dir, 'codextown.py'), '--no-browser'], {
-      cwd: dir, env: { ...process.env, PYTHONUNBUFFERED: '1' }, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true,
+    server = spawn(binary, args, {
+      cwd: dir, env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONUTF8: '1' }, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true,
     });
     const child = server;
     child.on('error', err => { failed = true; problem = err.message; });
@@ -70,6 +71,7 @@ async function focusSession(sid) {
   catch { return { ok: false, reason: 'Codex 앱을 열지 못했습니다' }; }
 }
 async function start() {
+  if (process.platform === 'win32') app.setAppUserModelId('com.codextown.app');
   try { notificationsEnabled = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')).notifications !== false; } catch {}
   await startServer();
   win = new BrowserWindow({ width: 1440, height: 920, minWidth: 380, minHeight: 460, title: 'CodexTown',
