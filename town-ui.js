@@ -6,7 +6,7 @@
   const savedFavorites = read('codextown.favorites', []);
   const favorites = new Set(Array.isArray(savedFavorites) ? savedFavorites : []);
   const ui = window.townUI = {
-    selectedKey: null, filter: 'all', project: '', query: '', favoritesOnly: false, connected: false,
+    roomView: read('codextown.roomView', 'focus'), selectedKey: null, filter: 'all', project: '', query: '', favoritesOnly: false, connected: false,
     motionReduced: read('codextown.reducedMotion', window.matchMedia('(prefers-reduced-motion: reduce)').matches),
     matches(key) {
       const row = state.sessionInfo[key];
@@ -97,6 +97,8 @@
     $('task-detail').hidden=!selected;
     $('detail-placeholder').hidden=Boolean(selected);
     if (selected) renderDetail(selected);
+    $('view-focus').setAttribute('aria-pressed',String(ui.roomView!=='all'));
+    $('view-all').setAttribute('aria-pressed',String(ui.roomView==='all'));
     $('zoom-label').textContent=Math.round(cam.scale/cam.fitScale*100)+'%';
     $('local-clock').textContent=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
     $('motion-toggle').setAttribute('aria-pressed',String(ui.motionReduced));
@@ -112,6 +114,7 @@
     $('open-selected').onclick=()=>openTask(row);
     $('locate-selected').onclick=()=>{
       const a=avatars[row.key];if (!a) return;
+      if(a.role==='done' && ui.roomView!=='all'){ui.roomView='all';save('codextown.roomView','all');refit();render();}
       ui.selectedKey=row.key;
       cam.zoomSteps=cam.fitScale*.65;cam.userAdjusted=true;cam.animTo=null;
       const scale=cam.fitScale+cam.zoomSteps;
@@ -148,6 +151,7 @@
     document.querySelectorAll('[data-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));render();
   }));
   $('favorites-filter').onclick=()=>{ui.favoritesOnly=!ui.favoritesOnly;$('favorites-filter').setAttribute('aria-pressed',String(ui.favoritesOnly));$('favorites-filter').textContent=ui.favoritesOnly?'★':'☆';render();};
+  for (const [id,view] of [['view-focus','focus'],['view-all','all']]) $(id).onclick=()=>{ui.roomView=view;save('codextown.roomView',view);refit();render();};
   $('zoom-in').onclick=()=>zoomStep(1,cv.width/2,cv.height/2);
   $('zoom-out').onclick=()=>zoomStep(-1,cv.width/2,cv.height/2);
   $('map-reset').onclick=()=>{resetCamera();ui.selectedKey=null;render();};

@@ -51,9 +51,9 @@
 </header>
 <main class="workspace" id="workspace">
   <section class="office" aria-label="도트 작업실">
-    <div class="office-heading"><div><h2>오늘도, 각자의 자리에서</h2><p class="office-subtitle" id="office-summary">작업실 문을 여는 중입니다</p></div><div class="office-legend"><span><i class="dot working"></i>작업 중</span><span><i class="dot input"></i>내 응답</span><span><i class="dot waiting"></i>답변 완료</span></div></div>
+    <div class="office-heading"><div><h2>오늘도, 각자의 자리에서</h2><p class="office-subtitle" id="office-summary">작업실 문을 여는 중입니다</p></div><div class="view-switch" role="group" aria-label="지도 보기"><button id="view-focus" aria-pressed="true">현재 작업</button><button id="view-all" aria-pressed="false">전체 마을</button></div><div class="office-legend"><span><i class="dot working"></i>작업 중</span><span><i class="dot input"></i>내 응답</span><span><i class="dot waiting"></i>답변 완료</span></div></div>
     <div id="map-stage"><canvas id="cv" tabindex="0" aria-label="작업실 지도. 캐릭터를 클릭해 선택하거나 오른쪽 작업 목록을 이용하세요."></canvas><div class="map-empty" id="map-empty" hidden><p><strong>작업실이 조용하네요</strong>Codex에서 작업을 시작하면 캐릭터가 찾아옵니다.</p></div></div>
-    <div class="map-toolbar"><div class="map-controls" aria-label="지도 조작"><button id="zoom-out" aria-label="지도 축소">−</button><span id="zoom-label" class="zoom-label">100%</span><button id="zoom-in" aria-label="지도 확대">+</button><button id="map-reset" class="home-button" title="지도 전체 보기 (0)">전체 보기</button><div id="gestures"><button data-g="pet" title="쓰다듬기">🤚</button><button data-g="hit" title="장난치기 · 실제 작업에는 영향 없음">👊</button></div></div><span class="map-help">클릭해 선택 · 더블클릭해 열기</span><button id="motion-toggle" class="motion-button" aria-pressed="false">동작 줄이기</button></div>
+    <div class="map-toolbar"><div class="map-controls" aria-label="지도 조작"><button id="zoom-out" aria-label="지도 축소">−</button><span id="zoom-label" class="zoom-label">100%</span><button id="zoom-in" aria-label="지도 확대">+</button><button id="map-reset" class="home-button" title="현재 보기의 크기 맞추기 (0)">크기 맞춤</button><div id="gestures"><button data-g="pet" title="쓰다듬기">🤚</button><button data-g="hit" title="장난치기 · 실제 작업에는 영향 없음">👊</button></div></div><span class="map-help">클릭해 선택 · 더블클릭해 열기</span><button id="motion-toggle" class="motion-button" aria-pressed="false">동작 줄이기</button></div>
   </section>
   <aside class="roster" id="roster" aria-label="작업 목록">
     <div class="roster-head"><div class="roster-title"><h2>함께 일하는 작업들</h2><span id="roster-total" class="roster-total">0개</span><button id="close-roster" class="close-roster" aria-label="작업 목록 닫기">×</button></div>
@@ -172,7 +172,9 @@ const ROOMS = [
 ];
 const ROOM_BY_ROLE = Object.fromEntries(ROOMS.map(r => [r.role, r]));
 
-const ROOM_COLS = 4, ROOM_ROWS = 3;
+let ROOM_COLS = 4, ROOM_ROWS = 3;
+let displayedRooms = ROOMS;
+let roomViewSignature = "";
 // 4열x3행. ROOMS 배열 순서 그대로 위에서부터 네 개씩 끊는다(순서는 그 배열 주석 참고).
 // 그리드는 32x21 타일이라 세로가 병목이다(6열x2행일 땐 48x16 으로 가로가 병목이었다).
 // 넓은 창에서 가로가 좀 남는 대신 세로를 잘 쓴다.
@@ -217,18 +219,39 @@ function woodTone(seed) {
 }
 
 function initRooms() {
-  let i = 0;
-  ROOM_ROW_LENS.forEach((len, row) => {
-    const colOffset = (ROOM_COLS - len) / 2;
-    for (let c = 0; c < len; c++) {
-      const r = ROOMS[i++];
-      // 방마다 자기 벽 4면을 갖고, 옆방과는 겹치지 않고 맞닿는다(GUTTER 0).
-      r.gx = MARGIN + (colOffset + c) * (ROOM_W + GUTTER_X);
-      r.gy = MARGIN + row * (ROOM_H + GUTTER_Y);
-      r.seed = hashSeed(r.role);
-      r.wood = woodTone(r.seed);
-    }
-  });
+  for (const r of ROOMS) {
+    const index = displayedRooms.indexOf(r);
+    r.gx = index < 0 ? -1000 : MARGIN + (index % ROOM_COLS) * (ROOM_W + GUTTER_X);
+    r.gy = index < 0 ? -1000 : MARGIN + Math.floor(index / ROOM_COLS) * (ROOM_H + GUTTER_Y);
+    r.seed = hashSeed(r.role);
+    r.wood = woodTone(r.seed);
+  }
+}
+
+function updateRoomView() {
+  const focus = window.townUI?.roomView !== 'all';
+  const occupied = new Set(Object.values(avatars).map(a => a.role));
+  const rooms = focus ? ROOMS.filter(r => r.role !== 'done' && occupied.has(r.role)) : ROOMS;
+  if (!rooms.length) rooms.push(ROOM_BY_ROLE.waiting);
+  let bestCols = 1, bestScale = 0;
+  for (let cols = 1; cols <= rooms.length; cols++) {
+    const rows = Math.ceil(rooms.length / cols);
+    const scale = Math.min(cv.width / (cols * (ROOM_W + GUTTER_X) - GUTTER_X + 2*MARGIN),
+      cv.height / (rows * (ROOM_H + GUTTER_Y) - GUTTER_Y + 2*MARGIN));
+    if (scale > bestScale) { bestCols = cols; bestScale = scale; }
+  }
+  const signature = rooms.map(r => r.role).join(',') + ':' + bestCols;
+  if (signature === roomViewSignature) return;
+  roomViewSignature = signature;
+  displayedRooms = rooms;
+  ROOM_COLS = bestCols; ROOM_ROWS = Math.ceil(rooms.length / bestCols);
+  initRooms();
+  for (const room of ROOMS) layoutRoomOccupants(room.role);
+  for (const a of Object.values(avatars)) {
+    a.x = a.tx; a.y = a.ty;
+  }
+  resetCamera();
+  computeLayout();
 }
 
 function gridTiles() {
@@ -1045,7 +1068,7 @@ function drawGarden() {
     const x = MARGIN + ROOM_W + col*(ROOM_W+GUTTER_X)+.42;
     for(let y=MARGIN+.5;y<g.h-MARGIN;y+=1.1) fillRectA(layout.offsetX+x*P,layout.offsetY+y*P,.17*P,.55*P);
   }
-  for(const room of ROOMS) {
+  for(const room of displayedRooms) {
     planter(room.gx+ROOM_W+.48,room.gy+ROOM_H-.85);
   }
 }
@@ -1550,7 +1573,7 @@ function tagBox(a, px, py, bounce) {
   const padX = (compact ? 2 : 3) * scale, padY = (compact ? 1.3 : 2) * scale;
   // scale 을 그대로 곱하지 않는 하한(9px, compact 는 8px) — 작은 캔버스에서도 읽혀야
   // 한다. 안 맞으면(라벨이 길면) 글자를 더 줄이는 대신 아래 fitText 로 라벨을 줄인다.
-  const tagFontPx = compact ? Math.max(8 * dpr, 5 * scale) : Math.max(9 * dpr, 6 * scale);
+  const tagFontPx = compact ? Math.max(11 * dpr, 5 * scale) : Math.max(12 * dpr, 6 * scale);
   ctx.font = `${tagFontPx}px ui-monospace,monospace`;
   let ix = 0, iw = (ROOM_W - 2.5) * P + dotR * 2 + dotGap + padX * 2;   // room 없을 때의 대비책
   if (room) { ix = layout.offsetX + (room.gx + 1) * P; iw = (ROOM_W - 2) * P; }
@@ -2063,10 +2086,11 @@ function drawTicker() {
 // 이 정도를 벗어나면, drawRoom 을 오프스크린 캔버스에 한 번 그려두고 layout(scale/
 // offset)이나 방 구성이 바뀔 때만 다시 그리는 방식으로 올리면 된다.
 function draw() {
+  updateRoomView();
   drawCorridor();
   drawGarden();
   const activeCounts = computeRoomActivity();
-  for (const room of ROOMS) {
+  for (const room of displayedRooms) {
     // 응답 대기 방은 사람이 있으면 불을 켠다 — 이 앱을 켜 두는 이유가 "내 차례인
     // 세션이 있나"를 한눈에 보는 거라, 그 방만은 활동이 아니라 재실로 켠다.
     const lit = room.role === 'waiting' ? roomOccCount('waiting') > 0 : !!activeCounts[room.role];
@@ -2074,11 +2098,11 @@ function draw() {
   }
   // 벽을 공유하므로 문과 간판은 모든 방을 그린 뒤에 따로 얹는다 — 아래 방의 윗벽이
   // 위 방의 문·간판을 덮지 않게 하려면 순서가 이래야 한다.
-  for (const room of ROOMS) { const r = roomRect(room); drawDoor(r.ox, r.oy, r.w, r.h, r.scale); }
-  for (const room of ROOMS) { const r = roomRect(room); drawSign(r.ox, r.oy, r.w, r.h, r.scale, room.label + (roomOccCount(room.role) ? ' ' + roomOccCount(room.role) : '')); }
+  for (const room of displayedRooms) { const r = roomRect(room); drawDoor(r.ox, r.oy, r.w, r.h, r.scale); }
+  for (const room of displayedRooms) { const r = roomRect(room); drawSign(r.ox, r.oy, r.w, r.h, r.scale, room.label + (roomOccCount(room.role) ? ' ' + roomOccCount(room.role) : '')); }
   drawRoomHighlight();
   computeTagLayout();
-  for (const a of Object.values(avatars)) drawWorker(a);
+  for (const a of Object.values(avatars)) { if (displayedRooms.includes(ROOM_BY_ROLE[a.role])) drawWorker(a); }
   drawConflicts();
   drawParticles();
 
@@ -2175,7 +2199,7 @@ function updateHoverHit() {
     return;
   }
   let hitRoom = null;
-  for (const room of ROOMS) {
+  for (const room of displayedRooms) {
     const ox = layout.offsetX + room.gx * P, oy = layout.offsetY + room.gy * P;
     const w = ROOM_W * P, h = ROOM_H * P;
     if (lastMouseDevX >= ox && lastMouseDevX <= ox + w && lastMouseDevY >= oy && lastMouseDevY <= oy + h) { hitRoom = room; break; }

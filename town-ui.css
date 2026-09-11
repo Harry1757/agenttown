@@ -60,3 +60,23 @@ body{height:100dvh;min-width:360px}
 @media(min-width:1101px) and (max-height:700px){
   #task-detail{max-height:45%}
 }
+
+/* Readable at the user's four-window desktop size. */
+.office-legend{display:none}
+.view-switch{display:flex;gap:3px;flex-shrink:0}
+.view-switch button{padding:6px 10px;font-size:12px;white-space:nowrap}
+.office-subtitle{font-size:12px}
+.today-label,.usage-heading{font-size:11px}
+#usage .u-top,#usage .u-pct{font-size:12px}
+#usage .u-sub{font-size:10px}
+@media(max-width:1100px){
+  .office-heading{padding-inline:16px}
+  .office-legend{display:none}
+  .map-controls button,.zoom-label{font-size:12px}
+  .today-value{font-size:21px}
+}
+@media(max-width:570px){
+  .office-heading h2{display:none}
+  .office-subtitle{font-size:11px;line-height:1.4}
+  .view-switch button{padding:5px 6px;font-size:11px}
+}
