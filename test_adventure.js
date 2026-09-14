@@ -36,3 +36,5 @@ for(const role of ['plan','research','design','qa']){const r={role,gx:10,gy:10};
 for(let i=0;i<80;i++){now+=1000;game.step(now);assert.ok(game.monsters.length<=4);}
 assert.ok(game.monsters.length>=3,'village replenishes three to four monsters even without active residents');
 console.log('Village population stays between three and four after replenishment');
+
+assert.ok(game.impactScale(12)<game.impactScale(22));assert.ok(game.impactScale(22)<game.impactScale(40));assert.ok(game.impactScale(500)<=1.7);console.log('Damage effects increase with attack strength and stay bounded');
