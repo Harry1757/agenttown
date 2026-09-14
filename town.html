@@ -1630,6 +1630,7 @@ function changeRoom(a, want) {
   if (a.route?.length || a.travelFrom) { a.nextRole=want; return; }
   if (want===a.role) return;
   const prev=a.role;
+  a.travelSizeMul=spriteScaleFor(a,layout.scale)/layout.scale;
   a.role=want; a.slotIdx=undefined;
   a.travelFrom=prev;
   layoutRoomOccupants(prev);layoutRoomOccupants(want);
@@ -1663,7 +1664,7 @@ function startPendingTrips() {
 
 function finishTrip(a) {
   roomLayoutHoldUntil=performance.now()+2000;
-  a.route=null;a.travelFrom=null;a.portal=null;
+  a.route=null;a.travelFrom=null;a.portal=null;a.travelSizeMul=null;
   a.x=a.tx=a.homeX;a.y=a.ty=a.homeY;
   a.wasMoving=false;a.lean=0;
   a.wanderAt=performance.now()+WANDER_PAUSE[0];
@@ -2290,7 +2291,8 @@ function tokenSizeMul(tokens) {
 // 정수로 올리면 작은 세션까지 덩달아 커져서 기준이 어긋난다.
 // scale=1 이면 1·1.5·2 세 단계, scale=2 면 2·2.5·3·3.5·4 로 나온다.
 function spriteScaleFor(a, scale) {
-  if(a.travelFrom)return Math.max(MIN_SCALE,Math.floor(scale*.85/.125)*.125);
+  // Keep the departure size while crossing streets, even if the destination is crowded.
+  if(a.travelFrom && a.travelSizeMul>0)return scale*a.travelSizeMul;
   const count = roomOccCount(a.role);
   if (count > 6) {
     const cols = Math.ceil(Math.sqrt(count * 1.8));
