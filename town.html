@@ -1549,9 +1549,9 @@ function drawDuelSpotlight() {
     const pose=a.duelPose||{...f,squash:1,hop:0};
     const x=dir*spread,y=59-pose.hop*70;
     ctx.fillStyle='#242c29';ctx.beginPath();ctx.ellipse(x,63,size*.48,6,0,0,Math.PI*2);ctx.fill();
+    if(!intro)drawDuelAccessory({...a,face:-dir,duelPose:pose},x,y,size);
     ctx.save();ctx.translate(x,y);ctx.rotate((pose.angle||0)*-dir);ctx.scale(-dir,1);
     drawTile(ctx,'dungeon',a.idx,-size/2,-size,size/TILE,pose.squash);ctx.restore();
-    if(!intro)drawDuelAccessory({...a,face:-dir,duelPose:pose},x,y,size);
     if(f.result>0){
       ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.font='bold 16px sans-serif';ctx.fillText(won?'WIN':'LOSE',x,-35);
       ctx.font='18px sans-serif';ctx.fillText(won?'♛':'💧',x+size*.43,y-size+8);
@@ -2479,6 +2479,9 @@ function drawWorker(a) {
   // 값이라 건드리지 않고 그리는 순간에만 갈아끼운다.
   const face = idle.face !== null ? idle.face : a.face;
   const leanAngle = reduced ? 0 : duelPose ? duelPose.angle*face : a.lean * face * LEAN_MAX + playful.angle;
+  const sScale = spriteScaleFor(a, scale);
+  const sSize = TILE * sScale;
+  if(duelPose)drawDuelAccessory(a,feetX,feetY,sSize);
 
   ctx.save();
   // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.
@@ -2489,8 +2492,6 @@ function drawWorker(a) {
   // 토큰을 많이 쓴 세션일수록 크게. 배율은 정수라 도트가 안 뭉갠다.
   // 커진 만큼 발이 바닥에서 뜨거나 옆으로 밀리면 안 되므로, 발(feetX/feetY)을
   // 기준으로 가로 가운데·세로 아래를 맞춰 좌표를 다시 잡는다.
-  const sScale = spriteScaleFor(a, scale);
-  const sSize = TILE * sScale;
   const sx = feetX - sSize / 2, sy = feetY - sSize;
   if (face < 0) {
     ctx.translate(sx + sSize / 2, 0);
@@ -2512,7 +2513,7 @@ function drawWorker(a) {
 
   window.townAdventure?.loot(a,feetX,feetY,sSize);
   if(a.portal)return;
-  if(duelPose){drawDuelAccessory(a,feetX,feetY,sSize);return;}
+  if(duelPose)return;
   if(!reduced&&now<a.fleeUntil){
     const x=feetX+sSize*.45,y=feetY-sSize*.75;
     ctx.save();ctx.fillStyle='#b2dbe9';ctx.beginPath();ctx.moveTo(x,y-3*scale);ctx.quadraticCurveTo(x-4*scale,y+4*scale,x,y+4*scale);ctx.quadraticCurveTo(x+4*scale,y+4*scale,x,y-3*scale);ctx.fill();ctx.restore();

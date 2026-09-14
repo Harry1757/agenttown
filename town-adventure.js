@@ -185,10 +185,10 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
 
  const unit=96/Math.max(b.size,b.monsterSize),as=b.size*unit,ms=b.monsterSize*unit,hit=Math.max(0,1-Math.max(0,age)/(b.done&&b.won?1.2:.5)),counter=Math.max(0,1-(now-(b.playerHitAt||-1e8))/700),preCounter=b.counterAt?Math.max(0,Math.min(1,1-(b.counterAt-now)/300)):0,mx=85+hit*7-Math.max(preCounter,counter)*55;
  const windup=!b.done&&b.next-now<300?Math.max(0,Math.min(1,1-(b.next-now)/300)):0,px=-83+Math.max(windup,hit)*100-counter*22;
- ctx.save();ctx.translate(px,87);ctx.rotate(b.done&&!b.won?-.9:counter?-.18*counter:charge?Math.sin(t*16)*.05:0);ctx.globalAlpha=counter>.1?.65+.35*Math.abs(Math.sin(counter*24)):1;drawTile(ctx,'dungeon',b.a.idx,-as/2,-as,as/16);ctx.restore();
- drawOutfit(ctx,b.a,px,87,as,t,false);
  const legendAmount=b.legendary?(charge?Math.max(0,Math.min(1,(now-(b.hitAt||now)-350)/550)):b.done&&b.won?Math.max(0,Math.min(1,1-(age-.6)/.7)):0):0;
  equipment(b.a,px,87,as,{sword:charge?-.35:hit*.95-.3},1,legendAmount>0,b.size<b.monsterSize,legendAmount);
+ ctx.save();ctx.translate(px,87);ctx.rotate(b.done&&!b.won?-.9:counter?-.18*counter:charge?Math.sin(t*16)*.05:0);ctx.globalAlpha=counter>.1?.65+.35*Math.abs(Math.sin(counter*24)):1;drawTile(ctx,'dungeon',b.a.idx,-as/2,-as,as/16);ctx.restore();
+ drawOutfit(ctx,b.a,px,87,as,t,false);
  const finishAge=b.done&&b.won?(now-b.ended)/1000:-1;
  ctx.save();if(finishAge>=0){ctx.globalAlpha=Math.max(0,1-Math.max(0,finishAge-.2)/1.05);ctx.translate(mx,87);ctx.scale(1+Math.min(.18,finishAge*.15),Math.max(.3,1-finishAge*.45));ctx.translate(-mx,-87);}monster(b.m,mx,87-hit*9,ms,t);ctx.restore();
  if(finishAge>=0&&finishAge<1.5){ctx.save();ctx.globalAlpha=1-finishAge/1.5;for(let i=0;i<18;i++){const a=i*2.4,r=finishAge*43;star(mx+Math.cos(a)*r,87-ms*.5+Math.sin(a)*r-finishAge*12,i%3?2:4,'#e6c8ff');}ctx.restore();}
@@ -204,7 +204,7 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  ctx.fillStyle='#e8dfba';ctx.font='12px sans-serif';ctx.fillText(b.done?(b.won?elements[b.element]+` 일격! 별가루 +${b.m.boss?8:1}`+(b.m.boss?' · 보스 배지 획득':''):'쓰러졌어요… 잠시 쉬고 다시 도전해요'):charge?(b.legendary?(b.mercy?'불굴의 전설검 · 이번엔 이길 거야!':'전설검 · 별빛을 모으는 중…'):'마지막 일격 · 힘을 모으는 중…'):b.m.kind&&(b.counterAt||counter>0)?b.m.kind.skill+'!':`${b.round+1}번째 공방`,0,116);
  ctx.restore();}
 const legendaryLength=size=>Math.min(104,size*1.9);
-function equipment(a,x,y,size,pose,face,legendary=false,shield=false,legendAmount=1){ctx.save();ctx.translate(x,y);ctx.scale(face,1);const item=catalog.find(i=>i.id===equippedFor(a,'weapon'));if(item&&!legendary)heldWeapon(ctx,item.idx,size*.27,-size*.48,size*.95,pose.sword??-.3,gear(a),performance.now()/1000);else sword(size*.27,-size*.48,legendary?size*.62+(legendaryLength(size)-size*.62)*legendAmount:size*.62,pose.sword??-.3,legendary?3:gear(a),performance.now()/1000);
+function equipment(a,x,y,size,pose,face,legendary=false,shield=false,legendAmount=1){ctx.save();ctx.translate(x,y);ctx.scale(face,1);const item=catalog.find(i=>i.id===equippedFor(a,'weapon'));if(item&&!legendary)heldWeapon(ctx,item.idx,size*.52,-size*.27,size*.82,Math.max(.12,(pose.sword??-.3)+.4),gear(a),performance.now()/1000);else sword(size*.27,-size*.48,legendary?size*.62+(legendaryLength(size)-size*.62)*legendAmount:size*.62,pose.sword??-.3,legendary?3:gear(a),performance.now()/1000);
  if(shield){ctx.fillStyle='#efcc83';ctx.beginPath();ctx.arc(-size*.28,-size*.3,size*.24,0,7);ctx.fill();ctx.fillStyle='#84aabd';ctx.beginPath();ctx.arc(-size*.28,-size*.3,Math.max(1,size*.24-2),0,7);ctx.fill();star(-size*.28,-size*.3,size*.1,'#ffeac2');}ctx.restore();}
 // Quiet floors and one furnished alcove keep the tiny rooms readable.
 // Layout reference: World of NoeL's Dungeon Interior; artwork below is drawn locally.
@@ -269,7 +269,7 @@ function drawOutfit(c,a,x,y,size,t,weapon=true,outfit=inventory(a.key).equipped)
 
  c.restore();
 }
-function loot(a,x,y,size){drawOutfit(ctx,a,x,y,size,window.townUI?.motionReduced?0:performance.now()/1000,!a.duel);const r=record(a);if(r.kills<3&&!r.bosses)return;ctx.save();star(x+size*.45,y-size*.6,size*.1,r.bosses?'#efacd8':r.kills>=10?'#c5b4ff':'#ffe09b');ctx.restore();}
+function loot(a,x,y,size){drawOutfit(ctx,a,x,y,size,window.townUI?.motionReduced?0:performance.now()/1000,false);const r=record(a);if(r.kills<3&&!r.bosses)return;ctx.save();star(x+size*.45,y-size*.6,size*.1,r.bosses?'#efacd8':r.kills>=10?'#c5b4ff':'#ffe09b');ctx.restore();}
 const panel=document.createElement('details');panel.id='adventure-log';panel.innerHTML='<summary>⚔ 모험</summary><div class="adventure-body"><button type="button"></button><p></p></div>';
 const style=document.createElement('style');style.textContent='#adventure-log{position:absolute;left:9px;top:9px;z-index:4;color:#e4edd8;font:12px sans-serif;max-width:230px}#adventure-log summary{cursor:pointer;background:#203b32;border:1px solid #647e63;border-radius:8px;padding:7px 10px;list-style:none}#adventure-log .adventure-body{background:#203b32;padding:12px;border-radius:8px;line-height:1.7}#adventure-log button{font:inherit;background:#354f3a;color:#e4edd8;border:1px solid #89a17a;border-radius:6px;padding:6px 10px}#adventure-log p{margin:8px 0 0;white-space:pre-line}';document.head.append(style);document.getElementById('map-stage').append(panel);
 function renderLog(){const all=Object.values(records),kills=all.reduce((s,r)=>s+r.kills,0),bosses=all.reduce((s,r)=>s+r.bosses,0);panel.querySelector('button').textContent=enabled?'모험 켜짐 · 끄기':'모험 꺼짐 · 켜기';panel.querySelector('p').textContent=`몬스터 ${kills}마리 · 보스 ${bosses}마리\n별가루는 세션별로 상점에서 확인해요\n주민별 3마리: 별 장식\n10마리: 보라 별 장식\n보스 처치: 분홍 보스 배지`;renderShop();}
