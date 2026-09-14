@@ -8,8 +8,8 @@ for(const [key,r] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(
 const slots={weapon:'무기',shield:'방패',head:'머리',body:'몸',hands:'장갑',feet:'신발',charm:'장식',pet:'펫'};
 const catalog=[
  {id:'steel',slot:'weapon',name:'기사의 검',price:8,rank:1,idx:104,icon:'⚔',desc:'금빛 손잡이의 넓은 강철 검'},
- {id:'frost',slot:'weapon',name:'강철 대검',price:18,rank:2,idx:106,icon:'❄',desc:'묵직한 양날의 강철 검'},
- {id:'astral',slot:'weapon',name:'화염검',price:35,rank:3,idx:107,icon:'✧',desc:'붉은 날과 금빛 손잡이의 검'},
+ {id:'frost',slot:'weapon',name:'강철 대검',price:18,rank:2,idx:106,icon:'❄',desc:'푸른 결정과 광채를 두른 묵직한 대검'},
+ {id:'astral',slot:'weapon',name:'화염검',price:35,rank:3,idx:107,icon:'✧',desc:'금빛 날개 장식과 불꽃이 타오르는 검'},
  {id:'axe',slot:'weapon',name:'전투 도끼',price:14,rank:1,idx:118,desc:'초승달 날의 양손 도끼'},
  {id:'hammer',slot:'weapon',name:'드워프 망치',price:14,rank:1,idx:117,desc:'짧고 단단한 전투 망치'},
  {id:'staff',slot:'weapon',name:'수정 지팡이',price:16,rank:2,idx:129,desc:'분홍 수정이 박힌 마법 지팡이'},
@@ -55,11 +55,12 @@ function resolveDuel(a,b,legendary=null){const actors=[a,b],stats=actors.map(sta
 function drawDuelStats(d,t){if(!d.combat)return;const progress=t<.96?0:t<1.9?.33:t<2.86?.66:1,frames=d.combat.snapshots,values=frames[Math.floor((frames.length-1)*progress)];ctx.save();ctx.textAlign='center';ctx.font='10px sans-serif';for(let i=0;i<2;i++){const x=i?30:-160;ctx.fillStyle='#162726';ctx.fillRect(x,-71,130,5);ctx.fillStyle=i?'#caa7d9':'#a8d89b';ctx.fillRect(x,-71,130*values[i]/d.combat.stats[i].hp,5);ctx.fillStyle='#e6ecda';ctx.fillText(`${values[i]} / ${d.combat.stats[i].hp}`,x+65,-54);}ctx.restore();}
 function defeat(a){const r=record(a);records[a.key]={...r,deaths:(r.deaths||0)+1,lossStreak:(r.lossStreak||0)+1};save('codextown.adventure',records);renderLog();}
 const eligible=a=>avatars[a.key]===a&&!a.travelFrom&&!a.portal&&!a.route?.length&&!a.duel&&workerState(a)!=='done'&&!state.sessionInfo[a.key]?.needsInput&&performance.now()>=(rest.get(a.key)||0)&&displayedRooms.includes(ROOM_BY_ROLE[a.role]);
-const gear=a=>{const weapon=catalog.find(i=>i.id===equippedFor(a,'weapon'));if(weapon)return weapon.rank;const wins=window.townUI?.winCount(a)||0;return wins>=25?3:wins>=10?2:wins>=3?1:0;};
+const weaponMastery=a=>{const wins=window.townUI?.winCount(a)||0;return wins>=25?3:wins>=10?2:wins>=3?1:0;};
+const gear=a=>Math.max(weaponMastery(a),catalog.find(i=>i.id===equippedFor(a,'weapon'))?.rank||0);
 const star=(x,y,r,color)=>{ctx.fillStyle=color;ctx.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,d=i%2?r*.3:r;ctx.lineTo(x+Math.cos(a)*d,y+Math.sin(a)*d);}ctx.closePath();ctx.fill();};
 function reward(a,boss){const r=record(a);records[a.key]={...r,kills:r.kills+1,bosses:r.bosses+(boss?1:0),lossStreak:0};save('codextown.adventure',records);renderLog();}
 function cancel(){if(battle){battle.a.tx=battle.a.x;battle.a.ty=battle.a.y;rest.set(battle.a.key,performance.now()+20000);monsters.splice(monsters.indexOf(battle.m),1);}battle=null;nextSpawn=performance.now()+45000;}
-function spawn(role,boss=false){const room=ROOM_BY_ROLE[role];if(!room||monsters.some(m=>m.role===role))return null;const type=['waiting','meeting','plan'].includes(role)?0:['research','design','explore'].includes(role)?1:2;
+function spawn(role,boss=false){const room=ROOM_BY_ROLE[role];if(!room||monsters.filter(m=>m.role===role).length>=2)return null;const type=['waiting','meeting','plan'].includes(role)?0:['research','design','explore'].includes(role)?1:2;
  const m={role,gx:room.gx,gy:room.gy,x:room.gx+3.5,y:room.gy+4.4,boss,type,at:performance.now(),idx:boss?(Math.random()<.5?110:122):[108,121,124][type],name:boss?'심연의 수호자':['이끼 유령','서고 유령','동굴 괴물'][type]};monsters.push(m);return m;}
 function wander(m,now,dt){
  if(now<(m.pauseUntil||0))return;
@@ -72,7 +73,7 @@ function begin(a,m){if(battle||!eligible(a)||!monsters.includes(m)||a.role!==m.r
  const size=spriteScaleFor(a,layout.scale)/layout.scale,monsterSize=m.boss?2.5:1.3;
  const stats=statsFor(a),maxHp=stats.hp,damage=stats.attack,monsterHp=m.boss?240:110,mercy=size<1.6&&(record(a).lossStreak||0)>=4;
  battle={a,m,size,monsterSize,stats,mercy,monsterAttack:m.boss?32:20,monsterDefense:m.boss?6:3,maxHp,hp:maxHp,monsterHp,maxMonsterHp:monsterHp,damage,start:performance.now(),next:performance.now()+1800,round:0,legendary:mercy||size<monsterSize&&Math.random()<.2,done:false};
- battle.element=nextElement();
+ battle.element=nextElement();m.encounterKey=null;m.encounterAt=0;
  clearDuelAftermath(a);a.tx=a.x;a.ty=a.y;a.roomAction=null;return true;}
 function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastStep=now;
  if(!enabled||window.townUI?.motionReduced){if(battle)cancel();monsters.length=0;nextSpawn=now+12000;return;}
@@ -87,9 +88,9 @@ function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastSte
   }
  }else{
   const residents=Object.values(avatars).filter(eligible);
-  const available=displayedRooms.filter(r=>r.role!=='done'&&!monsters.some(m=>m.role===r.role));
-  if(now>=nextSpawn&&monsters.length<4&&available.length){const room=available[Math.floor(Math.random()*available.length)];spawn(room.role,!monsters.some(m=>m.boss)&&Math.random()<.15);nextSpawn=now+(monsters.length<3?1200:12000+Math.random()*8000);}
-  for(const m of monsters){if(now-m.at<1500)continue;const targets=residents.filter(a=>a.role===m.role);const a=targets.sort((a,b)=>Math.hypot(a.x-m.x,a.y-m.y)-Math.hypot(b.x-m.x,b.y-m.y))[0];if(!a)continue;
+  const available=displayedRooms.filter(r=>r.role!=='done'&&monsters.filter(m=>m.role===r.role).length<2);
+  if(now>=nextSpawn&&monsters.length<8&&available.length){const least=Math.min(...available.map(r=>monsters.filter(m=>m.role===r.role).length)),choices=available.filter(r=>monsters.filter(m=>m.role===r.role).length===least),room=choices[Math.floor(Math.random()*choices.length)];spawn(room.role,!monsters.some(m=>m.boss)&&Math.random()<.15);nextSpawn=now+(monsters.length<6?1200:12000+Math.random()*8000);}
+  for(const m of monsters){if(now-m.at<1500)continue;const targets=residents.filter(a=>a.role===m.role);const a=targets.sort((a,b)=>Math.hypot(a.x-m.x,a.y-m.y)-Math.hypot(b.x-m.x,b.y-m.y))[0];if(!a){m.encounterKey=null;m.encounterAt=0;continue;}
    const near=Math.hypot(a.x-m.x,a.y-m.y)<1.35;
    if(near){if(m.encounterKey!==a.key){m.encounterKey=a.key;m.encounterAt=now;}m.pauseUntil=now+150;a.tx=a.x;a.ty=a.y;if(now-m.encounterAt>=450&&begin(a,m))break;}else{m.encounterKey=null;m.encounterAt=0;}
   }
@@ -141,7 +142,8 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  const windup=!b.done&&b.next-now<300?Math.max(0,Math.min(1,1-(b.next-now)/300)):0,px=-83+Math.max(windup,hit)*100-counter*22;
  ctx.save();ctx.translate(px,87);ctx.rotate(b.done&&!b.won?-.9:counter?-.18*counter:charge?Math.sin(t*16)*.05:0);ctx.globalAlpha=counter>.1?.65+.35*Math.abs(Math.sin(counter*24)):1;drawTile(ctx,'dungeon',b.a.idx,-as/2,-as,as/16);ctx.restore();
  drawOutfit(ctx,b.a,px,87,as,t,false);
- equipment(b.a,px,87,as,{sword:charge?-.1:hit*.95-.3},1,b.legendary&&(charge||b.done&&b.won),b.size<b.monsterSize);
+ const legendAmount=b.legendary?(charge?Math.max(0,Math.min(1,(now-(b.hitAt||now)-350)/550)):b.done&&b.won?Math.max(0,Math.min(1,1-(age-.6)/.7)):0):0;
+ equipment(b.a,px,87,as,{sword:charge?-.35:hit*.95-.3},1,legendAmount>0,b.size<b.monsterSize,legendAmount);
  const finishAge=b.done&&b.won?(now-b.ended)/1000:-1;
  ctx.save();if(finishAge>=0){ctx.globalAlpha=Math.max(0,1-Math.max(0,finishAge-.2)/1.05);ctx.translate(mx,87);ctx.scale(1+Math.min(.18,finishAge*.15),Math.max(.3,1-finishAge*.45));ctx.translate(-mx,-87);}monster(b.m,mx,87-hit*9,ms,t);ctx.restore();
  if(finishAge>=0&&finishAge<1.5){ctx.save();ctx.globalAlpha=1-finishAge/1.5;for(let i=0;i<18;i++){const a=i*2.4,r=finishAge*43;star(mx+Math.cos(a)*r,87-ms*.5+Math.sin(a)*r-finishAge*12,i%3?2:4,'#e6c8ff');}ctx.restore();}
@@ -155,7 +157,8 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  if(age>=0&&age<.9){ctx.fillStyle=b.dealtCritical?'#ffe190':'#e4eddf';ctx.font=b.dealtCritical?'bold 17px sans-serif':'13px sans-serif';ctx.fillText((b.dealtCritical?'치명타! ':'')+'−'+b.inflictedDamage,mx,70-ms*.6-age*20);}
  ctx.fillStyle='#e8dfba';ctx.font='12px sans-serif';ctx.fillText(b.done?(b.won?elements[b.element]+` 일격! 별가루 +${b.m.boss?8:1}`+(b.m.boss?' · 보스 배지 획득':''):'쓰러졌어요… 잠시 쉬고 다시 도전해요'):charge?(b.legendary?(b.mercy?'불굴의 전설검 · 이번엔 이길 거야!':'전설검 · 별빛을 모으는 중…'):'마지막 일격 · 힘을 모으는 중…'):`${b.round+1}번째 공방`,0,116);
  ctx.restore();}
-function equipment(a,x,y,size,pose,face,legendary=false,shield=false){ctx.save();ctx.translate(x,y);ctx.scale(face,1);const item=catalog.find(i=>i.id===equippedFor(a,'weapon'));if(item&&!legendary)heldWeapon(ctx,item.idx,size*.27,-size*.48,size*.95,pose.sword??-.3);else sword(size*.27,-size*.48,legendary?size*2.5:size*.62,pose.sword??-.3,legendary?3:gear(a),performance.now()/1000);
+const legendaryLength=size=>Math.min(104,size*1.9);
+function equipment(a,x,y,size,pose,face,legendary=false,shield=false,legendAmount=1){ctx.save();ctx.translate(x,y);ctx.scale(face,1);const item=catalog.find(i=>i.id===equippedFor(a,'weapon'));if(item&&!legendary)heldWeapon(ctx,item.idx,size*.27,-size*.48,size*.95,pose.sword??-.3,gear(a),performance.now()/1000);else sword(size*.27,-size*.48,legendary?size*.62+(legendaryLength(size)-size*.62)*legendAmount:size*.62,pose.sword??-.3,legendary?3:gear(a),performance.now()/1000);
  if(shield){ctx.fillStyle='#efcc83';ctx.beginPath();ctx.arc(-size*.28,-size*.3,size*.24,0,7);ctx.fill();ctx.fillStyle='#84aabd';ctx.beginPath();ctx.arc(-size*.28,-size*.3,Math.max(1,size*.24-2),0,7);ctx.fill();star(-size*.28,-size*.3,size*.1,'#ffeac2');}ctx.restore();}
 // Quiet floors and one furnished alcove keep the tiny rooms readable.
 // Layout reference: World of NoeL's Dungeon Interior; artwork below is drawn locally.
@@ -191,7 +194,19 @@ function roomInterior(room,ix,iy,scale){
  else if(role==='waiting'){table(9,8,33);book(16,10);rect(59,6,27,17,'#493a3a');rect(61,7,23,5,'#b69984');rect(61,13,23,8,'#997575');pot(9,48);rug(27,36,55,29);}
  else{rect(10,7,76,18,'#34483e');pot(14,12);pot(70,12);rect(37,9,22,12,'#788e87');rect(39,11,18,8,'#95b8b2');rug(20,38,56,26);}
  ctx.restore();}
-function heldWeapon(c,idx,x,y,size,angle){c.save();c.translate(x,y);c.rotate(angle);drawTile(c,'dungeon',idx,-size/2,-size*.85,size/16);c.restore();}
+function heldWeapon(c,idx,x,y,size,angle,rank=0,t=0){
+ const span=Math.min(112,size*(rank>=3?1.26:rank>=2?1.12:1.04)),color=idx===107?'#ffb55f':idx===129?'#dda4ff':'#a7ddff';
+ c.save();c.translate(x,y);
+ if(rank>=2&&angle>.35){for(let i=2;i>0;i--){c.save();c.rotate(angle-i*.16);c.globalAlpha=.12/i;drawTile(c,'dungeon',idx,-span/2,-span*.85,span/16);c.restore();}}
+ c.rotate(angle);c.shadowColor=color;c.shadowBlur=rank>=3?12:rank>=2?7:3;
+ c.save();c.scale(rank>=2?1.3:1.12,1);drawTile(c,'dungeon',idx,-span/2,-span*.85,span/16);c.restore();c.shadowBlur=0;
+ if(rank){const wing=span*(rank>=3?.26:rank>=2?.2:.15);c.fillStyle='#edc77d';for(const dir of [-1,1]){c.beginPath();c.moveTo(0,-span*.045);c.lineTo(dir*wing,-span*.15);c.lineTo(dir*wing*.72,-span*.025);c.lineTo(0,span*.015);c.fill();}c.fillStyle=color;c.beginPath();c.moveTo(0,-span*.12);c.lineTo(span*.055,-span*.055);c.lineTo(0,span*.012);c.lineTo(-span*.055,-span*.055);c.fill();c.fillStyle='#fff3d7';c.fillRect(-1,-span*.072,2,2);}
+ if(rank>=2){c.strokeStyle=color;c.lineWidth=Math.max(1,span*.016);c.globalAlpha=.45;c.beginPath();c.moveTo(-span*.11,-span*.1);c.quadraticCurveTo(-span*.25,-span*.48,-span*.04,-span*.8);c.stroke();c.globalAlpha=1;}
+ if(idx===106&&rank>=2){c.fillStyle='#c6edff';c.shadowColor='#86cbff';c.shadowBlur=5;for(let i=0;i<3;i++){const dir=i%2?1:-1,xx=dir*span*.23,yy=-span*(.25+i*.2)+Math.sin(t*2+i)*2;c.beginPath();c.moveTo(xx,yy-span*.065);c.lineTo(xx+span*.035,yy);c.lineTo(xx,yy+span*.065);c.lineTo(xx-span*.035,yy);c.fill();}c.shadowBlur=0;}
+ if(rank>=3&&idx===107){c.globalAlpha=.85;c.shadowColor='#ff974a';c.shadowBlur=7;for(let i=0;i<6;i++){const phase=(t*.6+i/6)%1,xx=(i%2?1:-1)*span*(.2+Math.sin(t*3+i)*.025),yy=-span*(.16+phase*.62);c.fillStyle=i%2?'#ffe1a0':'#ff9863';c.beginPath();c.moveTo(xx,yy-span*.12);c.quadraticCurveTo(xx-span*.065,yy+span*.045,xx,yy+span*.05);c.quadraticCurveTo(xx+span*.06,yy+span*.025,xx,yy-span*.12);c.fill();}c.globalAlpha=1;c.shadowBlur=0;}
+ if(rank>=3){for(let i=0;i<3;i++){const p=(t*.45+i/3)%1,xx=Math.sin(t*2+i*2)*span*.15,yy=-span*(.12+p*.63),r=span*.035;c.fillStyle=i%2?'#fff1c5':color;c.beginPath();c.moveTo(xx-r,yy);c.lineTo(xx,yy-r);c.lineTo(xx+r,yy);c.lineTo(xx,yy+r);c.fill();}}
+ c.restore();}
+
 function drawOutfit(c,a,x,y,size,t,weapon=true,outfit=inventory(a.key).equipped){
  const eq=outfit;
  c.save();
@@ -204,7 +219,7 @@ function drawOutfit(c,a,x,y,size,t,weapon=true,outfit=inventory(a.key).equipped)
  if(eq.charm==='orbit'){c.fillStyle='#d9c4ff';const sx=x+Math.cos(t*2)*size*.65,sy=y-size*.6+Math.sin(t*2)*size*.2;c.beginPath();for(let i=0;i<8;i++){const angle=i*Math.PI/4,r=size*(i%2?.04:.13);c.lineTo(sx+Math.cos(angle)*r,sy+Math.sin(angle)*r);}c.fill();}
  if(eq.pet){const ps=size*.42;drawTile(c,'dungeon',eq.pet==='fox'?120:108,x+size*.5,y-ps+Math.sin(t*4)*size*.04,ps/16);}
  if(eq.shield){const item=catalog.find(i=>i.id===eq.shield);drawTile(c,'dungeon',item.idx,x-size*.72,y-size*.48,size*.5/16);}
- if(weapon&&eq.weapon){const item=catalog.find(i=>i.id===eq.weapon);heldWeapon(c,item.idx,x+size*.32,y-size*.4,size*.85,.25);}
+ if(weapon&&eq.weapon){const item=catalog.find(i=>i.id===eq.weapon);heldWeapon(c,item.idx,x+size*.32,y-size*.4,size*.85,.25,Math.max(item.rank,weaponMastery(a)),t);}
 
  c.restore();
 }
@@ -214,12 +229,12 @@ const style=document.createElement('style');style.textContent='#adventure-log{po
 function renderLog(){const all=Object.values(records),kills=all.reduce((s,r)=>s+r.kills,0),bosses=all.reduce((s,r)=>s+r.bosses,0);panel.querySelector('button').textContent=enabled?'모험 켜짐 · 끄기':'모험 꺼짐 · 켜기';panel.querySelector('p').textContent=`몬스터 ${kills}마리 · 보스 ${bosses}마리\n별가루는 세션별로 상점에서 확인해요\n주민별 3마리: 별 장식\n10마리: 보라 별 장식\n보스 처치: 분홍 보스 배지`;renderShop();}
 const shopButton=document.createElement('button');shopButton.id='open-stardust-shop';shopButton.type='button';shopButton.textContent='✦ 상점';
 const shopDialog=document.createElement('dialog');shopDialog.id='stardust-shop';shopDialog.setAttribute('aria-labelledby','stardust-shop-title');shopDialog.setAttribute('closedby','any');
-shopDialog.innerHTML=`<header class="shop-heading"><div><span class="shop-eyebrow">마을의 작은 장신구 가게</span><h2 id="stardust-shop-title">장비와 별가루 상점</h2></div><button type="button" class="shop-close" aria-label="상점 닫기" autofocus>×</button></header><div class="shop-layout"><aside class="shop-character"><label class="shop-session-label" for="shop-session">장비를 살 세션</label><select id="shop-session"></select><div class="shop-wallet"><span>별가루 <strong></strong></span><small>일반 +1 · 보스 +8</small></div><div class="equipment-stats"></div><section class="equipment-overview" aria-label="현재 장비"><canvas id="equipment-preview" width="180" height="160" aria-label="선택한 캐릭터 착용 모습"></canvas><div class="equipment-slots"></div></section><p class="shop-intro">선택한 세션만 구매하고 착용해요.<br>장비 능력치가 전투에 더해져요.</p></aside><section class="shop-catalog" aria-label="구매할 아이템"><div class="shop-categories" aria-label="아이템 부위"></div><p class="shop-feedback" role="status" aria-live="polite"></p><div class="shop-items"></div><footer class="shop-footer">별가루와 장비는 세션마다 따로 보관돼요.<br>전투 중 바꾼 장비의 능력치는 다음 전투부터 적용돼요.</footer></section></div>`;
-document.getElementById('map-stage').append(shopButton,shopDialog);
+shopDialog.innerHTML=`<header class="shop-heading"><div><span class="shop-eyebrow">마을의 작은 장신구 가게</span><h2 id="stardust-shop-title">장비와 별가루 상점</h2></div><button type="button" class="shop-close" aria-label="상점 닫기" autofocus>×</button></header><div class="shop-layout"><aside class="shop-character"><label class="shop-session-label" for="shop-session">장비를 살 세션</label><select id="shop-session"></select><p class="shop-session-title"></p><div class="shop-wallet"><span>별가루 <strong></strong></span><small>일반 +1 · 보스 +8</small></div><div class="equipment-stats"></div><section class="equipment-overview" aria-label="현재 장비"><canvas id="equipment-preview" width="180" height="160" aria-label="선택한 캐릭터 착용 모습"></canvas><div class="equipment-slots"></div></section><p class="shop-intro">선택한 세션만 구매하고 착용해요.<br>장비 능력치가 전투에 더해져요.</p></aside><section class="shop-catalog" aria-label="구매할 아이템"><div class="shop-categories" aria-label="아이템 부위"></div><p class="shop-feedback" role="status" aria-live="polite"></p><div class="shop-items"></div><footer class="shop-footer">별가루와 장비는 세션마다 따로 보관돼요.<br>전투 중 바꾼 장비의 능력치는 다음 전투부터 적용돼요.</footer></section></div>`;
+const adventureControls=document.createElement('div');adventureControls.id='adventure-controls';adventureControls.append(panel,shopButton);document.getElementById('map-stage').append(adventureControls,shopDialog);
 const escapeShop=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function renderShop(){
  const keys=Object.keys(avatars);if(!keys.includes(selectedSession))selectedSession=keys.includes(window.townUI?.selectedKey)?window.townUI.selectedKey:keys[0]||'';
- const selector=shopDialog.querySelector('#shop-session');selector.innerHTML=keys.length?keys.map(key=>`<option value="${escapeShop(key)}">${escapeShop(state.sessionInfo[key]?.title||avatars[key].sid||key)} · ${escapeShop(avatars[key].proj||'세션')}</option>`).join(''):'<option value="">마을에 세션이 없어요</option>';selector.value=selectedSession;selector.disabled=!keys.length;
+ const selector=shopDialog.querySelector('#shop-session');selector.innerHTML=keys.length?keys.map(key=>`<option value="${escapeShop(key)}">${escapeShop(state.sessionInfo[key]?.title||avatars[key].sid||key)} · ${escapeShop(avatars[key].proj||'세션')}</option>`).join(''):'<option value="">마을에 세션이 없어요</option>';selector.value=selectedSession;selector.disabled=!keys.length;shopDialog.querySelector('.shop-session-title').textContent=state.sessionInfo[selectedSession]?.title||'';
  const statsActor=avatars[selectedSession],stats=statsActor?statsFor(statsActor):null;shopDialog.querySelector('.equipment-stats').innerHTML=stats?['attack','defense','hp'].map(k=>`<div><span>${{attack:'공격력',defense:'방어력',hp:'체력'}[k]}</span><strong>${stats[k]}</strong><small>${stats.base[k]} + 장비 ${stats.bonus[k]}</small></div>`).join('')+`<p>치명타 ${Math.round(stats.crit*100)}% · 연속 패배 ${record(statsActor).lossStreak||0}/4</p>`:'';
  const inv=inventory(selectedSession),owned=new Set(inv.owned),equipped=inv.equipped;
  shopDialog.querySelector('.equipment-slots').innerHTML=Object.entries(slots).map(([slot,name])=>{const item=catalog.find(i=>i.id===equipped[slot]);return `<button type="button" data-slot="${slot}" aria-label="${name} 아이템 보기"><span>${name}</span><strong>${item?item.name:'미장착'}</strong></button>`;}).join('');
@@ -245,7 +260,7 @@ shopDialog.onclick=event=>{
  if(event.target===shopDialog){const r=shopDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)shopDialog.close();}
 };
 panel.querySelector('button').onclick=()=>{enabled=!enabled;save('codextown.adventureEnabled',enabled);if(!enabled){cancel();monsters.length=0;}else nextSpawn=performance.now()+4000;renderLog();};renderLog();
-window.townAdventure={resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a,resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
+window.townAdventure={legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a,resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
 function sword(x,y,length,angle,rank,t,paint=ctx){
 paint.save();paint.translate(x,y);paint.rotate(angle);
 const L=length;

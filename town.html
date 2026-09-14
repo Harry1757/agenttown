@@ -2786,9 +2786,10 @@ function updateHoverHit() {
   const scale = layout.scale, P = TILE * scale;
   let hitWorker = null;
   for (const a of Object.values(avatars)) {
-    const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
-    if (lastMouseDevX >= px - 2 * scale && lastMouseDevX <= px + P + 2 * scale &&
-        lastMouseDevY >= py - 8 * scale && lastMouseDevY <= py + P) { hitWorker = a; break; }
+    if(!displayedRooms.includes(ROOM_BY_ROLE[a.role])&&!a.route?.length)continue;
+    const size=TILE*spriteScaleFor(a,scale),px=layout.offsetX+(a.x+.5)*P-size/2,feet=layout.offsetY+(a.y+1)*P;
+    if (lastMouseDevX >= px - 2 * scale && lastMouseDevX <= px + size + 2 * scale &&
+        lastMouseDevY >= feet-size-8*scale && lastMouseDevY <= feet) { hitWorker = a; break; }
   }
   hoveredWorker = hitWorker;
   if (hitWorker) {
@@ -2849,6 +2850,7 @@ cv.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   mapDragged = false;
   trackMouse(e);
+  updateHoverHit();
   // 제스처가 켜져 있고 캐릭터 위에서 눌렀다면 그건 팬이 아니라 액션이다.
   if (gesture && hoveredWorker) { applyGesture(hoveredWorker, gesture); return; }
   cam.animTo = null;
@@ -2874,7 +2876,8 @@ cv.addEventListener('mouseleave', () => {
 });
 // 더블클릭: 캐릭터 위면 그 세션을 연 창을 앞으로 가져오고, 빈 곳이면 카메라 리셋.
 // 창 제목으로 찾는 것이라 창 단위까지만 간다 — 탭까지는 못 간다.
-cv.addEventListener('click', () => {
+cv.addEventListener('click', e => {
+  trackMouse(e);updateHoverHit();
   if (!mapDragged && !gesture && hoveredWorker){window.townUI?.select(hoveredWorker.key);window.townAdventure?.openEquipment(hoveredWorker.key);}
 });
 cv.addEventListener('dblclick', () => {

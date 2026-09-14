@@ -223,6 +223,7 @@
   $('mobile-roster').onclick=()=>setRoster(!$('workspace').classList.contains('roster-open'));
   $('close-roster').onclick=()=>setRoster(false);
   document.addEventListener('keydown',e=>{
+    if(document.querySelector('dialog[open]'))return;
     if ((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k') { e.preventDefault();setRoster(true);$('task-search').focus(); }
     if (e.key==='Escape'&&!gesture) { if (document.activeElement===$('task-search')) {$('task-search').value='';ui.query='';render();}else{ui.selectedKey=null;setRoster(false);render();} }
   });

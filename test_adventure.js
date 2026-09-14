@@ -33,9 +33,9 @@ now+=2000;game.step(now);assert.ok(game.active,'completed work does not interrup
 assert.equal(game.balance(),12,'ordinary monster awards one');
 console.log('Shop budget, equipment toggle, boss rewards and deferred departure pass');
 for(const role of ['plan','research','design','qa']){const r={role,gx:10,gy:10};env.ROOM_BY_ROLE[role]=r;env.displayedRooms.push(r);}
-for(let i=0;i<80;i++){now+=1000;game.step(now);assert.ok(game.monsters.length<=4);}
-assert.ok(game.monsters.length>=3,'village replenishes three to four monsters even without active residents');
-console.log('Village population stays between three and four after replenishment');
+for(let i=0;i<80;i++){now+=1000;game.step(now);assert.ok(game.monsters.length<=8);}
+assert.ok(game.monsters.length>=6,'village replenishes six to eight monsters even without active residents');
+console.log('Village population stays between six and eight after replenishment');
 
 assert.ok(game.impactScale(12)<game.impactScale(22));assert.ok(game.impactScale(22)<game.impactScale(40));assert.ok(game.impactScale(500)<=1.7);console.log('Damage effects increase with attack strength and stay bounded');
 
@@ -70,3 +70,5 @@ assert.ok(armored.attack>unarmed.attack);assert.ok(armored.defense>unarmed.defen
 env.Math.random=()=>.9;const normal=reloaded.rollDamage(30,5,.1);env.Math.random=()=>.01;const critical=reloaded.rollDamage(30,5,.1);assert.ok(critical.critical);assert.ok(critical.damage>normal.damage);assert.ok(reloaded.rollDamage(30,15,0).damage<normal.damage);
 env.Math.random=()=>.9;const duel=reloaded.resolveDuel(weak,a);assert.equal(duel.winner,weak,'equipped resident wins through actual stats');assert.ok(duel.snapshots.at(-1).includes(0));
 console.log('Real defeat, four-loss legendary comeback, equipment stats, criticals, armor and PvP HP resolution pass');
+
+for(const size of [16,32,48,72,96]){assert.ok(reloaded.legendaryLength(size)<=104);assert.ok(reloaded.legendaryLength(size)>size*.62);}console.log('Legendary blade stays inside the battle stage at every character size');
