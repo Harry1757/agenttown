@@ -131,14 +131,15 @@ function masonry(x,y,w,h,unit=18){ctx.fillStyle='#252c35';ctx.fillRect(x,y,w,h);
  }ctx.restore();}
 function caveWalls(x,y,w,h,s){const p=16*s;masonry(x,y,w,p,s*8);masonry(x,y,p,h,s*8);masonry(x+w-p,y,p,h,s*8);masonry(x,y+h-p,w,p,s*8);}
 function caveDoor(x,y,w,h,s,room){const p=16*s,cx=x+w/2,top=y+h-p*1.45,bottom=y+h;ctx.save();ctx.beginPath();ctx.moveTo(cx-p,bottom);ctx.lineTo(cx-p,top+p*.55);ctx.quadraticCurveTo(cx,top-p*.4,cx+p,top+p*.55);ctx.lineTo(cx+p,bottom);ctx.closePath();ctx.fillStyle='#080f15';ctx.fill();ctx.strokeStyle='#7a8085';ctx.lineWidth=3*s;ctx.stroke();ctx.clip();const leaf=p*(1-doorOpening(room));masonry(cx-p,top,leaf,p*1.5,4*s);masonry(cx+p-leaf,top,leaf,p*1.5,4*s);ctx.restore();}
-function chamber(kind){
- ctx.fillStyle='#17202a';ctx.fillRect(-190,-135,380,270);
+function chamber(kind,width=380){
+ const edge=width/2;
+ ctx.fillStyle='#17202a';ctx.fillRect(-edge,-135,width,270);
  // Recessed arches, broken columns and a rune floor sit behind combatants.
  for(const x of [-113,70]){ctx.fillStyle='#0c121d';ctx.beginPath();ctx.moveTo(x-24,78);ctx.lineTo(x-24,-32);ctx.quadraticCurveTo(x+11,-86,x+46,-32);ctx.lineTo(x+46,78);ctx.fill();masonry(x-33,-33,12,119,12);masonry(x+44,-33,12,119,12);}
- ctx.fillStyle='#333841';ctx.fillRect(-178,77,356,46);ctx.strokeStyle='#51565f';ctx.lineWidth=1;for(let y=79;y<123;y+=13){ctx.beginPath();ctx.moveTo(-178,y);ctx.lineTo(178,y);ctx.stroke();}
+ ctx.fillStyle='#333841';ctx.fillRect(-edge+12,77,width-24,46);ctx.strokeStyle='#51565f';ctx.lineWidth=1;for(let y=79;y<123;y+=13){ctx.beginPath();ctx.moveTo(-edge+12,y);ctx.lineTo(edge-12,y);ctx.stroke();}
  ctx.strokeStyle=kind?.color||'#88759f';ctx.globalAlpha=.35;ctx.beginPath();ctx.ellipse(0,99,117,15,0,0,7);ctx.stroke();ctx.beginPath();ctx.ellipse(0,99,89,10,0,0,7);ctx.stroke();ctx.globalAlpha=1;
- masonry(-190,-135,380,14,12);masonry(-190,121,380,14,12);masonry(-190,-121,12,242,13);masonry(178,-121,12,242,13);
- for(const x of [-162,156]){ctx.fillStyle='#41302b';ctx.fillRect(x,-37,6,23);star(x+3,-41,9,kind?.color||'#db9b65');star(x+3,-41,4,'#fff0b9');}
+ masonry(-edge,-135,width,14,12);masonry(-edge,121,width,14,12);masonry(-edge,-121,12,242,13);masonry(edge-12,-121,12,242,13);
+ for(const x of [-edge+28,edge-34]){ctx.fillStyle='#41302b';ctx.fillRect(x,-37,6,23);star(x+3,-41,9,kind?.color||'#db9b65');star(x+3,-41,4,'#fff0b9');}
  for(const [x,y] of [[-174,109],[155,112],[-151,115]]){ctx.fillStyle='#687064';ctx.fillRect(x,y,11,5);ctx.fillStyle='#92a080';ctx.fillRect(x,y,7,2);}
 }
 function drawMap(){const P=TILE*layout.scale,t=performance.now()/1000;for(const m of monsters){const x=layout.offsetX+(m.x+.5)*P,y=layout.offsetY+(m.y+1)*P;ctx.save();ctx.strokeStyle=m.kind?.color||'#a4dad2';ctx.lineWidth=layout.scale;ctx.beginPath();ctx.ellipse(x,y,P*.65,P*.18,0,0,7);ctx.stroke();monster(m,x,y,P*(m.boss?1.5:.85),t);if(m.encounterKey&&!battle){ctx.font='bold 18px sans-serif';ctx.fillStyle='#ffe3a2';ctx.fillText('!',x,y-P*1.8);}ctx.restore();}}
@@ -175,9 +176,10 @@ function bossStrike(kind,x,y,p,damage){
  ctx.restore();
 }
 function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(now-b.start)/1000,age=(now-(b.hitAt||-1e8))/1000,charge=!b.done&&(b.legendary&&b.round===1||b.monsterHp<=Math.max(1,b.damage-b.monsterDefense)&&b.next-now<1000);
- const scale=Math.min(1,(cv.width/dpr-20)/380,(cv.height/dpr-20)/270);if(scale<=0)return;
+ const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
+ const arenaWidth=Math.min(520,Math.max(380,width/height*270)),scale=Math.min(1.8,width/arenaWidth,height/270);
  ctx.save();ctx.fillStyle='rgba(4,8,16,.55)';ctx.fillRect(0,0,cv.width,cv.height);ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
- chamber(b.m.kind);ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(b.m.boss?b.m.name+' · 보스전':b.m.name+' 등장!',0,-111);
+ chamber(b.m.kind,arenaWidth);ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(b.m.boss?b.m.name+' · 보스전':b.m.name+' 등장!',0,-111);
  ctx.font='11px sans-serif';ctx.fillText('주민 · 토큰 체력',-95,-95);ctx.fillText(b.m.name,95,-95);
  bar(-160,-89,b.hp,b.maxHp,'#a8d89b');bar(30,-89,b.monsterHp,b.maxMonsterHp,b.m.kind?.color||'#dba0ca');
 
