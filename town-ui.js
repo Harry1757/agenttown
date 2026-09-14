@@ -11,6 +11,7 @@
   const savedWins=read('codextown.duelWins',{});
   const duelWins=new Map(Object.entries(savedWins&&typeof savedWins==='object'?savedWins:{}).filter(([,n])=>Number.isSafeInteger(n)&&n>0));
   const ui = window.townUI = {
+    winCount(a) {return duelWins.get(`${a.proj}|${a.sid}`)||0;},
     recordWin(a) {
       const key=`${a.proj}|${a.sid}`;
       duelWins.set(key,Math.min(Number.MAX_SAFE_INTEGER,(duelWins.get(key)||0)+1));
@@ -54,7 +55,7 @@
     const c = canvas.getContext('2d');
     c.imageSmoothingEnabled = false;
     c.clearRect(0,0,32,32);
-    drawTile(c, 'dungeon', sub ? T.charSlime : charFor(key), 0, 0, 2);
+    drawTile(c, 'dungeon', charFor(key), 0, 0, 2);
   }
   let lastList = '', lastDetail = '', lastProjects = '', lastDetailKey = '';
   let lastLeaders='';

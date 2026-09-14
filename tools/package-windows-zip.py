@@ -85,7 +85,7 @@ def package(electron_zip):
         shutil.copytree(ROOT / 'app/assets', payload / 'assets', ignore=shutil.ignore_patterns('icon-src'))
         server = payload / 'server'
         server.mkdir()
-        for name in ['codextown.py', 'claudetown.py', 'town.html', 'town-ui.js', 'town-ui.css', 'tiles.html']:
+        for name in ['codextown.py', 'claudetown.py', 'town.html', 'town-ui.js', 'town-adventure.js', 'town-ui.css', 'tiles.html']:
             shutil.copy2(ROOT / name, server / name)
         shutil.copytree(ROOT / 'assets', server / 'assets')
         (payload / 'package.json').write_text(json.dumps({

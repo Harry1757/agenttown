@@ -73,3 +73,11 @@ assert.equal(env.selectFeaturedDuel(23002),null,'reduced motion immediately remo
 env.roomDuels.clear();env.window.townUI.motionReduced=false;
 env.roomDuels.add({start:0});assert.equal(env.selectFeaturedDuel(25000),null,'no stale encounter after backgrounding');
 console.log('Spotlight: stable focus, simultaneous encounters, cancellation, reduced motion and stale encounters pass');
+
+env.roomDuels.clear();env.window.townAdventure={busy:()=>false,resting:()=>false};env.nextDuelCheck=Infinity;
+for(const v of [a,b]){v.duel=null;env.resetDuelVisit(v);v.y=4.5;}a.x=2.5;b.x=4.5;a.h=1;b.h=2;
+env.Math.random=()=>.199;assert.ok(env.beginDuel(a,b,30000));assert.equal(a.duel.legendary,a);assert.equal(a.duel.winner,a,'20% legendary guarantees smaller winner');
+const special=a.duel;env.stepDuels(33000);assert.equal(special.frame.result,0,'charge delays the result');env.stepDuels(36700);assert.ok(special.awarded);env.stepDuels(37700);assert.equal(a.duel,null);
+env.resetDuelVisit(a);a.x=2.5;b.x=4.5;a.y=b.y=4.5;env.Math.random=()=>.2;
+assert.ok(env.beginDuel(a,b,40000));assert.equal(a.duel.legendary,undefined,'20% exclusive boundary');env.endDuel(a.duel);
+console.log('Legendary PvP: 20% boundary, small winner, longer charge and cleanup pass');

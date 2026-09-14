@@ -608,6 +608,7 @@ function doorOpening(room) {
   return open;
 }
 function drawDoor(ox, oy, w, h, scale, room) {
+  if(window.townAdventure&&room){window.townAdventure.caveDoor(ox,oy,w,h,scale,room);return;}
   const t = TILE * scale;
   const doorW = 2 * t;
   const doorX0 = Math.round(ox + w / 2 - doorW / 2), doorX1 = doorX0 + Math.round(doorW);
@@ -1125,15 +1126,14 @@ function drawRoom(room, hasActive) {
   const w = ROOM_W * P, h = ROOM_H * P;
   const flash = computeFlash(room.role);
 
-  drawWalls(ox, oy, w, h, scale);
+  if(window.townAdventure)window.townAdventure.caveWalls(ox,oy,w,h,scale);else drawWalls(ox, oy, w, h, scale);
   drawFloor(ox, oy, w, h, scale, room.accent, room.floor);
 
   const ix = ox + t, iy = oy + t;
   const iw = (ROOM_W - 2) * P, ih = (ROOM_H - 2) * P;
 
-  drawRug(ix, iy, iw, ih, scale);
-
-  drawRoomInterior(room, ix, iy, scale, hasActive, flash);
+  if(window.townAdventure)window.townAdventure.roomInterior(room,ix,iy,scale);
+  else {drawRug(ix, iy, iw, ih, scale);drawRoomInterior(room, ix, iy, scale, hasActive, flash);}
 
 }
 
@@ -1193,7 +1193,7 @@ function drawGarden() {
 // dungeon 시트에서 사람으로 읽히는 칸만 골랐다(상자·검·물약·박쥐·거미는 뺐다).
 // 예전엔 진입점(cli/vscode/desktop)으로 3종만 썼는데, 화면에 늘 같은 둘만 보였다 —
 // 진입점은 어차피 화면 어디에도 설명이 없어서 세션마다 다른 얼굴을 주는 편이 낫다.
-const CHARS = [84, 85, 86, 87, 88, 96, 97, 98, 99, 100, 109, 111, 112, 121];
+const CHARS = [84, 85, 86, 87, 88, 96, 97, 98, 99, 100, 109, 111, 112];
 function charFor(key) { return CHARS[hashSeed(key) % CHARS.length]; }
 const avatars = {};   // "proj|sid[:sub]" -> {x,y,tx,ty,face,idx,proj,sid,role}
 const roomDuels = new Set();
@@ -1326,7 +1326,7 @@ function duelFrame(t) {
 }
 
 function duelEligible(a) {
-  return avatars[a.key]===a && !a.travelFrom && !a.portal && workerState(a)!=='done'
+  return !window.townAdventure?.busy(a) && !window.townAdventure?.resting(a) && avatars[a.key]===a && !a.travelFrom && !a.portal && workerState(a)!=='done'
     && !state.sessionInfo[`${a.proj}|${a.sid}`]?.needsInput && displayedRooms.includes(ROOM_BY_ROLE[a.role]);
 }
 
@@ -1353,6 +1353,7 @@ function beginDuel(first,second,now) {
   const d={a,b,ha,hb,role:a.role,gx:room.gx,gy:room.gy,start:now,xA,xB,y,backA,backB,bounds,
     fromA:{x:a.x,y:a.y},fromB:{x:b.x,y:b.y},winner:Math.random()<duelWinChance(ha,hb)?a:b,awarded:false};
   for(const actor of [a,b]){clearDuelAftermath(actor);actor.duel=d;actor.roomAction=null;actor.tx=actor.x;actor.ty=actor.y;actor.lean=0;}
+  if(window.townAdventure&&Math.abs(ha-hb)>.001&&Math.random()<.2){d.legendary=ha<hb?a:b;d.winner=d.legendary;}
   a.face=1;b.face=-1;roomDuels.add(d);return true;
 }
 
@@ -1423,7 +1424,7 @@ function stepDuels(now) {
   for(const d of roomDuels){
     const room=ROOM_BY_ROLE[d.role];
     if(window.townUI?.motionReduced || !duelEligible(d.a)||!duelEligible(d.b)||d.a.role!==d.role||d.b.role!==d.role||room.gx!==d.gx||room.gy!==d.gy){endDuel(d);continue;}
-    const t=(now-d.start)/1000;
+    const raw=(now-d.start)/1000,t=d.legendary&&raw>=2.5?(raw<4.5?2.5:raw-2):raw;
     if(t>=5.6){endDuel(d,true);continue;}
     const f=duelFrame(t);d.frame=f;
     for(const [a,from,x,back,dir] of [[d.a,d.fromA,d.xA,d.backA,-1],[d.b,d.fromB,d.xB,d.backB,1]]){
@@ -1453,6 +1454,7 @@ function stepDuels(now) {
 
 function drawDuelAccessory(a,feetX,feetY,size) {
   const f=a.duelPose;if(!f)return;
+  if(window.townAdventure){const d=a.duel,small=d&&(a===d.a?d.ha<d.hb:d.hb<d.ha);window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,Boolean(d?.legendary===a&&(performance.now()-d.start)>2000),small);return;}
   ctx.save();ctx.translate(feetX,feetY);ctx.scale(a.face,1);
   if(f.sword!==null){ctx.translate(size*.28,-size*.48);ctx.rotate(f.sword);ctx.fillStyle='#927099';ctx.fillRect(-size*.05,0,size*.1,size*.2);ctx.fillStyle='#ffe3a0';ctx.fillRect(-size*.16,-size*.08,size*.32,size*.07);ctx.fillStyle='#b5e5df';ctx.fillRect(-size*.06,-size*.63,size*.12,size*.55);ctx.fillStyle='#edfff2';ctx.fillRect(-size*.025,-size*.63,size*.04,size*.5);}
   ctx.restore();
@@ -1494,9 +1496,10 @@ function selectFeaturedDuel(now) {
 }
 
 function drawDuelSpotlight() {
+  if(window.townAdventure?.active)return;
   const now=performance.now(),d=selectFeaturedDuel(now);
   if(!d)return;
-  const t=(now-d.start)/1000,f=d.frame||duelFrame(t);
+  const t=window.townAdventure?window.townAdventure.duelTime(d):(now-d.start)/1000,f=d.frame||duelFrame(t);
   // The little encounter mark remains attached to both residents before the cut-in.
   if(t<.35){
     ctx.save();ctx.textAlign='center';ctx.fillStyle='#ffe6a1';ctx.font=`bold ${22*dpr}px sans-serif`;
@@ -1535,7 +1538,7 @@ function drawDuelSpotlight() {
   ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`,0,-82);
   const intro=t<.65,spread=intro?100:48+f.back*32;
   for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
-    const won=a===d.winner,size=56+20*h/Math.max(d.ha,d.hb);
+    const won=a===d.winner,size=76*h/Math.max(d.ha,d.hb);
     const pose=a.duelPose||{...f,squash:1,hop:0};
     const x=dir*spread,y=59-pose.hop*70;
     ctx.fillStyle='#242c29';ctx.beginPath();ctx.ellipse(x,63,size*.48,6,0,0,Math.PI*2);ctx.fill();
@@ -1553,6 +1556,9 @@ function drawDuelSpotlight() {
     if(label!==String(name))label=label.slice(0,-1)+'…';
     ctx.fillText(label,dir*87,88);
   }
+  if(!d.legendary&&t>=2.9&&t<3.6&&window.townAdventure){const loser=d.winner===d.a?d.b:d.a,dir=loser===d.a?-1:1;window.townAdventure.finisher(dir*spread,20,(t-2.9)/.7,d.winner.key);}
+  if(d.legendary&&t>=2.9&&t<3.6){const loser=d.winner===d.a?d.b:d.a,dir=loser===d.a?-1:1;window.townAdventure.crescent(dir*spread,20,(t-2.9)/.7);}
+  if(d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText('전설검 · 별빛을 모으는 중…',0,-60);}
   if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
   else if(impact>0){
     ctx.save();ctx.globalAlpha*=impact;
@@ -1958,7 +1964,7 @@ function moveAvatar(ev) {
   if (!a) {
     a = avatars[key] = {
       x: 0, y: 0, tx: 0, ty: 0, face: 1,
-      idx: ev.sub ? T.charSlime : charFor(key),   // 서브에이전트는 슬라임 고정
+      idx: charFor(key),   // Human sprites represent all sessions.
       proj: ev.proj, sid: ev.sid, role: ev.role, key,
     };
     resetDuelVisit(a);
@@ -1998,6 +2004,7 @@ function moveAvatar(ev) {
 let lastStep = 0;
 function stepAvatars() {
   const now = performance.now();
+  window.townAdventure?.step(now);
   stepDuels(now);
   if (window.townUI?.motionReduced) { for (const a of Object.values(avatars)) { clearDuelAftermath(a);if(a.travelFrom)finishTrip(a);else {a.x = a.tx; a.y = a.ty;} } lastStep = now; return; }
   // 프레임 간격만큼 움직인다 — 화면 주사율이 달라도 걷는 속도는 같아야 한다. 상한을
@@ -2005,7 +2012,7 @@ function stepAvatars() {
   const dt = lastStep ? Math.min(0.1, (now - lastStep) / 1000) : 0;
   lastStep = now;
   for (const a of Object.values(avatars)) {
-    if(a.duel)continue;
+    if(a.duel||window.townAdventure?.busy(a))continue;
     if(a.portal){
       const progress=(now-a.portal.at)/PORTAL_MS;
       if(progress>=.5){a.x=a.portal.to.x;a.y=a.portal.to.y;}
@@ -2028,7 +2035,7 @@ function stepAvatars() {
       continue;
     }
     const social=stepDuelAftermath(a,now);
-    if(a.duel)continue;
+    if(a.duel||window.townAdventure?.busy(a))continue;
     // 도착했고 쉬는 시간도 지났으면 다음 목적지를 잡는다. 완료는 안 돌아다닌다 —
     // 끝난 세션이 계속 움직이면 아직 뭔가 하는 줄로 읽힌다(숨쉬기를 끄는 것과 같은 이유).
     // 이미 걷던 중이면 마저 걸어서 제자리에 선다.
@@ -2495,6 +2502,7 @@ function drawWorker(a) {
   drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale, hScale);
   ctx.restore();
 
+  window.townAdventure?.loot(a,feetX,feetY,sSize);
   if(a.portal)return;
   if(duelPose){drawDuelAccessory(a,feetX,feetY,sSize);return;}
   if(!reduced&&now<a.fleeUntil){
@@ -2698,10 +2706,12 @@ function draw() {
   computeTagLayout();
   drawPortals();
   for (const a of Object.values(avatars)) { if (displayedRooms.includes(ROOM_BY_ROLE[a.role]) || a.route?.length) drawWorker(a); }
+  window.townAdventure?.drawMap();
   drawDuelResults();
   drawConflicts();
   drawParticles();
   drawDuelSpotlight();
+  window.townAdventure?.drawBattle();
 
   updateHud(activeCounts);
 }
@@ -3164,4 +3174,4 @@ initRooms();
 connect();
 initHint();
 loadSheets().then(tick);
-</script><script src="/town-ui.js"></script></body></html>
+</script><script src="/town-ui.js"></script><script src="/town-adventure.js"></script></body></html>
