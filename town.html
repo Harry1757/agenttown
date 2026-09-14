@@ -1332,6 +1332,7 @@ function duelEligible(a) {
 
 function beginDuel(first,second,now) {
   if(window.townUI?.motionReduced || first===second || first.duel || second.duel || first.role!==second.role || !duelEligible(first)||!duelEligible(second))return false;
+  if(first.duelOpponents?.has(second.key)||second.duelOpponents?.has(first.key))return false;
   const [a,b]=first.x<=second.x?[first,second]:[second,first];
   const ha=spriteScaleFor(a,layout.scale)/layout.scale,hb=spriteScaleFor(b,layout.scale)/layout.scale;
   const ba=wanderBox(a,ha),bb=wanderBox(b,hb);
@@ -1366,6 +1367,12 @@ function endDuel(d,completed=false) {
     loser.fleeFrom=d.winner.key;loser.fleeUntil=now+4500;loser.socialNext=0;
     d.winner.seekUntil=now+12000;d.winner.seekTarget=null;d.winner.socialNext=0;d.winner.duelAfter=now+2500;
   }
+}
+
+// Leaving starts a new visit for this resident only; other pairs keep their history.
+function resetDuelVisit(a) {
+  a.duelOpponents?.clear();
+  for(const other of Object.values(avatars))other.duelOpponents?.delete(a.key);
 }
 
 function clearDuelAftermath(a) {
@@ -1899,6 +1906,7 @@ function changeRoom(a, want) {
   if (want===a.role) return;
   if(a.duel)endDuel(a.duel);
   clearDuelAftermath(a);
+  resetDuelVisit(a);
   const prev=a.role;
   a.travelSizeMul=spriteScaleFor(a,layout.scale)/layout.scale;
   a.role=want; a.slotIdx=undefined;
@@ -1953,6 +1961,7 @@ function moveAvatar(ev) {
       idx: ev.sub ? T.charSlime : charFor(key),   // 서브에이전트는 슬라임 고정
       proj: ev.proj, sid: ev.sid, role: ev.role, key,
     };
+    resetDuelVisit(a);
   }
   a.workRole = ev.role;         // 업무 구역은 따로 기억한다 — 상태 구역에 가 있어도 돌아올 자리
   a.proj = ev.proj; a.sid = ev.sid;

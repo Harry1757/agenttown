@@ -4,11 +4,11 @@ const html=fs.readFileSync(`${__dirname}/town.html`,'utf8');
 let now=0,wins=0;
 const room={role:'plan',gx:1,gy:1};
 const env={Math,performance:{now:()=>now},window:{townUI:{motionReduced:false,recordWin:()=>wins++}},
-  avatars:{},state:{sessionInfo:{}},ROOM_BY_ROLE:{plan:room},displayedRooms:[room],ROOM_W:8,ROOM_H:7,DESK_CLEAR:1.9,
+  layoutRoomOccupants:()=>{},avatars:{},state:{sessionInfo:{}},ROOM_BY_ROLE:{plan:room},displayedRooms:[room],ROOM_W:8,ROOM_H:7,DESK_CLEAR:1.9,
   roomDuels:new Set(),nextDuelCheck:Infinity,layout:{scale:2},workerState:a=>a.st||'working',
   spriteScaleFor:(a,s)=>s*(a.duel?(a===a.duel.a?a.duel.ha:a.duel.hb):a.h),};
 vm.createContext(env);
-for(const name of ['wanderBox','duelWinChance','duelFrame','duelEligible','clearDuelAftermath','duelAftermathPoint','stepDuelAftermath','beginDuel','endDuel','stepDuels']){
+for(const name of ['wanderBox','duelWinChance','duelFrame','duelEligible','resetDuelVisit','changeRoom','clearDuelAftermath','duelAftermathPoint','stepDuelAftermath','beginDuel','endDuel','stepDuels']){
   const match=html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n\\}`));
   assert.ok(match,name);vm.runInContext(match[0],env);
 }
@@ -39,13 +39,18 @@ const newcomer=actor('new',3.5);newcomer.duelAfter=0;
 assert.ok(env.stepDuelAftermath(winner,now+1));assert.equal(winner.seekTarget,newcomer.key);
 delete env.avatars[newcomer.key];env.stepDuelAftermath(winner,now+2);assert.equal(winner.seekTarget,null);
 env.stepDuelAftermath(loser,now+4600);assert.equal(loser.fleeFrom,null);assert.equal(loser.socialMotion,false);
-assert.ok(env.beginDuel(a,b,now));env.window.townUI.motionReduced=true;env.stepDuels(now+10);assert.equal(env.roomDuels.size,0);assert.equal(wins,2);
+assert.equal(env.beginDuel(a,b,now),false,'same visit blocks rematch after cooldown');
+env.changeRoom(a,'plan');assert.ok(a.duelOpponents.has(b.key),'same-room updates preserve history');
+env.changeRoom(a,'research');assert.ok(!b.duelOpponents.has(a.key),'departure clears the other resident too');
+assert.ok(c.duelOpponents.has(d.key),'unrelated pair keeps its history');
+a.travelFrom=null;env.changeRoom(a,'plan');a.travelFrom=null;
+assert.ok(env.beginDuel(a,b,now),'returning resident may fight again');env.window.townUI.motionReduced=true;env.stepDuels(now+10);assert.equal(env.roomDuels.size,0);assert.equal(wins,2);
 env.window.townUI.motionReduced=false;
 assert.ok(env.beginDuel(a,b,now));env.state.sessionInfo[a.key].needsInput=true;env.stepDuels(now+20);assert.equal(env.roomDuels.size,0);delete env.state.sessionInfo[a.key].needsInput;
 assert.ok(env.beginDuel(a,b,now));delete env.avatars[a.key];env.stepDuels(now+30);assert.equal(b.duel,null);assert.equal(wins,2);
 env.avatars[a.key]=a;a.x=room.gx+.2;assert.equal(env.beginDuel(a,b,now),false,'reject wall overlap');
 for(let t=0;t<5.6;t+=.01){const f=env.duelFrame(t);assert.ok(f.back>=0&&f.back<=1);assert.ok(f.hop>=0&&f.hop<=.31);}
-for(const [i,v] of [a,b,c,d].entries()){v.x=v.tx=1+[1.2,2.4,4.6,5.8][i];v.y=v.ty=4.5;v.duelAfter=0;}
+for(const [i,v] of [a,b,c,d].entries()){env.resetDuelVisit(v);v.x=v.tx=1+[1.2,2.4,4.6,5.8][i];v.y=v.ty=4.5;v.duelAfter=0;}
 env.Math=Object.create(Math);env.Math.random=()=>0;env.nextDuelCheck=0;
 env.stepDuels(10000);assert.equal(env.roomDuels.size,2,'nearby residents automatically pair independently');
 env.window.townUI.motionReduced=true;env.stepDuels(10001);assert.equal(env.roomDuels.size,0);
