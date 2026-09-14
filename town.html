@@ -72,6 +72,7 @@
 const SHEETS = {
   town:    { src:'assets/town.png',    stride:16, cols:12 },
   dungeon: { src:'assets/dungeon.png', stride:16, cols:12 },
+  equipment: { src:'assets/equipment.png', stride:17, cols:54 },
   indoor:  { src:'assets/indoor.png',  stride:17, cols:26 },
 };
 
@@ -1355,6 +1356,7 @@ function beginDuel(first,second,now) {
     fromA:{x:a.x,y:a.y},fromB:{x:b.x,y:b.y},winner:Math.random()<duelWinChance(ha,hb)?a:b,awarded:false};
   for(const actor of [a,b]){clearDuelAftermath(actor);actor.duel=d;actor.roomAction=null;actor.tx=actor.x;actor.ty=actor.y;actor.lean=0;}
   if(window.townAdventure&&Math.abs(ha-hb)>.001&&Math.random()<.2){d.legendary=ha<hb?a:b;d.winner=d.legendary;}
+  if(window.townAdventure?.resolveDuel){d.combat=window.townAdventure.resolveDuel(a,b,d.legendary);d.winner=d.combat.winner;}
   a.face=1;b.face=-1;roomDuels.add(d);return true;
 }
 
@@ -1538,6 +1540,7 @@ function drawDuelSpotlight() {
   }
   ctx.textAlign='center';ctx.fillStyle='#e7edda';ctx.font='600 12px sans-serif';
   ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`,0,-82);
+  window.townAdventure?.drawDuelStats(d,t);
   const intro=t<.65,spread=intro?100:48+f.back*32;
   for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
     const won=a===d.winner,size=76*h/Math.max(d.ha,d.hb);
@@ -1548,7 +1551,7 @@ function drawDuelSpotlight() {
     drawTile(ctx,'dungeon',a.idx,-size/2,-size,size/TILE,pose.squash);ctx.restore();
     if(!intro)drawDuelAccessory({...a,face:-dir,duelPose:pose},x,y,size);
     if(f.result>0){
-      ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.font='bold 16px sans-serif';ctx.fillText(won?'WIN':'LOSE',x,-57);
+      ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.font='bold 16px sans-serif';ctx.fillText(won?'WIN':'LOSE',x,-35);
       ctx.font='18px sans-serif';ctx.fillText(won?'♛':'💧',x+size*.43,y-size+8);
     }
     const info=state.sessionInfo[a.key];
@@ -2872,7 +2875,7 @@ cv.addEventListener('mouseleave', () => {
 // 더블클릭: 캐릭터 위면 그 세션을 연 창을 앞으로 가져오고, 빈 곳이면 카메라 리셋.
 // 창 제목으로 찾는 것이라 창 단위까지만 간다 — 탭까지는 못 간다.
 cv.addEventListener('click', () => {
-  if (!mapDragged && !gesture && hoveredWorker) window.townUI?.select(hoveredWorker.key);
+  if (!mapDragged && !gesture && hoveredWorker){window.townUI?.select(hoveredWorker.key);window.townAdventure?.openEquipment(hoveredWorker.key);}
 });
 cv.addEventListener('dblclick', () => {
   const a = hoveredWorker;

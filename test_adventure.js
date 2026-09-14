@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-let now=0;const stored=new Map(),element=()=>({style:{},setAttribute(){},append(){},querySelector(){return element();},set innerHTML(x){},textContent:''});
-const room={role:'waiting',gx:1,gy:1},env={console,Math:Object.create(Math),performance:{now:()=>now},localStorage:{getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)},document:{createElement:element,head:element(),getElementById:element},window:{townUI:{motionReduced:false,winCount:()=>0}},avatars:{},state:{sessionInfo:{}},ROOM_BY_ROLE:{waiting:room},displayedRooms:[room],roomDuels:new Set(),workerState:a=>env.state.sessionInfo[a.key]?.state||'working',spriteScaleFor:()=>2,layout:{scale:2},tokensOf:a=>a.tokens,clearDuelAftermath(){}};
+let now=0;const stored=new Map(),element=()=>({style:{},setAttribute(){},append(){},querySelector(){return element();},querySelectorAll(){return [];},set innerHTML(x){},textContent:''});
+const room={role:'waiting',gx:1,gy:1},env={console,Math:Object.create(Math),performance:{now:()=>now},localStorage:{getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)},document:{createElement:element,head:element(),getElementById:element},window:{townUI:{motionReduced:false,winCount:()=>0}},avatars:{},state:{sessionInfo:{}},ROOM_BY_ROLE:{waiting:room},displayedRooms:[room],roomDuels:new Set(),workerState:a=>env.state.sessionInfo[a.key]?.state||'working',spriteScaleFor:()=>8,layout:{scale:2},tokensOf:a=>a.tokens,clearDuelAftermath(){}};
 vm.createContext(env);vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);const game=env.window.townAdventure;
 assert.equal(game.hpFor(0),80);assert.equal(game.hpFor(-10),80);assert.equal(game.hpFor(Infinity),200);assert.ok(game.hpFor(1e6)>game.hpFor(1e4));
 const a=env.avatars.a={key:'a',role:'waiting',x:3,y:4,tokens:1e6};env.Math.random=()=>.9;
@@ -12,7 +12,7 @@ for(let i=0;i<20&&!game.active.done;i++){now+=1800;game.step(now);}
 assert.ok(game.active.won);assert.equal(game.record(a).kills,1);assert.equal(game.record(a).bosses,1);
 now+=100;game.step(now);assert.equal(game.record(a).kills,1,'reward only once');
 now+=4700;game.step(now);assert.equal(game.active,null);assert.ok(game.resting(a));
-now+=70000;env.Math.random=()=>.1;m=game.spawn('waiting',true);assert.ok(game.begin(a,m));assert.ok(game.active.legendary);
+now+=70000;env.spriteScaleFor=()=>2;env.Math.random=()=>.1;m=game.spawn('waiting',true);assert.ok(game.begin(a,m));assert.ok(game.active.legendary);
 now+=2000;game.step(now);now+=700;game.step(now);now+=3500;game.step(now);assert.ok(game.active.won,'legendary wins on final blow');
 game.cancel();now+=30000;m=game.spawn('waiting');assert.ok(game.begin(a,m));env.state.sessionInfo.a={needsInput:true};game.step(++now);assert.equal(game.active,null,'response waiting cancels');assert.equal(game.record(a).kills,2);
 env.state.sessionInfo.a={};now+=30000;m=game.spawn('waiting');assert.ok(game.begin(a,m));env.window.townUI.motionReduced=true;game.step(++now);assert.equal(game.active,null);assert.equal(game.monsters.length,0);
@@ -29,7 +29,7 @@ assert.equal(game.buy('halo'),true);assert.equal(game.balance(),11);assert.equal
 game.buy('halo');assert.equal(game.balance(),11,'owned item toggles without charging');assert.equal(game.equipped,'');
 env.Math.random=()=>.9;now+=70000;m=game.spawn('waiting');assert.ok(game.begin(a,m));
 env.state.sessionInfo.a={state:'done'};a.nextRole='research';let moved=null;env.changeRoom=(actor,role)=>{moved=role;};
-now+=2000;game.step(now);assert.ok(game.active,'completed work does not interrupt fight');now+=700;game.step(now);now+=2500;game.step(now);assert.ok(game.active.won);assert.equal(moved,null,'wait for reward');now+=4700;game.step(now);assert.equal(moved,'research');
+now+=2000;game.step(now);assert.ok(game.active,'completed work does not interrupt fight');now+=700;game.step(now);for(let i=0;i<30&&!game.active.done;i++){now+=1000;game.step(now);}assert.ok(game.active.won);assert.equal(moved,null,'wait for reward');now+=4700;game.step(now);assert.equal(moved,'research');
 assert.equal(game.balance(),12,'ordinary monster awards one');
 console.log('Shop budget, equipment toggle, boss rewards and deferred departure pass');
 for(const role of ['plan','research','design','qa']){const r={role,gx:10,gy:10};env.ROOM_BY_ROLE[role]=r;env.displayedRooms.push(r);}
@@ -38,3 +38,35 @@ assert.ok(game.monsters.length>=3,'village replenishes three to four monsters ev
 console.log('Village population stays between three and four after replenishment');
 
 assert.ok(game.impactScale(12)<game.impactScale(22));assert.ok(game.impactScale(22)<game.impactScale(40));assert.ok(game.impactScale(500)<=1.7);console.log('Damage effects increase with attack strength and stay bounded');
+
+const b=env.avatars.b={key:'b',idx:85,role:'waiting',x:3,y:4};
+for(let i=0;i<6;i++)game.reward(b,true);
+const aBalance=game.balance('a');assert.equal(game.balance('b'),48);
+assert.ok(game.buy('frost','b'));assert.ok(game.buy('gloves','b'));assert.ok(game.buy('boots','b'));assert.ok(game.buy('fox','b'));
+assert.equal(game.balance('b'),3);assert.equal(game.balance('a'),aBalance,'another session pays nothing');
+for(const [slot,id] of [['weapon','frost'],['hands','gloves'],['feet','boots'],['pet','fox']]){assert.equal(game.equippedFor(b,slot),id);assert.equal(game.equippedFor(a,slot),'');}
+assert.equal(game.buy('halo','b'),false,'cannot spend another session balance');assert.equal(game.buy('halo','missing'),false);
+vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);let reloaded=env.window.townAdventure;
+assert.equal(reloaded.equippedFor(b,'weapon'),'frost');assert.equal(reloaded.equippedFor(b,'pet'),'fox');assert.equal(reloaded.balance('b'),3);
+assert.ok(reloaded.buy('boots','b'));assert.equal(reloaded.equippedFor(b,'feet'),'');assert.equal(reloaded.equippedFor(b,'hands'),'gloves','other slots remain equipped');assert.equal(reloaded.balance('b'),3);
+stored.delete('codextown.shop.sessions');stored.set('codextown.shop',JSON.stringify({owned:['halo'],spent:5,equipped:'halo'}));vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;
+assert.equal(reloaded.equippedFor(a),'');assert.equal(reloaded.equippedFor(b),'','legacy never equips everyone');const before=reloaded.balance('b');assert.ok(reloaded.buy('halo','b'));assert.equal(reloaded.balance('b'),before,'legacy transfers once without charging');assert.ok(reloaded.buy('halo','a'));assert.equal(reloaded.balance('a'),17-5,'second session purchases separately');
+console.log('Independent session wallets, seven equipment slots, persistence and one-time legacy transfer pass');
+
+let previous=-1;const seen=new Set();for(let i=0;i<20;i++){const element=reloaded.nextElement();assert.notEqual(element,previous);seen.add(element);previous=element;}assert.equal(seen.size,5);console.log('All five finishers rotate without immediate repetition');
+
+const weak=env.avatars.weak={key:'weak',role:'waiting',x:3,y:4,tokens:0};env.Math.random=()=>.9;env.spriteScaleFor=()=>2;
+for(let loss=1;loss<=4;loss++){
+ now+=70000;reloaded.monsters.length=0;const boss=reloaded.spawn('waiting',true);assert.ok(reloaded.begin(weak,boss));assert.equal(reloaded.active.legendary,false);
+ for(let tick=0;tick<60&&!reloaded.active.done;tick++){now+=500;reloaded.step(now);}
+ assert.equal(reloaded.active.won,false);assert.equal(reloaded.active.hp,0);assert.equal(reloaded.record(weak).lossStreak,loss);assert.equal(reloaded.balance('weak'),0);
+ now+=2300;reloaded.step(now);
+}
+now+=70000;reloaded.monsters.length=0;assert.ok(reloaded.begin(weak,reloaded.spawn('waiting',true)));assert.ok(reloaded.active.mercy);assert.ok(reloaded.active.legendary);
+for(let tick=0;tick<60&&!reloaded.active.done;tick++){now+=500;reloaded.step(now);}
+assert.ok(reloaded.active.won);assert.equal(reloaded.record(weak).deaths,4);assert.equal(reloaded.record(weak).lossStreak,0);assert.equal(reloaded.balance('weak'),8);
+const unarmed=reloaded.statsFor(weak);for(let i=0;i<10;i++)reloaded.reward(weak,true);reloaded.buy('frost','weak');reloaded.buy('ironshield','weak');reloaded.buy('cape','weak');const armored=reloaded.statsFor(weak);
+assert.ok(armored.attack>unarmed.attack);assert.ok(armored.defense>unarmed.defense);assert.ok(armored.hp>unarmed.hp);
+env.Math.random=()=>.9;const normal=reloaded.rollDamage(30,5,.1);env.Math.random=()=>.01;const critical=reloaded.rollDamage(30,5,.1);assert.ok(critical.critical);assert.ok(critical.damage>normal.damage);assert.ok(reloaded.rollDamage(30,15,0).damage<normal.damage);
+env.Math.random=()=>.9;const duel=reloaded.resolveDuel(weak,a);assert.equal(duel.winner,weak,'equipped resident wins through actual stats');assert.ok(duel.snapshots.at(-1).includes(0));
+console.log('Real defeat, four-loss legendary comeback, equipment stats, criticals, armor and PvP HP resolution pass');
