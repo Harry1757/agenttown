@@ -4,7 +4,7 @@ let now=0;const stored=new Map(),element=()=>({style:{},setAttribute(){},append(
 const room={role:'waiting',gx:1,gy:1},env={console,Math:Object.create(Math),performance:{now:()=>now},localStorage:{getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)},document:{createElement:element,head:element(),getElementById:element},window:{townUI:{motionReduced:false,winCount:()=>0}},avatars:{},state:{sessionInfo:{}},ROOM_BY_ROLE:{waiting:room},displayedRooms:[room],roomDuels:new Set(),workerState:a=>env.state.sessionInfo[a.key]?.state||'working',spriteScaleFor:()=>8,layout:{scale:2},tokensOf:a=>a.tokens,clearDuelAftermath(){}};
 vm.createContext(env);vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);const game=env.window.townAdventure;
 assert.equal(game.hpFor(0),80);assert.equal(game.hpFor(-10),80);assert.equal(game.hpFor(Infinity),200);assert.ok(game.hpFor(1e6)>game.hpFor(1e4));
-const a=env.avatars.a={key:'a',role:'waiting',x:3,y:4,tokens:1e6};env.Math.random=()=>.9;
+const a=env.avatars.a={key:'a',role:'waiting',x:3,y:4,tokens:1e9};env.Math.random=()=>.9;
 let m=game.spawn('waiting',true);assert.ok(game.begin(a,m));assert.equal(game.active.legendary,false);
 now=2000;game.step(now);assert.ok(game.active.monsterHp>0,'boss survives a hit');assert.equal(game.active.hp,game.active.maxHp,'counterattack is delayed');
 now=2700;game.step(now);assert.ok(game.active.hp<game.active.maxHp);
@@ -72,3 +72,22 @@ env.Math.random=()=>.9;const duel=reloaded.resolveDuel(weak,a);assert.equal(duel
 console.log('Real defeat, four-loss legendary comeback, equipment stats, criticals, armor and PvP HP resolution pass');
 
 for(const size of [16,32,48,72,96]){assert.ok(reloaded.legendaryLength(size)<=104);assert.ok(reloaded.legendaryLength(size)>size*.62);}console.log('Legendary blade stays inside the battle stage at every character size');
+
+// Every five boss encounters offer the full roster, even with predictable randomness.
+reloaded.cancel();vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;env.state.sessionInfo.a={};env.spriteScaleFor=()=>8;env.Math.random=()=>.9;
+let lastBoss='';const profiles=new Map();
+for(let cycle=0;cycle<3;cycle++){
+ const roster=new Set();
+ for(let i=0;i<5;i++){
+  now+=70000;reloaded.monsters.length=0;const boss=reloaded.spawn('waiting',true);
+  assert.ok(boss.kind,'boss has a distinct profile');assert.notEqual(boss.kind.id,lastBoss,'no immediate repeat');lastBoss=boss.kind.id;roster.add(lastBoss);profiles.set(lastBoss,boss.kind);
+  assert.ok(reloaded.begin(a,boss));const fight=reloaded.active;
+  assert.equal(fight.maxMonsterHp,boss.kind.hp);assert.equal(fight.monsterAttack,boss.kind.attack);assert.equal(fight.monsterDefense,boss.kind.defense);assert.equal(fight.monsterCrit,boss.kind.crit);
+  reloaded.cancel();
+ }
+ assert.equal(roster.size,5,'all five bosses appear before reusing one');
+}
+assert.equal(new Set([...profiles.values()].map(p=>p.idx)).size,5,'different source sprites');
+assert.equal(new Set([...profiles.values()].map(p=>p.skill)).size,5,'different attack signatures');
+assert.ok(new Set([...profiles.values()].map(p=>p.hp)).size>=3,'different combat strengths');
+console.log('Five distinct bosses rotate without repeats and use individual combat stats');
