@@ -22,3 +22,17 @@ env.window.townUI.motionReduced=false;const walker={gx:1,gy:1,x:3,y:4,boss:false
 for(let i=0;i<1000;i++){now+=100;game.wander(walker,now,.1);assert.ok(walker.x>=2.35&&walker.x<=6.65&&walker.y>=3.75&&walker.y<=5.75);}
 assert.ok(walker.tx===undefined||walker.tx===1+1.35+.7*4.3,'waypoint depends on randomness, not resident');
 console.log('Independent monster roaming stays within the floor');
+
+const beforeBalance=game.balance();assert.equal(beforeBalance,16,'two bosses award eight each');
+assert.equal(game.buy('unknown'),false);assert.equal(game.buy('orbit'),false,'insufficient funds');
+assert.equal(game.buy('halo'),true);assert.equal(game.balance(),11);assert.equal(game.equipped,'halo');
+game.buy('halo');assert.equal(game.balance(),11,'owned item toggles without charging');assert.equal(game.equipped,'');
+env.Math.random=()=>.9;now+=70000;m=game.spawn('waiting');assert.ok(game.begin(a,m));
+env.state.sessionInfo.a={state:'done'};a.nextRole='research';let moved=null;env.changeRoom=(actor,role)=>{moved=role;};
+now+=2000;game.step(now);assert.ok(game.active,'completed work does not interrupt fight');now+=700;game.step(now);now+=2500;game.step(now);assert.ok(game.active.won);assert.equal(moved,null,'wait for reward');now+=4700;game.step(now);assert.equal(moved,'research');
+assert.equal(game.balance(),12,'ordinary monster awards one');
+console.log('Shop budget, equipment toggle, boss rewards and deferred departure pass');
+for(const role of ['plan','research','design','qa']){const r={role,gx:10,gy:10};env.ROOM_BY_ROLE[role]=r;env.displayedRooms.push(r);}
+for(let i=0;i<80;i++){now+=1000;game.step(now);assert.ok(game.monsters.length<=4);}
+assert.ok(game.monsters.length>=3,'village replenishes three to four monsters even without active residents');
+console.log('Village population stays between three and four after replenishment');

@@ -259,6 +259,7 @@ function updateRoomView() {
     startPendingTrips();
     return;
   }
+  if(roomDuels.size || window.townAdventure?.active)return;
   if(performance.now()<roomLayoutHoldUntil && !Object.values(avatars).some(a=>a.travelFrom))return;
   if (signature === roomViewSignature) { startPendingTrips(); return; }
   for(const duel of roomDuels)endDuel(duel);
@@ -1326,7 +1327,7 @@ function duelFrame(t) {
 }
 
 function duelEligible(a) {
-  return !window.townAdventure?.busy(a) && !window.townAdventure?.resting(a) && avatars[a.key]===a && !a.travelFrom && !a.portal && workerState(a)!=='done'
+  return !window.townAdventure?.busy(a) && !window.townAdventure?.resting(a) && avatars[a.key]===a && !a.travelFrom && !a.portal && (a.duel || workerState(a)!=='done')
     && !state.sessionInfo[`${a.proj}|${a.sid}`]?.needsInput && displayedRooms.includes(ROOM_BY_ROLE[a.role]);
 }
 
@@ -1368,6 +1369,7 @@ function endDuel(d,completed=false) {
     loser.fleeFrom=d.winner.key;loser.fleeUntil=now+4500;loser.socialNext=0;
     d.winner.seekUntil=now+12000;d.winner.seekTarget=null;d.winner.socialNext=0;d.winner.duelAfter=now+2500;
   }
+  for(const a of [d.a,d.b]){const next=a.nextRole;a.nextRole=null;if(next && next!==a.role)changeRoom(a,next);}
 }
 
 // Leaving starts a new visit for this resident only; other pairs keep their history.
@@ -1908,6 +1910,7 @@ function roomRoute(from, to, start, end) {
 }
 
 function changeRoom(a, want) {
+  if(a.duel || window.townAdventure?.busy(a)){a.nextRole=want;return;}
   if (a.route?.length || a.travelFrom) { a.nextRole=want; return; }
   if (want===a.role) return;
   if(a.duel)endDuel(a.duel);
