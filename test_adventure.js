@@ -2,6 +2,8 @@
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 let now=0;const stored=new Map(),element=()=>({style:{},setAttribute(){},append(){},querySelector(){return element();},querySelectorAll(){return [];},set innerHTML(x){},textContent:''});
 const room={role:'waiting',gx:1,gy:1},env={console,Math:Object.create(Math),performance:{now:()=>now},localStorage:{getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)},document:{createElement:element,head:element(),getElementById:element},window:{townUI:{motionReduced:false,winCount:()=>0}},avatars:{},state:{sessionInfo:{}},ROOM_BY_ROLE:{waiting:room},displayedRooms:[room],roomDuels:new Set(),workerState:a=>env.state.sessionInfo[a.key]?.state||'working',spriteScaleFor:()=>8,layout:{scale:2},tokensOf:a=>a.tokens,clearDuelAftermath(){}};
+const veteranGear={owned:['astral','ironshield','cape','crown'],equipped:{weapon:'astral',shield:'ironshield',body:'cape',head:'crown'},spent:0};
+stored.set('codextown.shop.sessions',JSON.stringify({sessions:{a:veteranGear}}));
 vm.createContext(env);vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);const game=env.window.townAdventure;
 assert.equal(game.hpFor(0),80);assert.equal(game.hpFor(-10),80);assert.equal(game.hpFor(Infinity),200);assert.ok(game.hpFor(1e6)>game.hpFor(1e4));
 const a=env.avatars.a={key:'a',role:'waiting',x:3,y:4,tokens:1e9};env.Math.random=()=>.9;
@@ -24,7 +26,7 @@ assert.ok(walker.tx===undefined||walker.tx===1+1.35+.7*4.3,'waypoint depends on 
 console.log('Independent monster roaming stays within the floor');
 
 const beforeBalance=game.balance();assert.equal(beforeBalance,20,'two bosses award ten each');
-assert.equal(game.buy('unknown'),false);assert.equal(game.buy('astral'),false,'insufficient funds');
+assert.equal(game.buy('unknown'),false);assert.equal(game.buy('wisp'),false,'insufficient funds');
 assert.equal(game.buy('halo'),true);assert.equal(game.balance(),15);assert.equal(game.equipped,'halo');
 game.buy('halo');assert.equal(game.balance(),15,'owned item toggles without charging');assert.equal(game.equipped,'');
 env.Math.random=()=>.01;now+=70000;m=game.spawn('waiting');assert.ok(game.begin(a,m));
@@ -41,10 +43,11 @@ assert.ok(game.impactScale(12)<game.impactScale(22));assert.ok(game.impactScale(
 
 const b=env.avatars.b={key:'b',idx:85,role:'waiting',x:3,y:4};
 for(let i=0;i<6;i++)game.reward(b,true);
+const aGear=Object.fromEntries(['weapon','hands','feet','pet'].map(slot=>[slot,game.equippedFor(a,slot)]));
 const aBalance=game.balance('a');assert.equal(game.balance('b'),60);
 assert.ok(game.buy('frost','b'));assert.ok(game.buy('gloves','b'));assert.ok(game.buy('boots','b'));assert.ok(game.buy('fox','b'));
 assert.equal(game.balance('b'),15);assert.equal(game.balance('a'),aBalance,'another session pays nothing');
-for(const [slot,id] of [['weapon','frost'],['hands','gloves'],['feet','boots'],['pet','fox']]){assert.equal(game.equippedFor(b,slot),id);assert.equal(game.equippedFor(a,slot),'');}
+for(const [slot,id] of [['weapon','frost'],['hands','gloves'],['feet','boots'],['pet','fox']]){assert.equal(game.equippedFor(b,slot),id);assert.equal(game.equippedFor(a,slot),aGear[slot]);}
 assert.equal(game.buy('astral','b'),false,'cannot spend another session balance');assert.equal(game.buy('halo','missing'),false);
 vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);let reloaded=env.window.townAdventure;
 assert.equal(reloaded.equippedFor(b,'weapon'),'frost');assert.equal(reloaded.equippedFor(b,'pet'),'fox');assert.equal(reloaded.balance('b'),15);
@@ -93,6 +96,8 @@ assert.ok(new Set([...profiles.values()].map(p=>p.hp)).size>=3,'different combat
 console.log('Five distinct bosses rotate without repeats and use individual combat stats');
 
 // Combat difficulty and actual payouts progress through all ten levels.
+const currentShop=JSON.parse(stored.get('codextown.shop.sessions'));currentShop.sessions.hunter=veteranGear;stored.set('codextown.shop.sessions',JSON.stringify(currentShop));
+vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;
 const hunter=env.avatars.hunter={key:'hunter',role:'waiting',x:3,y:4,tokens:1e9};
 let lastHp=0,lastAttack=0,total=0;
 for(let level=1;level<=10;level++){

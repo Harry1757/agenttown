@@ -22,8 +22,8 @@ async page => {
             const sid=`boss-${width}-${i}`,key=`E2E|${sid}`,r=ROOM_BY_ROLE.waiting;
             const a=avatars[key]={key,proj:'E2E',sid,idx:84,role:'waiting',x:r.gx+3,y:r.gy+4,tx:r.gx+3,ty:r.gy+4};
             state.sessionInfo[key]={state:'working',tokens:1e9,title:'보스 전투 검사'};
-            for(let j=0;j<8;j++)game.reward(a,true);
-            game.buy('astral',key);game.buy('ironshield',key);game.buy('cape',key);
+            for(let j=0;j<30;j++)game.reward(a,true);
+            for(const id of ['tideblade','aegis','runecrown','warden','sungrip','starboots','lantern','moonfox'])game.buy(id,key);
             Math.random=()=>i<9?(i+.5)/9:.99;
             const balance=game.balance(key),boss=game.spawn('waiting',i>=9),level=i<9?i+1:10;
             Math.random=()=>.99;texts.length=0;game.drawMap();
@@ -40,7 +40,7 @@ async page => {
               check(b.hp===b.maxHp-Math.max(1,b.monsterAttack-b.stats.defense),'monster attack uses its own stats');}
             now+=170;game.drawBattle();
             for(let j=0;j<100&&!b.done;j++){now+=250;game.step(now);game.drawBattle();}
-            check(b.done&&b.won,'equipped resident wins a complete battle');
+            check(b.done&&b.won,'equipped resident wins a complete battle: '+boss.name);
             check(game.balance(key)===balance+level,'reward equals monster level');
             check(b.rewardLabel.includes('별가루 +'+level),'loot announcement matches payout');
             now+=200;game.step(now);game.drawBattle();
