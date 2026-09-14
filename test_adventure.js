@@ -23,14 +23,14 @@ for(let i=0;i<1000;i++){now+=100;game.wander(walker,now,.1);assert.ok(walker.x>=
 assert.ok(walker.tx===undefined||walker.tx===1+1.35+.7*4.3,'waypoint depends on randomness, not resident');
 console.log('Independent monster roaming stays within the floor');
 
-const beforeBalance=game.balance();assert.equal(beforeBalance,16,'two bosses award eight each');
-assert.equal(game.buy('unknown'),false);assert.equal(game.buy('orbit'),false,'insufficient funds');
-assert.equal(game.buy('halo'),true);assert.equal(game.balance(),11);assert.equal(game.equipped,'halo');
-game.buy('halo');assert.equal(game.balance(),11,'owned item toggles without charging');assert.equal(game.equipped,'');
-env.Math.random=()=>.9;now+=70000;m=game.spawn('waiting');assert.ok(game.begin(a,m));
+const beforeBalance=game.balance();assert.equal(beforeBalance,20,'two bosses award ten each');
+assert.equal(game.buy('unknown'),false);assert.equal(game.buy('astral'),false,'insufficient funds');
+assert.equal(game.buy('halo'),true);assert.equal(game.balance(),15);assert.equal(game.equipped,'halo');
+game.buy('halo');assert.equal(game.balance(),15,'owned item toggles without charging');assert.equal(game.equipped,'');
+env.Math.random=()=>.01;now+=70000;m=game.spawn('waiting');assert.ok(game.begin(a,m));
 env.state.sessionInfo.a={state:'done'};a.nextRole='research';let moved=null;env.changeRoom=(actor,role)=>{moved=role;};
 now+=2000;game.step(now);assert.ok(game.active,'completed work does not interrupt fight');now+=700;game.step(now);for(let i=0;i<30&&!game.active.done;i++){now+=1000;game.step(now);}assert.ok(game.active.won);assert.equal(moved,null,'wait for reward');now+=4700;game.step(now);assert.equal(moved,'research');
-assert.equal(game.balance(),12,'ordinary monster awards one');
+assert.equal(game.balance(),16,'level one monster awards one');
 console.log('Shop budget, equipment toggle, boss rewards and deferred departure pass');
 for(const role of ['plan','research','design','qa']){const r={role,gx:10,gy:10};env.ROOM_BY_ROLE[role]=r;env.displayedRooms.push(r);}
 for(let i=0;i<80;i++){now+=1000;game.step(now);assert.ok(game.monsters.length<=8);}
@@ -41,16 +41,16 @@ assert.ok(game.impactScale(12)<game.impactScale(22));assert.ok(game.impactScale(
 
 const b=env.avatars.b={key:'b',idx:85,role:'waiting',x:3,y:4};
 for(let i=0;i<6;i++)game.reward(b,true);
-const aBalance=game.balance('a');assert.equal(game.balance('b'),48);
+const aBalance=game.balance('a');assert.equal(game.balance('b'),60);
 assert.ok(game.buy('frost','b'));assert.ok(game.buy('gloves','b'));assert.ok(game.buy('boots','b'));assert.ok(game.buy('fox','b'));
-assert.equal(game.balance('b'),3);assert.equal(game.balance('a'),aBalance,'another session pays nothing');
+assert.equal(game.balance('b'),15);assert.equal(game.balance('a'),aBalance,'another session pays nothing');
 for(const [slot,id] of [['weapon','frost'],['hands','gloves'],['feet','boots'],['pet','fox']]){assert.equal(game.equippedFor(b,slot),id);assert.equal(game.equippedFor(a,slot),'');}
-assert.equal(game.buy('halo','b'),false,'cannot spend another session balance');assert.equal(game.buy('halo','missing'),false);
+assert.equal(game.buy('astral','b'),false,'cannot spend another session balance');assert.equal(game.buy('halo','missing'),false);
 vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);let reloaded=env.window.townAdventure;
-assert.equal(reloaded.equippedFor(b,'weapon'),'frost');assert.equal(reloaded.equippedFor(b,'pet'),'fox');assert.equal(reloaded.balance('b'),3);
-assert.ok(reloaded.buy('boots','b'));assert.equal(reloaded.equippedFor(b,'feet'),'');assert.equal(reloaded.equippedFor(b,'hands'),'gloves','other slots remain equipped');assert.equal(reloaded.balance('b'),3);
+assert.equal(reloaded.equippedFor(b,'weapon'),'frost');assert.equal(reloaded.equippedFor(b,'pet'),'fox');assert.equal(reloaded.balance('b'),15);
+assert.ok(reloaded.buy('boots','b'));assert.equal(reloaded.equippedFor(b,'feet'),'');assert.equal(reloaded.equippedFor(b,'hands'),'gloves','other slots remain equipped');assert.equal(reloaded.balance('b'),15);
 stored.delete('codextown.shop.sessions');stored.set('codextown.shop',JSON.stringify({owned:['halo'],spent:5,equipped:'halo'}));vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;
-assert.equal(reloaded.equippedFor(a),'');assert.equal(reloaded.equippedFor(b),'','legacy never equips everyone');const before=reloaded.balance('b');assert.ok(reloaded.buy('halo','b'));assert.equal(reloaded.balance('b'),before,'legacy transfers once without charging');assert.ok(reloaded.buy('halo','a'));assert.equal(reloaded.balance('a'),17-5,'second session purchases separately');
+assert.equal(reloaded.equippedFor(a),'');assert.equal(reloaded.equippedFor(b),'','legacy never equips everyone');const before=reloaded.balance('b');assert.ok(reloaded.buy('halo','b'));assert.equal(reloaded.balance('b'),before,'legacy transfers once without charging');assert.ok(reloaded.buy('halo','a'));assert.equal(reloaded.balance('a'),21-5,'second session purchases separately');
 console.log('Independent session wallets, seven equipment slots, persistence and one-time legacy transfer pass');
 
 let previous=-1;const seen=new Set();for(let i=0;i<20;i++){const element=reloaded.nextElement();assert.notEqual(element,previous);seen.add(element);previous=element;}assert.equal(seen.size,5);console.log('All five finishers rotate without immediate repetition');
@@ -64,7 +64,7 @@ for(let loss=1;loss<=4;loss++){
 }
 now+=70000;reloaded.monsters.length=0;assert.ok(reloaded.begin(weak,reloaded.spawn('waiting',true)));assert.ok(reloaded.active.mercy);assert.ok(reloaded.active.legendary);
 for(let tick=0;tick<60&&!reloaded.active.done;tick++){now+=500;reloaded.step(now);}
-assert.ok(reloaded.active.won);assert.equal(reloaded.record(weak).deaths,4);assert.equal(reloaded.record(weak).lossStreak,0);assert.equal(reloaded.balance('weak'),8);
+assert.ok(reloaded.active.won);assert.equal(reloaded.record(weak).deaths,4);assert.equal(reloaded.record(weak).lossStreak,0);assert.equal(reloaded.balance('weak'),10);
 const unarmed=reloaded.statsFor(weak);for(let i=0;i<10;i++)reloaded.reward(weak,true);reloaded.buy('frost','weak');reloaded.buy('ironshield','weak');reloaded.buy('cape','weak');const armored=reloaded.statsFor(weak);
 assert.ok(armored.attack>unarmed.attack);assert.ok(armored.defense>unarmed.defense);assert.ok(armored.hp>unarmed.hp);
 env.Math.random=()=>.9;const normal=reloaded.rollDamage(30,5,.1);env.Math.random=()=>.01;const critical=reloaded.rollDamage(30,5,.1);assert.ok(critical.critical);assert.ok(critical.damage>normal.damage);assert.ok(reloaded.rollDamage(30,15,0).damage<normal.damage);
@@ -91,3 +91,32 @@ assert.equal(new Set([...profiles.values()].map(p=>p.idx)).size,5,'different sou
 assert.equal(new Set([...profiles.values()].map(p=>p.skill)).size,5,'different attack signatures');
 assert.ok(new Set([...profiles.values()].map(p=>p.hp)).size>=3,'different combat strengths');
 console.log('Five distinct bosses rotate without repeats and use individual combat stats');
+
+// Combat difficulty and actual payouts progress through all ten levels.
+const hunter=env.avatars.hunter={key:'hunter',role:'waiting',x:3,y:4,tokens:1e9};
+let lastHp=0,lastAttack=0,total=0;
+for(let level=1;level<=10;level++){
+ now+=70000;reloaded.monsters.length=0;env.Math.random=()=> Math.min(.99,(level-.5)/9);
+ const monster=reloaded.spawn('waiting',level===10);assert.equal(monster.level,level);
+ env.Math.random=()=>.99;assert.ok(reloaded.begin(hunter,monster));const fight=reloaded.active;
+ assert.ok(fight.maxMonsterHp>lastHp);assert.ok(fight.monsterAttack>=lastAttack);lastHp=fight.maxMonsterHp;lastAttack=fight.monsterAttack;
+ assert.equal(fight.reward,level);
+ for(let tick=0;tick<100&&!fight.done;tick++){now+=500;reloaded.step(now);}
+ assert.ok(fight.won);total+=level;assert.equal(reloaded.balance('hunter'),total);
+ now+=100;reloaded.step(now);assert.equal(reloaded.balance('hunter'),total,'no duplicate payout');
+ now+=4700;reloaded.step(now);
+}
+assert.equal(total,55);
+console.log('Levels 1–10 increase difficulty and award exactly 1–10 stardust');
+
+// Old bosses were worth eight: upgrading must preserve existing savings and purchases.
+stored.set('codextown.adventure',JSON.stringify({legacy:{kills:12,bosses:2,deaths:3,lossStreak:1}}));
+stored.set('codextown.shop.sessions',JSON.stringify({sessions:{legacy:{owned:['steel'],equipped:{weapon:'steel'},spent:8}},legacy:[]}));
+const legacy=env.avatars.legacy={key:'legacy',role:'waiting',tokens:0};
+vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;
+assert.equal(reloaded.balance('legacy'),18);assert.equal(reloaded.equippedFor(legacy,'weapon'),'steel');
+reloaded.reward(legacy,false,7);assert.equal(reloaded.balance('legacy'),25);assert.equal(reloaded.record(legacy).deaths,3);
+vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;
+assert.equal(reloaded.balance('legacy'),25,'new graded earnings survive reload');assert.equal(reloaded.equippedFor(legacy,'weapon'),'steel');
+reloaded.reward(legacy,true);assert.equal(reloaded.balance('legacy'),35,'future bosses pay ten');
+console.log('Legacy balances, purchases and graded earnings survive migration and reload');

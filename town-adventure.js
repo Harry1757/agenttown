@@ -4,7 +4,12 @@
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}};
 const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));}catch{}};
 const saved=read('codextown.adventure',{}),records={};
-for(const [key,r] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(r&&Number.isSafeInteger(r.kills)&&r.kills>=0)records[key]={kills:r.kills,bosses:Number.isSafeInteger(r.bosses)&&r.bosses>=0?r.bosses:0,deaths:Number.isSafeInteger(r.deaths)&&r.deaths>=0?r.deaths:0,lossStreak:Number.isSafeInteger(r.lossStreak)&&r.lossStreak>=0?r.lossStreak:0};
+for(const [key,r] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(r&&Number.isSafeInteger(r.kills)&&r.kills>=0){
+ const bosses=Number.isSafeInteger(r.bosses)&&r.bosses>=0?r.bosses:0;
+ // Preserve past earnings at the old 1/8 rate; future rewards accumulate separately.
+ const earnedStardust=Number.isSafeInteger(r.earnedStardust)&&r.earnedStardust>=0?r.earnedStardust:r.kills+bosses*7;
+ records[key]={kills:r.kills,bosses,earnedStardust,deaths:Number.isSafeInteger(r.deaths)&&r.deaths>=0?r.deaths:0,lossStreak:Number.isSafeInteger(r.lossStreak)&&r.lossStreak>=0?r.lossStreak:0};
+}
 const slots={weapon:'무기',shield:'방패',head:'머리',body:'몸',hands:'장갑',feet:'신발',charm:'장식',pet:'펫'};
 const catalog=[
  {id:'steel',slot:'weapon',name:'기사의 검',price:8,rank:1,idx:104,icon:'⚔',desc:'금빛 손잡이의 넓은 강철 검'},
@@ -35,7 +40,7 @@ let legacy=validItems(shopV2?shopV2.legacy:shopSaved?.owned),selectedSession='',
 const inventory=key=>inventories[key]||{owned:[],spent:0,equipped:{}};
 const persistShop=()=>save('codextown.shop.sessions',{sessions:inventories,legacy});
 const equippedFor=(a,slot='head')=>inventory(typeof a==='string'?a:a.key).equipped[slot]||'';
-const balance=(key=selectedSession)=>{const r=records[key];return Math.max(0,(r?r.kills+r.bosses*7:0)-inventory(key).spent);};
+const balance=(key=selectedSession)=>Math.max(0,(records[key]?.earnedStardust||0)-inventory(key).spent);
 function buy(id,key=selectedSession){
  const item=catalog.find(i=>i.id===id);if(!item||!avatars[key])return false;
  const inv=inventory(key);if(!inv.owned.includes(id)){if(legacy.includes(id))legacy=legacy.filter(x=>x!==id);else{if(balance(key)<item.price)return false;inv.spent+=item.price;}inv.owned.push(id);}
@@ -45,7 +50,7 @@ let lastElement=-1;
 function nextElement(){lastElement=lastElement<0?Math.floor(Math.random()*5):(lastElement+1+Math.floor(Math.random()*4))%5;return lastElement;}
 const monsters=[],rest=new Map();let battle=null,nextSpawn=performance.now()+12000,lastStep=0,enabled=read('codextown.adventureEnabled',true)!==false;
 const hpFor=t=>80+Math.round(Math.min(120,Math.log10(1+Math.max(0,Number(t)||0)/1000)*24));
-const record=a=>records[a.key]||{kills:0,bosses:0,deaths:0,lossStreak:0};
+const record=a=>records[a.key]||{kills:0,bosses:0,earnedStardust:0,deaths:0,lossStreak:0};
 function statsFor(a){const size=spriteScaleFor(a,layout.scale)/layout.scale,base={attack:18+Math.round(size*7),defense:2+Math.floor(Math.max(0,size-1)),hp:hpFor(tokensOf(a)),crit:.1},bonus={attack:0,defense:0,hp:0,crit:0};for(const id of Object.values(inventory(a.key).equipped)){const item=catalog.find(i=>i.id===id);if(item)for(const stat of Object.keys(bonus))bonus[stat]+=item.stats[stat]||0;}return {attack:base.attack+bonus.attack,defense:base.defense+bonus.defense,hp:base.hp+bonus.hp,crit:Math.min(.45,base.crit+bonus.crit),base,bonus};}
 function rollDamage(attack,defense,critChance){const critical=Math.random()<critChance;return {damage:Math.max(1,Math.round(attack*(critical?1.75:1)-defense)),critical};}
 // Resolve both kinds of combat using the same attack, armor and critical-hit rules.
@@ -58,7 +63,7 @@ const eligible=a=>avatars[a.key]===a&&!a.travelFrom&&!a.portal&&!a.route?.length
 const weaponMastery=a=>{const wins=window.townUI?.winCount(a)||0;return wins>=25?3:wins>=10?2:wins>=3?1:0;};
 const gear=a=>Math.max(weaponMastery(a),catalog.find(i=>i.id===equippedFor(a,'weapon'))?.rank||0);
 const star=(x,y,r,color)=>{ctx.fillStyle=color;ctx.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,d=i%2?r*.3:r;ctx.lineTo(x+Math.cos(a)*d,y+Math.sin(a)*d);}ctx.closePath();ctx.fill();};
-function reward(a,boss){const r=record(a);records[a.key]={...r,kills:r.kills+1,bosses:r.bosses+(boss?1:0),lossStreak:0};save('codextown.adventure',records);renderLog();}
+function reward(a,boss,stars=boss?10:1){const r=record(a);records[a.key]={...r,kills:r.kills+1,bosses:r.bosses+(boss?1:0),earnedStardust:r.earnedStardust+stars,lossStreak:0};save('codextown.adventure',records);renderLog();}
 function cancel(){if(battle){battle.a.tx=battle.a.x;battle.a.ty=battle.a.y;rest.set(battle.a.key,performance.now()+20000);monsters.splice(monsters.indexOf(battle.m),1);}battle=null;nextSpawn=performance.now()+45000;}
 const bossKinds=[
  {id:'ember',name:'잿불 마왕',idx:110,hp:220,attack:36,defense:4,crit:.12,speed:.38,size:2.5,color:'#ffae72',skill:'잿불 폭우'},
@@ -67,25 +72,36 @@ const bossKinds=[
  {id:'moss',name:'이끼 군주',idx:108,hp:280,attack:28,defense:6,crit:.08,speed:.3,size:2.7,color:'#a8e39c',skill:'가시 정원'},
  {id:'dusk',name:'밤날개 군주',idx:122,hp:240,attack:32,defense:6,crit:.16,speed:.46,size:2.5,color:'#d6b0ff',skill:'달그림자 할퀴기'}
 ];
+const monsterLevels=[
+ {name:'꼬마 이끼',idx:108,hp:45,attack:8,defense:0,crit:.03,speed:.4,size:.9},
+ {name:'길 잃은 유령',idx:121,hp:60,attack:10,defense:1,crit:.04,speed:.38,size:1},
+ {name:'동굴 박쥐',idx:120,hp:75,attack:12,defense:1,crit:.06,speed:.7,size:1.1},
+ {name:'들개 괴물',idx:123,hp:90,attack:14,defense:2,crit:.06,speed:.58,size:1.2},
+ {name:'이끼 수호자',idx:108,hp:110,attack:17,defense:3,crit:.07,speed:.42,size:1.3},
+ {name:'서고 망령',idx:121,hp:130,attack:20,defense:4,crit:.08,speed:.4,size:1.4},
+ {name:'동굴 사냥꾼',idx:124,hp:150,attack:23,defense:5,crit:.1,speed:.6,size:1.5},
+ {name:'붉은 송곳니',idx:123,hp:175,attack:26,defense:6,crit:.1,speed:.58,size:1.7},
+ {name:'밤날개 파수꾼',idx:122,hp:195,attack:28,defense:7,crit:.12,speed:.5,size:1.9}
+];
 let bossBag=[],lastBoss='';
 function nextBoss(){
  if(!bossBag.length){bossBag=bossKinds.slice();for(let i=bossBag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bossBag[i],bossBag[j]]=[bossBag[j],bossBag[i]];}if(bossBag[0].id===lastBoss)[bossBag[0],bossBag[1]]=[bossBag[1],bossBag[0]];}
  const kind=bossBag.shift();lastBoss=kind.id;return kind;
 }
-function spawn(role,boss=false){const room=ROOM_BY_ROLE[role];if(!room||monsters.filter(m=>m.role===role).length>=2)return null;const type=['waiting','meeting','plan'].includes(role)?0:['research','design','explore'].includes(role)?1:2;
- const kind=boss?nextBoss():null;
- const m={role,gx:room.gx,gy:room.gy,x:room.gx+3.5,y:room.gy+4.4,boss,kind,type,at:performance.now(),idx:kind?.idx??[108,121,124][type],name:kind?.name??['이끼 유령','서고 유령','동굴 괴물'][type]};monsters.push(m);return m;}
+function spawn(role,boss=false){const room=ROOM_BY_ROLE[role];if(!room||monsters.filter(m=>m.role===role).length>=2)return null;
+ const kind=boss?nextBoss():null,level=boss?10:1+Math.floor(Math.random()*9),power=kind||monsterLevels[level-1];
+ const m={role,gx:room.gx,gy:room.gy,x:room.gx+3.5,y:room.gy+4.4,boss,kind,level,power,at:performance.now(),idx:power.idx,name:power.name};monsters.push(m);return m;}
 function wander(m,now,dt){
  if(now<(m.pauseUntil||0))return;
  if(m.tx===undefined){m.tx=m.gx+1.35+Math.random()*4.3;m.ty=m.gy+2.75+Math.random()*2;}
- const dx=m.tx-m.x,dy=m.ty-m.y,d=Math.hypot(dx,dy),step=dt*(m.kind?.speed??(m.boss?.38:.58));
+ const dx=m.tx-m.x,dy=m.ty-m.y,d=Math.hypot(dx,dy),step=dt*(m.power?.speed??(m.boss?.38:.58));
  if(d<=step+.02){m.x=m.tx;m.y=m.ty;m.tx=undefined;m.pauseUntil=now+700+Math.random()*2200;}
  else{m.x+=dx/d*step;m.y+=dy/d*step;if(Math.abs(dx)>.02)m.face=dx>0?1:-1;}
 }
 function begin(a,m){if(battle||!eligible(a)||!monsters.includes(m)||a.role!==m.role||roomDuels.size)return false;
- const size=spriteScaleFor(a,layout.scale)/layout.scale,monsterSize=m.kind?.size??(m.boss?2.5:1.3);
- const stats=statsFor(a),maxHp=stats.hp,damage=stats.attack,monsterHp=m.kind?.hp??(m.boss?240:110),mercy=size<1.6&&(record(a).lossStreak||0)>=4;
- battle={a,m,size,monsterSize,stats,mercy,monsterAttack:m.kind?.attack??(m.boss?32:20),monsterDefense:m.kind?.defense??(m.boss?6:3),monsterCrit:m.kind?.crit??(m.boss?.12:.08),maxHp,hp:maxHp,monsterHp,maxMonsterHp:monsterHp,damage,start:performance.now(),next:performance.now()+1800,round:0,legendary:mercy||size<monsterSize&&Math.random()<.2,done:false};
+ const size=spriteScaleFor(a,layout.scale)/layout.scale,monsterSize=m.power.size;
+ const stats=statsFor(a),maxHp=stats.hp,damage=stats.attack,monsterHp=m.power.hp,mercy=size<1.6&&(record(a).lossStreak||0)>=4;
+ battle={a,m,size,monsterSize,stats,mercy,reward:m.level,monsterAttack:m.power.attack,monsterDefense:m.power.defense,monsterCrit:m.power.crit,maxHp,hp:maxHp,monsterHp,maxMonsterHp:monsterHp,damage,start:performance.now(),next:performance.now()+1800,round:0,legendary:mercy||size<monsterSize&&Math.random()<.2,done:false};
  battle.element=nextElement();m.encounterKey=null;m.encounterAt=0;
  clearDuelAftermath(a);a.tx=a.x;a.ty=a.y;a.roomAction=null;return true;}
 function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastStep=now;
@@ -96,7 +112,7 @@ function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastSte
   if(b.done){if(now-b.ended>(b.won?4600:2200)){rest.set(b.a.key,now+(b.won?45000:65000));if(b.won)monsters.splice(monsters.indexOf(b.m),1);else{b.m.pauseUntil=now+1500;b.a.summonAt=now;b.a.wanderAt=now+65000;}battle=null;nextSpawn=now+5000;const next=b.a.nextRole;b.a.nextRole=null;if(next&&next!==b.a.role)changeRoom(b.a,next);}return;}
   if(b.counterAt&&now>=b.counterAt){const hit=rollDamage(b.monsterAttack,b.stats.defense,b.monsterCrit);b.receivedDamage=hit.damage;b.receivedCritical=hit.critical;b.hp=Math.max(0,b.hp-hit.damage);b.playerHitAt=now;b.counterAt=0;if(!b.hp){b.done=true;b.won=false;b.ended=now;defeat(b.a);}return;}
   if(now>=b.next){b.round++;b.hitAt=now;b.hitPlayer=false;const final=b.legendary&&b.round===2;const hit=rollDamage(b.damage,b.monsterDefense,b.stats.crit);b.inflictedDamage=final?b.maxMonsterHp:hit.damage;b.dealtCritical=hit.critical&&!final;b.monsterHp=Math.max(0,b.monsterHp-b.inflictedDamage);
-   if(b.monsterHp===0){b.done=true;b.won=true;b.ended=now;const before=record(b.a);b.rewardLabel=b.m.boss&&!before.bosses?'보스 배지':before.kills===2?'별 장식':before.kills===9?'보라 별 장식':`별가루 +${b.m.boss?8:1}`;reward(b.a,b.m.boss);}
+   if(b.monsterHp===0){b.done=true;b.won=true;b.ended=now;const before=record(b.a),badge=b.m.boss&&!before.bosses?'보스 배지':before.kills===2?'별 장식':before.kills===9?'보라 별 장식':'';b.rewardLabel=`별가루 +${b.reward}`+(badge?' · '+badge:'');reward(b.a,b.m.boss,b.reward);}
    else{b.counterAt=now+650;b.next=now+(b.legendary&&b.round===1?3400:b.monsterHp<=Math.max(1,b.damage-b.monsterDefense)?2400:1600);}
   }
  }else{
@@ -142,7 +158,12 @@ function chamber(kind,width=380){
  for(const x of [-edge+28,edge-34]){ctx.fillStyle='#41302b';ctx.fillRect(x,-37,6,23);star(x+3,-41,9,kind?.color||'#db9b65');star(x+3,-41,4,'#fff0b9');}
  for(const [x,y] of [[-174,109],[155,112],[-151,115]]){ctx.fillStyle='#687064';ctx.fillRect(x,y,11,5);ctx.fillStyle='#92a080';ctx.fillRect(x,y,7,2);}
 }
-function drawMap(){const P=TILE*layout.scale,t=performance.now()/1000;for(const m of monsters){const x=layout.offsetX+(m.x+.5)*P,y=layout.offsetY+(m.y+1)*P;ctx.save();ctx.strokeStyle=m.kind?.color||'#a4dad2';ctx.lineWidth=layout.scale;ctx.beginPath();ctx.ellipse(x,y,P*.65,P*.18,0,0,7);ctx.stroke();monster(m,x,y,P*(m.boss?1.5:.85),t);if(m.encounterKey&&!battle){ctx.font='bold 18px sans-serif';ctx.fillStyle='#ffe3a2';ctx.fillText('!',x,y-P*1.8);}ctx.restore();}}
+function drawMap(){const P=TILE*layout.scale,t=performance.now()/1000;for(const m of monsters){
+ const x=layout.offsetX+(m.x+.5)*P,y=layout.offsetY+(m.y+1)*P,color=m.kind?.color||(m.level>=7?'#d6b0ff':m.level>=4?'#a5d9ed':'#b4dbac');
+ ctx.save();ctx.strokeStyle=color;ctx.lineWidth=layout.scale;ctx.beginPath();ctx.ellipse(x,y,P*.65,P*.18,0,0,7);ctx.stroke();monster(m,x,y,P*(m.boss?1.5:.7+(m.level-1)*.055),t);
+ const font=Math.max(8,7*layout.scale),label=m.boss?'B10':'L'+m.level;ctx.font=`bold ${font}px sans-serif`;ctx.textAlign='center';const w=ctx.measureText(label).width+6;
+ ctx.fillStyle='#101d22e6';ctx.fillRect(x-w/2,y+P*.15,w,font+4);ctx.fillStyle=color;ctx.fillText(label,x,y+P*.15+font+1);
+ if(m.encounterKey&&!battle){ctx.font='bold 18px sans-serif';ctx.fillStyle='#ffe3a2';ctx.fillText('!',x,y-P*1.8);}ctx.restore();}}
 function bar(x,y,value,max,color){ctx.fillStyle='#142726';ctx.fillRect(x,y,130,8);ctx.fillStyle=color;ctx.fillRect(x,y,130*Math.max(0,value/max),8);ctx.fillStyle='#e7edda';ctx.font='11px sans-serif';ctx.fillText(`${value} / ${max}`,x+65,y+22);}
 function crescent(x,y,p){if(p<0||p>1)return;ctx.save();ctx.globalAlpha=1-p;ctx.translate(x,y-30);ctx.rotate(-.65);ctx.shadowColor='#d997ff';ctx.shadowBlur=14;ctx.fillStyle='#c48bee';ctx.beginPath();ctx.moveTo(-65,-20);ctx.quadraticCurveTo(0,55,65,-20);ctx.quadraticCurveTo(0,100,-65,-20);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#fff0c2';ctx.beginPath();ctx.moveTo(-65,-20);ctx.quadraticCurveTo(0,68,65,-20);ctx.quadraticCurveTo(0,86,-65,-20);ctx.fill();ctx.restore();}
 const elements=['화염','번개','물','바람','안개'];
@@ -179,8 +200,8 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
  const arenaWidth=Math.min(520,Math.max(380,width/height*270)),scale=Math.min(1.8,width/arenaWidth,height/270);
  ctx.save();ctx.fillStyle='rgba(4,8,16,.55)';ctx.fillRect(0,0,cv.width,cv.height);ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
- chamber(b.m.kind,arenaWidth);ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(b.m.boss?b.m.name+' · 보스전':b.m.name+' 등장!',0,-111);
- ctx.font='11px sans-serif';ctx.fillText('주민 · 토큰 체력',-95,-95);ctx.fillText(b.m.name,95,-95);
+ chamber(b.m.kind,arenaWidth);ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(`${b.m.name} · ${b.m.level}단계`+(b.m.boss?' 보스':''),0,-111);
+ ctx.font='11px sans-serif';ctx.fillText('주민 · 토큰 체력',-95,-95);ctx.fillText(`처치 보상 · ✦ ${b.reward}`,95,-95);
  bar(-160,-89,b.hp,b.maxHp,'#a8d89b');bar(30,-89,b.monsterHp,b.maxMonsterHp,b.m.kind?.color||'#dba0ca');
 
  const unit=96/Math.max(b.size,b.monsterSize),as=b.size*unit,ms=b.monsterSize*unit,hit=Math.max(0,1-Math.max(0,age)/(b.done&&b.won?1.2:.5)),counter=Math.max(0,1-(now-(b.playerHitAt||-1e8))/700),preCounter=b.counterAt?Math.max(0,Math.min(1,1-(b.counterAt-now)/300)):0,mx=85+hit*7-Math.max(preCounter,counter)*55;
@@ -194,14 +215,14 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  if(finishAge>=0&&finishAge<1.5){ctx.save();ctx.globalAlpha=1-finishAge/1.5;for(let i=0;i<18;i++){const a=i*2.4,r=finishAge*43;star(mx+Math.cos(a)*r,87-ms*.5+Math.sin(a)*r-finishAge*12,i%3?2:4,'#e6c8ff');}ctx.restore();}
  if(charge){ctx.save();ctx.globalAlpha=.65;for(let i=0;i<8;i++){const a=i*Math.PI/4+t*3,r=18+((b.next-now)/1000%1)*28;star(px+Math.cos(a)*r,87-as*.5+Math.sin(a)*r,2,'#ffe4ad');}ctx.restore();}
  if(finishAge>=1.15){const q=Math.min(1,(finishAge-1.15)/2.5),fly=Math.max(0,(q-.5)*2),ix=85+(-83-85)*fly,iy=35-Math.sin(q*Math.PI)*53+fly*30;
-  ctx.save();ctx.globalAlpha=q>.9?(1-q)*10:1;ctx.shadowColor='#ffe4a5';ctx.shadowBlur=14;star(ix,iy,b.rewardLabel==='별가루 +1'?10:16,b.m.boss?'#efb4ed':'#ffe0a0');ctx.shadowBlur=0;star(ix,iy,5,'#fff8df');ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#ffe5ab';ctx.fillText(b.rewardLabel+' 획득!',0,0);ctx.restore();}
+  ctx.save();ctx.globalAlpha=q>.9?(1-q)*10:1;ctx.shadowColor='#ffe4a5';ctx.shadowBlur=14;star(ix,iy,8+b.reward*.8,b.m.boss?'#efb4ed':'#ffe0a0');ctx.shadowBlur=0;star(ix,iy,5,'#fff8df');ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#ffe5ab';ctx.fillText(b.rewardLabel+' 획득!',0,0);ctx.restore();}
 
  if(b.done&&b.won){star(px,87-as-12,7,'#ffe19b');}
  if(b.m.kind&&preCounter>0)star(mx,87-ms*.5,4+preCounter*9,b.m.kind.color);
  if(counter>0){if(b.m.kind)bossStrike(b.m.kind,px,87-as*.5,1-counter,b.receivedDamage);impact(px,87-as*.5,1-counter,b.receivedDamage,b.m.kind?.color||'#ffba98');ctx.fillStyle='#ffb8a7';ctx.font='bold 18px sans-serif';ctx.fillText((b.receivedCritical?'치명타! ':'')+'−'+b.receivedDamage,px,65-as-(1-counter)*28);}
  if(age>=0&&age<1.2){const k=impactScale(b.inflictedDamage||b.damage)*(b.done&&b.won?1.55:1);ctx.save();ctx.translate(mx,87-ms*.45);ctx.scale(k,k);if(b.legendary&&b.done&&b.won)crescent(0,0,age/1.2);else if(b.done&&b.won)finisher(0,0,age/1.2,b.element);ctx.restore();if(!b.done)impact(mx,87-ms*.45,age/.5,b.inflictedDamage||b.damage);}
  if(age>=0&&age<.9){ctx.fillStyle=b.dealtCritical?'#ffe190':'#e4eddf';ctx.font=b.dealtCritical?'bold 17px sans-serif':'13px sans-serif';ctx.fillText((b.dealtCritical?'치명타! ':'')+'−'+b.inflictedDamage,mx,70-ms*.6-age*20);}
- ctx.fillStyle='#e8dfba';ctx.font='12px sans-serif';ctx.fillText(b.done?(b.won?elements[b.element]+` 일격! 별가루 +${b.m.boss?8:1}`+(b.m.boss?' · 보스 배지 획득':''):'쓰러졌어요… 잠시 쉬고 다시 도전해요'):charge?(b.legendary?(b.mercy?'불굴의 전설검 · 이번엔 이길 거야!':'전설검 · 별빛을 모으는 중…'):'마지막 일격 · 힘을 모으는 중…'):b.m.kind&&(b.counterAt||counter>0)?b.m.kind.skill+'!':`${b.round+1}번째 공방`,0,116);
+ ctx.fillStyle='#e8dfba';ctx.font='12px sans-serif';ctx.fillText(b.done?(b.won?elements[b.element]+` 일격! 별가루 +${b.reward}`:'쓰러졌어요… 잠시 쉬고 다시 도전해요'):charge?(b.legendary?(b.mercy?'불굴의 전설검 · 이번엔 이길 거야!':'전설검 · 별빛을 모으는 중…'):'마지막 일격 · 힘을 모으는 중…'):b.m.kind&&(b.counterAt||counter>0)?b.m.kind.skill+'!':`${b.round+1}번째 공방`,0,116);
  ctx.restore();}
 const legendaryLength=size=>Math.min(104,size*1.9);
 function equipment(a,x,y,size,pose,face,legendary=false,shield=false,legendAmount=1){ctx.save();ctx.translate(x,y);ctx.scale(face,1);const item=catalog.find(i=>i.id===equippedFor(a,'weapon'));if(item&&!legendary)heldWeapon(ctx,item.idx,size*.52,-size*.27,size*.82,Math.max(.12,(pose.sword??-.3)+.4),gear(a),performance.now()/1000);else sword(size*.27,-size*.48,legendary?size*.62+(legendaryLength(size)-size*.62)*legendAmount:size*.62,pose.sword??-.3,legendary?3:gear(a),performance.now()/1000);
@@ -272,10 +293,10 @@ function drawOutfit(c,a,x,y,size,t,weapon=true,outfit=inventory(a.key).equipped)
 function loot(a,x,y,size){drawOutfit(ctx,a,x,y,size,window.townUI?.motionReduced?0:performance.now()/1000,false);const r=record(a);if(r.kills<3&&!r.bosses)return;ctx.save();star(x+size*.45,y-size*.6,size*.1,r.bosses?'#efacd8':r.kills>=10?'#c5b4ff':'#ffe09b');ctx.restore();}
 const panel=document.createElement('details');panel.id='adventure-log';panel.innerHTML='<summary>⚔ 모험</summary><div class="adventure-body"><button type="button"></button><p></p></div>';
 const style=document.createElement('style');style.textContent='#adventure-log{position:absolute;left:9px;top:9px;z-index:4;color:#e4edd8;font:12px sans-serif;max-width:230px}#adventure-log summary{cursor:pointer;background:#203b32;border:1px solid #647e63;border-radius:8px;padding:7px 10px;list-style:none}#adventure-log .adventure-body{background:#203b32;padding:12px;border-radius:8px;line-height:1.7}#adventure-log button{font:inherit;background:#354f3a;color:#e4edd8;border:1px solid #89a17a;border-radius:6px;padding:6px 10px}#adventure-log p{margin:8px 0 0;white-space:pre-line}';document.head.append(style);document.getElementById('map-stage').append(panel);
-function renderLog(){const all=Object.values(records),kills=all.reduce((s,r)=>s+r.kills,0),bosses=all.reduce((s,r)=>s+r.bosses,0);panel.querySelector('button').textContent=enabled?'모험 켜짐 · 끄기':'모험 꺼짐 · 켜기';panel.querySelector('p').textContent=`몬스터 ${kills}마리 · 보스 ${bosses}마리\n별가루는 세션별로 상점에서 확인해요\n주민별 3마리: 별 장식\n10마리: 보라 별 장식\n보스 처치: 분홍 보스 배지`;renderShop();}
+function renderLog(){const all=Object.values(records),kills=all.reduce((s,r)=>s+r.kills,0),bosses=all.reduce((s,r)=>s+r.bosses,0);panel.querySelector('button').textContent=enabled?'모험 켜짐 · 끄기':'모험 꺼짐 · 켜기';panel.querySelector('p').textContent=`몬스터 ${kills}마리 · 보스 ${bosses}마리\n처치한 단계만큼 별가루를 받아요 (1~10개)\n주민별 3마리: 별 장식\n10마리: 보라 별 장식\n보스 처치: 분홍 보스 배지`;renderShop();}
 const shopButton=document.createElement('button');shopButton.id='open-stardust-shop';shopButton.type='button';shopButton.textContent='✦ 상점';
 const shopDialog=document.createElement('dialog');shopDialog.id='stardust-shop';shopDialog.setAttribute('aria-labelledby','stardust-shop-title');shopDialog.setAttribute('closedby','any');
-shopDialog.innerHTML=`<header class="shop-heading"><div><span class="shop-eyebrow">마을의 작은 장신구 가게</span><h2 id="stardust-shop-title">장비와 별가루 상점</h2></div><button type="button" class="shop-close" aria-label="상점 닫기" autofocus>×</button></header><div class="shop-layout"><aside class="shop-character"><label class="shop-session-label" for="shop-session">장비를 살 세션</label><select id="shop-session"></select><p class="shop-session-title"></p><div class="shop-wallet"><span>별가루 <strong></strong></span><small>일반 +1 · 보스 +8</small></div><div class="equipment-stats"></div><section class="equipment-overview" aria-label="현재 장비"><canvas id="equipment-preview" width="180" height="160" aria-label="선택한 캐릭터 착용 모습"></canvas><div class="equipment-slots"></div></section><p class="shop-intro">선택한 세션만 구매하고 착용해요.<br>장비 능력치가 전투에 더해져요.</p></aside><section class="shop-catalog" aria-label="구매할 아이템"><div class="shop-categories" aria-label="아이템 부위"></div><p class="shop-feedback" role="status" aria-live="polite"></p><div class="shop-items"></div><footer class="shop-footer">별가루와 장비는 세션마다 따로 보관돼요.<br>전투 중 바꾼 장비의 능력치는 다음 전투부터 적용돼요.</footer></section></div>`;
+shopDialog.innerHTML=`<header class="shop-heading"><div><span class="shop-eyebrow">마을의 작은 장신구 가게</span><h2 id="stardust-shop-title">장비와 별가루 상점</h2></div><button type="button" class="shop-close" aria-label="상점 닫기" autofocus>×</button></header><div class="shop-layout"><aside class="shop-character"><label class="shop-session-label" for="shop-session">장비를 살 세션</label><select id="shop-session"></select><p class="shop-session-title"></p><div class="shop-wallet"><span>별가루 <strong></strong></span><small>1~9단계 +1~9 · 보스 +10</small></div><div class="equipment-stats"></div><section class="equipment-overview" aria-label="현재 장비"><canvas id="equipment-preview" width="180" height="160" aria-label="선택한 캐릭터 착용 모습"></canvas><div class="equipment-slots"></div></section><p class="shop-intro">선택한 세션만 구매하고 착용해요.<br>장비 능력치가 전투에 더해져요.</p></aside><section class="shop-catalog" aria-label="구매할 아이템"><div class="shop-categories" aria-label="아이템 부위"></div><p class="shop-feedback" role="status" aria-live="polite"></p><div class="shop-items"></div><footer class="shop-footer">별가루와 장비는 세션마다 따로 보관돼요.<br>전투 중 바꾼 장비의 능력치는 다음 전투부터 적용돼요.</footer></section></div>`;
 const adventureControls=document.createElement('div');adventureControls.id='adventure-controls';adventureControls.append(panel,shopButton);document.getElementById('map-stage').append(adventureControls,shopDialog);
 const escapeShop=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function renderShop(){

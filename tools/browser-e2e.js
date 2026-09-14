@@ -64,13 +64,14 @@ async page => {
       cancelAnimationFrame(frameRequest);townAdventure.cancel();townAdventure.monsters.length=0;
       const r=ROOM_BY_ROLE.waiting,a=avatars['e2e-fight']={key:'e2e-fight',idx:84,role:'waiting',workRole:'waiting',x:r.gx+3,y:r.gy+4,tx:r.gx+3,ty:r.gy+4,proj:'E2E',sid:'fight'};
       state.sessionInfo[a.key]={state:'working',tokens:0};
-      if(!townAdventure.begin(a,townAdventure.spawn('waiting')))throw new Error('Start encounter');
+      const monster=townAdventure.spawn('waiting');
+      if(!townAdventure.begin(a,monster))throw new Error('Start encounter');
       townAdventure.active.legendary=true;changeRoom(a,'research');const queued=a.role==='waiting'&&a.nextRole==='research';
       let now=performance.now();for(let i=0;i<30&&!townAdventure.active.done;i++){now+=500;townAdventure.step(now);}
       const completed=townAdventure.active.won&&a.role==='waiting';now+=4700;townAdventure.step(now);
-      return {queued,completed,moved:a.role==='research'&&a.travelFrom==='waiting',reward:townAdventure.balance(a.key)};
+      return {queued,completed,moved:a.role==='research'&&a.travelFrom==='waiting',reward:townAdventure.balance(a.key),level:monster.level};
     });
-    check(travel.queued&&travel.completed&&travel.moved&&travel.reward===1,`Battle/loot/departure: ${JSON.stringify(travel)}`);
+    check(travel.queued&&travel.completed&&travel.moved&&travel.reward===travel.level,`Battle/loot/departure: ${JSON.stringify(travel)}`);
     results.push('실제 전투 → 보상 1회 → 대기하던 방 이동');
     check(!errors.length,`Browser runtime errors: ${errors.join('; ')}`);
     return {passed:results,errors};
