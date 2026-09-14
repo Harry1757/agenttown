@@ -50,3 +50,21 @@ env.Math=Object.create(Math);env.Math.random=()=>0;env.nextDuelCheck=0;
 env.stepDuels(10000);assert.equal(env.roomDuels.size,2,'nearby residents automatically pair independently');
 env.window.townUI.motionReduced=true;env.stepDuels(10001);assert.equal(env.roomDuels.size,0);
 console.log('Duels: 90/10 odds, equal sizes, independent pairs, wall bounds, single awards, cooldown and cancellation pass');
+
+// Spotlight never queues old encounters or changes the outcome of a live duel.
+vm.runInContext('var featuredDuel = null;',env);
+vm.runInContext(html.match(/function selectFeaturedDuel\([^)]*\) \{[\s\S]*?\n\}/)[0],env);
+env.window.townUI.motionReduced=false;
+const spotlightA={start:20000},spotlightB={start:20000};
+env.roomDuels.add(spotlightA);env.roomDuels.add(spotlightB);
+assert.equal(env.selectFeaturedDuel(20001),spotlightA);
+assert.equal(env.selectFeaturedDuel(22000),spotlightA,'keep the same pair throughout');
+env.roomDuels.delete(spotlightA);
+assert.equal(env.selectFeaturedDuel(23000),null,'do not replay the concurrent pair halfway through');
+const spotlightC={start:23000};env.roomDuels.add(spotlightC);
+assert.equal(env.selectFeaturedDuel(23001),spotlightC);
+env.window.townUI.motionReduced=true;
+assert.equal(env.selectFeaturedDuel(23002),null,'reduced motion immediately removes the stage');
+env.roomDuels.clear();env.window.townUI.motionReduced=false;
+env.roomDuels.add({start:0});assert.equal(env.selectFeaturedDuel(25000),null,'no stale encounter after backgrounding');
+console.log('Spotlight: stable focus, simultaneous encounters, cancellation, reduced motion and stale encounters pass');

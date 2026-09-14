@@ -1197,6 +1197,7 @@ const CHARS = [84, 85, 86, 87, 88, 96, 97, 98, 99, 100, 109, 111, 112, 121];
 function charFor(key) { return CHARS[hashSeed(key) % CHARS.length]; }
 const avatars = {};   // "proj|sid[:sub]" -> {x,y,tx,ty,face,idx,proj,sid,role}
 const roomDuels = new Set();
+let featuredDuel = null;
 let nextDuelCheck=0;
 const roomFlashAt = {};   // role -> performance.now(), 그 방에 이벤트가 막 들어온 시각 (모니터 플래시용)
 
@@ -1471,6 +1472,80 @@ function drawDuelResults() {
       ctx.restore();
     }
   }
+}
+
+// A spotlight follows one live encounter; concurrent encounters keep moving on the map.
+function selectFeaturedDuel(now) {
+  if(window.townUI?.motionReduced){featuredDuel=null;return null;}
+  if(featuredDuel&&!roomDuels.has(featuredDuel))featuredDuel=null;
+  for(const d of roomDuels){
+    if(d.spotlightSeen)continue;
+    d.spotlightSeen=true;
+    if(!featuredDuel&&now-d.start<600)featuredDuel=d;
+  }
+  return featuredDuel;
+}
+
+function drawDuelSpotlight() {
+  const now=performance.now(),d=selectFeaturedDuel(now);
+  if(!d)return;
+  const t=(now-d.start)/1000,f=d.frame||duelFrame(t);
+  // The little encounter mark remains attached to both residents before the cut-in.
+  if(t<.35){
+    ctx.save();ctx.textAlign='center';ctx.fillStyle='#ffe6a1';ctx.font=`bold ${22*dpr}px sans-serif`;
+    for(const a of [d.a,d.b])ctx.fillText('!',layout.offsetX+(a.x+.5)*TILE*layout.scale,layout.offsetY+(a.y+1)*TILE*layout.scale-TILE*spriteScaleFor(a,layout.scale)-8*dpr);
+    ctx.restore();
+  }
+  if(t<.18)return;
+  const width=cv.width/dpr,height=cv.height/dpr;
+  const k=Math.min(1,(width-20)/360,(height-20)/210);
+  if(k<=0)return;
+  const enter=Math.min(1,(t-.18)/.22),exit=Math.min(1,(5.6-t)/.35);
+  const pop=.94+.06*Math.sin(enter*Math.PI/2);
+  ctx.save();ctx.translate(cv.width/2,cv.height-10*dpr-105*k*dpr);
+  ctx.scale(dpr*k*pop,dpr*k*pop);ctx.globalAlpha=Math.max(0,Math.min(enter,exit));
+  ctx.fillStyle='#101f20';ctx.fillRect(-180,-105,360,210);
+  ctx.strokeStyle='#a7c7a1';ctx.lineWidth=2;ctx.strokeRect(-178,-103,356,206);
+  ctx.save();ctx.beginPath();ctx.rect(-175,-100,350,200);ctx.clip();
+  // A diagonal encounter ribbon, a warm wooden stage and quiet pixel sparkles.
+  ctx.fillStyle='#294548';ctx.beginPath();ctx.moveTo(-175,-100);ctx.lineTo(35,-100);ctx.lineTo(-30,62);ctx.lineTo(-175,62);ctx.fill();
+  ctx.fillStyle='#493e50';ctx.beginPath();ctx.moveTo(35,-100);ctx.lineTo(175,-100);ctx.lineTo(175,62);ctx.lineTo(-30,62);ctx.fill();
+  ctx.fillStyle='#6c634b';ctx.fillRect(-175,62,350,38);
+  ctx.strokeStyle='#857856';ctx.lineWidth=1;
+  for(let y=66;y<100;y+=10){ctx.beginPath();ctx.moveTo(-175,y);ctx.lineTo(175,y);ctx.stroke();}
+  for(let i=0;i<12;i++){
+    const x=((i*67+t*14)%350)-175,y=(i*29)%130-86;
+    ctx.fillStyle=i%2?'#a9c4b2':'#c4a9c4';ctx.globalAlpha*=.55;ctx.fillRect(x,y,2,2);ctx.globalAlpha/= .55;
+  }
+  ctx.textAlign='center';ctx.fillStyle='#e7edda';ctx.font='600 12px sans-serif';
+  ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`,0,-82);
+  const intro=t<.65,spread=intro?100:48+f.back*32;
+  for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
+    const won=a===d.winner,size=56+20*h/Math.max(d.ha,d.hb);
+    const pose=a.duelPose||{...f,squash:1,hop:0};
+    const x=dir*spread,y=59-pose.hop*70;
+    ctx.fillStyle='#242c29';ctx.beginPath();ctx.ellipse(x,63,size*.48,6,0,0,Math.PI*2);ctx.fill();
+    ctx.save();ctx.translate(x,y);ctx.rotate((pose.angle||0)*-dir);ctx.scale(-dir,1);
+    drawTile(ctx,'dungeon',a.idx,-size/2,-size,size/TILE,pose.squash);ctx.restore();
+    if(!intro)drawDuelAccessory({...a,face:-dir,duelPose:pose},x,y,size);
+    if(f.result>0){
+      ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.font='bold 16px sans-serif';ctx.fillText(won?'WIN':'LOSE',x,-57);
+      ctx.font='18px sans-serif';ctx.fillText(won?'♛':'💧',x+size*.43,y-size+8);
+    }
+    const info=state.sessionInfo[a.key];
+    const name=info?.title||a.sid||'주민';
+    ctx.fillStyle='#f5eed8';ctx.font='11px sans-serif';
+    let label=String(name);while(label.length>1&&ctx.measureText(label).width>132)label=label.slice(0,-1);
+    if(label!==String(name))label=label.slice(0,-1)+'…';
+    ctx.fillText(label,dir*87,88);
+  }
+  if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
+  else if(f.flash>0){
+    ctx.save();ctx.globalAlpha*=f.flash;ctx.fillStyle='#ffe19b';ctx.beginPath();
+    for(let i=0;i<16;i++){const a=i*Math.PI/8,r=i%2?9:25;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r+5);}ctx.closePath();ctx.fill();
+    ctx.font='bold 17px sans-serif';ctx.fillText('챙!',0,-27);ctx.restore();
+  }
+  ctx.restore();ctx.restore();
 }
 
 function randomRoomPose(a, now, scale, allowed) {
@@ -2597,6 +2672,7 @@ function draw() {
   drawDuelResults();
   drawConflicts();
   drawParticles();
+  drawDuelSpotlight();
 
   updateHud(activeCounts);
 }
