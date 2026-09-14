@@ -60,10 +60,10 @@
   let lastLeaders='';
   function renderLeaders() {
     const leaders=rows().filter(r=>duelWins.has(r.key)).sort((a,b)=>duelWins.get(b.key)-duelWins.get(a.key)||a.key.localeCompare(b.key)).slice(0,3);
-    const el=$('duel-leaders');el.hidden=!leaders.length;
+    const el=$('duel-leaders'),mini=$('duel-mini-leaders');el.hidden=!leaders.length;mini.hidden=false;
     const signature=JSON.stringify(leaders.map(r=>[r.key,r.title,r.sub,duelWins.get(r.key)]));
     if(signature===lastLeaders)return;
-    lastLeaders=signature;el.replaceChildren();
+    lastLeaders=signature;el.replaceChildren();mini.replaceChildren();
     const label=document.createElement('span');label.className='duel-leader-label';label.textContent='동네 챔피언';el.append(label);
     const list=document.createElement('div');list.className='duel-leader-faces';
     leaders.forEach((row,i)=>{
@@ -74,6 +74,15 @@
       const count=document.createElement('span');count.textContent=`${i===0?'♛ ':''}${wins}`;
       button.append(canvas,count);list.append(button);drawPortrait(canvas,row.key,row.sub);
     });el.append(list);
+    const miniLabel=document.createElement('span');miniLabel.className='duel-leader-label';miniLabel.textContent='♛';miniLabel.setAttribute('aria-hidden','true');mini.append(miniLabel);
+    if(!leaders.length){const empty=document.createElement('span');empty.className='duel-leader-empty';empty.textContent='첫 승을 기다려요';mini.append(empty);}
+    else{
+      const compact=list.cloneNode(true);
+      compact.querySelectorAll('button').forEach((button,i)=>{
+        button.onclick=()=>ui.select(leaders[i].key);
+        drawPortrait(button.querySelector('canvas'),leaders[i].key,leaders[i].sub);
+      });mini.append(compact);
+    }
   }
   function render() {
     renderLeaders();

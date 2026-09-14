@@ -8,7 +8,7 @@ const env={Math,performance:{now:()=>now},window:{townUI:{motionReduced:false,re
   roomDuels:new Set(),nextDuelCheck:Infinity,layout:{scale:2},workerState:a=>a.st||'working',
   spriteScaleFor:(a,s)=>s*(a.duel?(a===a.duel.a?a.duel.ha:a.duel.hb):a.h),};
 vm.createContext(env);
-for(const name of ['wanderBox','duelWinChance','duelFrame','duelEligible','beginDuel','endDuel','stepDuels']){
+for(const name of ['wanderBox','duelWinChance','duelFrame','duelEligible','clearDuelAftermath','duelAftermathPoint','stepDuelAftermath','beginDuel','endDuel','stepDuels']){
   const match=html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n\\}`));
   assert.ok(match,name);vm.runInContext(match[0],env);
 }
@@ -20,6 +20,7 @@ assert.equal(env.duelWinChance(2,1),.9);assert.equal(env.duelWinChance(1,2),.1);
 assert.equal(Array.from({length:1000},(_,i)=>(i+.5)/1000<env.duelWinChance(2,1)).filter(Boolean).length,900);
 const a=actor('a',1.2),b=actor('b',2.4),c=actor('c',4.6),d=actor('d',5.8);
 assert.ok(env.beginDuel(a,b,0));assert.ok(env.beginDuel(c,d,0));assert.equal(env.roomDuels.size,2);
+const firstDuel=a.duel;
 assert.equal(env.beginDuel(a,c,0),false,'no actor in two pairs');
 for(now=0;now<=5500;now+=50){
   env.stepDuels(now);
@@ -28,6 +29,16 @@ for(now=0;now<=5500;now+=50){
 assert.equal(wins,2,'one victory per pair');now=5700;env.stepDuels(now);assert.equal(env.roomDuels.size,0);
 for(const v of [a,b,c,d]){assert.equal(v.duel,null);assert.equal(v.duelPose,null);assert.ok(v.duelAfter>now);}
 assert.equal(wins,2);
+const winner=firstDuel.winner,loser=winner===a?b:a;
+assert.equal(loser.fleeFrom,winner.key);assert.equal(loser.fleeUntil,now+4500);
+assert.ok(winner.duelOpponents.has(loser.key));
+const flee=env.duelAftermathPoint(loser,winner,true),box=env.wanderBox(loser,loser.h);
+assert.ok(flee.x>=box.x0&&flee.x<=box.x1&&flee.y>=box.y0&&flee.y<=box.y1);
+assert.ok(Math.hypot(flee.x-winner.x,flee.y-winner.y)>=Math.hypot(loser.x-winner.x,loser.y-winner.y));
+const newcomer=actor('new',3.5);newcomer.duelAfter=0;
+assert.ok(env.stepDuelAftermath(winner,now+1));assert.equal(winner.seekTarget,newcomer.key);
+delete env.avatars[newcomer.key];env.stepDuelAftermath(winner,now+2);assert.equal(winner.seekTarget,null);
+env.stepDuelAftermath(loser,now+4600);assert.equal(loser.fleeFrom,null);assert.equal(loser.socialMotion,false);
 assert.ok(env.beginDuel(a,b,now));env.window.townUI.motionReduced=true;env.stepDuels(now+10);assert.equal(env.roomDuels.size,0);assert.equal(wins,2);
 env.window.townUI.motionReduced=false;
 assert.ok(env.beginDuel(a,b,now));env.state.sessionInfo[a.key].needsInput=true;env.stepDuels(now+20);assert.equal(env.roomDuels.size,0);delete env.state.sessionInfo[a.key].needsInput;

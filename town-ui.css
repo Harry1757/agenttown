@@ -101,4 +101,11 @@ body{grid-template-rows:76px minmax(0,1fr) auto}
 .duel-leader-faces button{display:flex;flex-direction:column;align-items:center;padding:3px 6px;min-width:42px;gap:2px}
 .duel-leader-faces canvas{width:28px;height:28px;image-rendering:pixelated}
 .duel-leader-faces span{font-size:11px;color:var(--sand)}
-@media(max-height:560px){.duel-leaders{display:none}}
+@media(max-height:560px){.duel-leaders{padding-block:4px}.duel-leaders .duel-leader-faces canvas{width:24px;height:24px}}
+.duel-mini-leaders{display:none;position:absolute;right:9px;top:9px;z-index:3;align-items:center;gap:7px;padding:5px 7px;background:var(--panel);border:1px solid var(--line);border-radius:10px;max-width:calc(100% - 18px)}
+.duel-mini-leaders .duel-leader-faces{gap:3px}
+.duel-mini-leaders .duel-leader-faces button{flex-direction:row;gap:3px;padding:3px 5px;min-width:44px;min-height:36px}
+.duel-mini-leaders .duel-leader-faces canvas{width:24px;height:24px}
+.duel-leader-empty{font-size:11px;color:var(--muted)}
+@media(max-width:1100px),(max-height:560px){.duel-mini-leaders:not([hidden]){display:flex}}
+@media(max-width:1100px){.workspace.roster-open .duel-mini-leaders{display:none}}
