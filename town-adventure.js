@@ -6,7 +6,7 @@ const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));}ca
 const saved=read('codextown.adventure',{}),records={};
 for(const [key,r] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(r&&Number.isSafeInteger(r.kills)&&r.kills>=0)records[key]={kills:r.kills,bosses:Number.isSafeInteger(r.bosses)&&r.bosses>=0?r.bosses:0};
 const shopSaved=read('codextown.shop',{}),owned=new Set(Array.isArray(shopSaved.owned)?shopSaved.owned:[]);let spent=Number.isSafeInteger(shopSaved.spent)&&shopSaved.spent>=0?shopSaved.spent:0,equipped=shopSaved.equipped||'';
-const catalog=[{id:'halo',name:'별빛 왕관',price:5},{id:'wings',name:'요정 날개',price:12},{id:'orbit',name:'달빛 위성',price:20}];
+const catalog=[{id:'halo',name:'별빛 왕관',price:5,desc:'머리 위에 살포시 뜨는 금빛 고리'},{id:'wings',name:'요정 날개',price:12,desc:'등 뒤에서 팔랑이는 작은 날개'},{id:'orbit',name:'달빛 위성',price:20,desc:'주민 곁을 맴도는 보랏빛 별'}];
 const balance=()=>Math.max(0,Object.values(records).reduce((s,r)=>s+r.kills+r.bosses*7,0)-spent);
 function buy(id){const item=catalog.find(i=>i.id===id);if(!item)return false;if(!owned.has(id)){if(balance()<item.price)return false;spent+=item.price;owned.add(id);}equipped=equipped===id?'':id;save('codextown.shop',{owned:[...owned],spent,equipped});renderLog();return true;}
 const monsters=[],rest=new Map();let battle=null,nextSpawn=performance.now()+12000,lastStep=0,enabled=read('codextown.adventureEnabled',true)!==false;
@@ -147,10 +147,29 @@ function roomInterior(room,ix,iy,scale){
  else{rect(10,7,76,18,'#34483e');pot(14,12);pot(70,12);rect(37,9,22,12,'#788e87');rect(39,11,18,8,'#95b8b2');rug(20,38,56,26);}
  ctx.restore();}
 function loot(a,x,y,size){ctx.save();const t=performance.now()/1000;if(equipped==='halo'){ctx.strokeStyle='#ffe1a3';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(x,y-size-5,size*.27,size*.08,0,0,7);ctx.stroke();}if(equipped==='wings'){ctx.fillStyle='#b9e9efaa';for(const dir of [-1,1]){ctx.beginPath();ctx.ellipse(x+dir*size*.4,y-size*.5,size*.25,size*.14,dir*(.5+Math.sin(t*4)*.18),0,7);ctx.fill();}}if(equipped==='orbit')star(x+Math.cos(t*2)*size*.65,y-size*.6+Math.sin(t*2)*size*.2,size*.12,'#d9c4ff');ctx.restore();const r=record(a);if(r.kills<3&&!r.bosses)return;ctx.save();star(x+size*.45,y-size*.6,size*.1,r.bosses?'#efacd8':r.kills>=10?'#c5b4ff':'#ffe09b');ctx.restore();}
-const panel=document.createElement('details');panel.id='adventure-log';panel.innerHTML='<summary>⚔ 모험</summary><div class="adventure-body"><button type="button"></button><p></p><div class="adventure-shop"></div></div>';
+const panel=document.createElement('details');panel.id='adventure-log';panel.innerHTML='<summary>⚔ 모험</summary><div class="adventure-body"><button type="button"></button><p></p></div>';
 const style=document.createElement('style');style.textContent='#adventure-log{position:absolute;left:9px;top:9px;z-index:4;color:#e4edd8;font:12px sans-serif;max-width:230px}#adventure-log summary{cursor:pointer;background:#203b32;border:1px solid #647e63;border-radius:8px;padding:7px 10px;list-style:none}#adventure-log .adventure-body{background:#203b32;padding:12px;border-radius:8px;line-height:1.7}#adventure-log button{font:inherit;background:#354f3a;color:#e4edd8;border:1px solid #89a17a;border-radius:6px;padding:6px 10px}#adventure-log p{margin:8px 0 0;white-space:pre-line}';document.head.append(style);document.getElementById('map-stage').append(panel);
-function renderLog(){const all=Object.values(records),kills=all.reduce((s,r)=>s+r.kills,0),bosses=all.reduce((s,r)=>s+r.bosses,0);panel.querySelector('button').textContent=enabled?'모험 켜짐 · 끄기':'모험 꺼짐 · 켜기';panel.querySelector('p').textContent=`몬스터 ${kills}마리 · 보스 ${bosses}마리\n별가루 ${balance()}개 (보스 +8)\n주민별 3마리: 별 장식\n10마리: 보라 별 장식\n보스 처치: 분홍 보스 배지`;const shop=panel.querySelector('.adventure-shop');shop.innerHTML='<strong>✦ 별가루 상점</strong><small style="display:block">모든 주민에게 함께 장착돼요</small>'+catalog.map(i=>`<button style="display:block;margin-top:6px;width:100%" data-item="${i.id}" ${!owned.has(i.id)&&balance()<i.price?'disabled':''}>${equipped===i.id?'✓ ':''}${i.name} · ${owned.has(i.id)?equipped===i.id?'해제':'장착':i.price+'개'}</button>`).join('');}
-panel.onclick=event=>{const id=event.target.closest?.('[data-item]')?.dataset.item;if(id)buy(id);};
+function renderLog(){const all=Object.values(records),kills=all.reduce((s,r)=>s+r.kills,0),bosses=all.reduce((s,r)=>s+r.bosses,0);panel.querySelector('button').textContent=enabled?'모험 켜짐 · 끄기':'모험 꺼짐 · 켜기';panel.querySelector('p').textContent=`몬스터 ${kills}마리 · 보스 ${bosses}마리\n별가루 ${balance()}개 (보스 +8)\n주민별 3마리: 별 장식\n10마리: 보라 별 장식\n보스 처치: 분홍 보스 배지`;renderShop();}
+const shopButton=document.createElement('button');shopButton.id='open-stardust-shop';shopButton.type='button';shopButton.textContent='✦ 상점';
+const shopDialog=document.createElement('dialog');shopDialog.id='stardust-shop';shopDialog.setAttribute('aria-labelledby','stardust-shop-title');shopDialog.setAttribute('closedby','any');
+shopDialog.innerHTML=`<header class="shop-heading"><div><span class="shop-eyebrow">마을의 작은 장신구 가게</span><h2 id="stardust-shop-title">별가루 상점</h2></div><button type="button" class="shop-close" aria-label="상점 닫기" autofocus>×</button></header><div class="shop-wallet"><span>내 별가루 <strong></strong></span><small>일반 몬스터 +1 · 보스 +8</small></div><p class="shop-intro">마음에 드는 장식을 골라 보세요.<br>모든 주민에게 한 종류씩 함께 장착돼요.</p><div class="shop-items"></div><p class="shop-feedback" role="status" aria-live="polite"></p><footer class="shop-footer">한 번 산 장식은 계속 보관돼요. 구매하면 바로 장착됩니다.</footer>`;
+document.getElementById('map-stage').append(shopButton,shopDialog);
+function renderShop(){
+ shopDialog.querySelector('.shop-wallet strong').textContent=balance()+'개';
+ const focused=document.activeElement?.dataset?.item;
+ shopDialog.querySelector('.shop-items').innerHTML=catalog.map(i=>{
+ const have=owned.has(i.id),wear=equipped===i.id,short=Math.max(0,i.price-balance());
+ return `<article class="shop-item ${wear?'is-equipped':''}"><div class="shop-preview ${i.id}" aria-hidden="true"><span class="shop-ornament"></span><span class="shop-avatar"></span><span class="shop-pedestal"></span></div><div class="shop-item-copy"><h3>${i.name}</h3><p>${i.desc}</p><span class="shop-price">${wear?'✓ 장착 중':have?'보유 중':'✦ '+i.price+'개'}</span></div><button type="button" data-item="${i.id}" aria-label="${i.name} ${have?wear?'해제':'장착':'구매'}" ${!have&&short?'disabled':''}>${have?wear?'장식 해제':'장착하기':short?short+'개 더 모으면 구매':'구매 · 바로 장착'}</button></article>`;
+ }).join('');
+ if(focused)shopDialog.querySelector(`[data-item="${focused}"]`)?.focus();
+}
+shopButton.onclick=()=>{renderShop();shopDialog.querySelector('.shop-feedback').textContent='';shopDialog.showModal();};
+shopDialog.querySelector('.shop-close').onclick=()=>shopDialog.close();
+shopDialog.onclick=event=>{
+ const id=event.target.closest?.('[data-item]')?.dataset.item;
+ if(id){const have=owned.has(id),wear=equipped===id,item=catalog.find(i=>i.id===id);if(buy(id))shopDialog.querySelector('.shop-feedback').textContent=wear?item.name+' 장식을 해제했어요.':item.name+(have?' 장착 완료!':' 구매 완료! 주민들이 함께 착용해요.');}
+ if(event.target===shopDialog){const r=shopDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)shopDialog.close();}
+};
 panel.querySelector('button').onclick=()=>{enabled=!enabled;save('codextown.adventureEnabled',enabled);if(!enabled){cancel();monsters.length=0;}else nextSpawn=performance.now()+4000;renderLog();};renderLog();
 window.townAdventure={impactScale,buy,balance,get equipped(){return equipped;},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a,resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
 function sword(x,y,length,angle,rank,t){
