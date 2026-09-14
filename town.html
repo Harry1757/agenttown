@@ -60,6 +60,7 @@
     <div class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><label for="task-search" class="sr-only">작업 제목, 프로젝트, 모델 검색</label><input type="search" id="task-search" placeholder="작업, 프로젝트 찾기" autocomplete="off"><span class="search-key">⌘ K</span></div>
     <div class="filters" aria-label="작업 상태 필터"><button data-filter="all" aria-pressed="true">전체<span class="count" id="count-all">0</span></button><button data-filter="working" aria-pressed="false">작업 중<span class="count" id="count-working">0</span></button><button data-filter="input" aria-pressed="false">내 응답<span class="count" id="count-input">0</span></button><button data-filter="resting" aria-pressed="false">마침<span class="count" id="count-resting">0</span></button></div>
     <div class="project-row"><label for="project-filter" class="sr-only">프로젝트 필터</label><select id="project-filter"><option value="">모든 프로젝트</option></select><button id="favorites-filter" class="favorites-filter" aria-label="즐겨찾기만 보기" aria-pressed="false" title="즐겨찾기만 보기">☆</button></div></div>
+    <section id="duel-leaders" class="duel-leaders" aria-label="투닥투닥 승리 순위" hidden></section>
     <ul id="task-list" aria-label="작업" role="list"></ul>
     <section id="task-detail" aria-label="선택한 작업" hidden></section>
     <div id="detail-placeholder" class="detail-placeholder">캐릭터나 작업을 선택해 보세요.<br>어디서 무엇을 하는지 한눈에 볼 수 있어요.</div>
@@ -154,25 +155,22 @@ const C = {
 // 줄이 어긋나 보여서 뺐다 — 구분은 응답 대기 방의 점등과 '!' 몸짓이 이미 하고 있다.
 const ROOMS = [
   { role:'plan',     label:'기획',   accent:'hsl(255,30%,60%)', floor:'tile' },
-  { role:'research', label:'리서치', accent:'hsl(185,30%,42%)', floor:'tile' },
+  { role:'research', label:'조사', accent:'hsl(185,30%,42%)', floor:'tile' },
   { role:'design',   label:'디자인', accent:'hsl(330,32%,60%)', floor:'wood' },
-  { role:'meeting',  label:'회의',   accent:'hsl(30,36%,55%)',  floor:'wood' },
-
-  { role:'explore',  label:'탐색',   accent:'hsl(225,26%,45%)', floor:'tile' },
-  { role:'frontend', label:'프론트', accent:'hsl(206,40%,62%)', floor:'tile' },
-  { role:'backend',  label:'백엔드', accent:'hsl(132,28%,42%)', floor:'wood' },
-  { role:'infra',    label:'인프라', accent:'hsl(18,42%,44%)',  floor:'wood' },
+  { role:'backend',  label:'개발', accent:'hsl(132,28%,42%)', floor:'wood' },
+  { role:'infra',    label:'운영', accent:'hsl(18,42%,44%)',  floor:'wood' },
 
   { role:'qa',       label:'QA',    accent:'hsl(58,36%,46%)',  floor:'wood' },
-  { role:'release',  label:'릴리즈', accent:'hsl(352,40%,36%)', floor:'wood' },
   // 여기부터 상태 구역 — 업무 구역이 아니다(응답 대기 / 완료). role 값이 role_for 가
   // 내는 값들과 겹치지 않으므로 충돌은 없다.
   { role:'waiting',  label:'라운지', accent:'hsl(42,55%,50%)', floor:'wood' },
   { role:'done',     label:'휴게실',   accent:'hsl(215,8%,34%)',  floor:'tile' },
 ];
 const ROOM_BY_ROLE = Object.fromEntries(ROOMS.map(r => [r.role, r]));
+const ROOM_ALIAS={meeting:'plan',explore:'research',frontend:'backend',release:'infra'};
+const roomRole=role=>ROOM_ALIAS[role]||role;
 
-let ROOM_COLS = 4, ROOM_ROWS = 3;
+let ROOM_COLS = 4, ROOM_ROWS = 2;
 let displayedRooms = ROOMS;
 let roomViewSignature = "";
 let roomLayoutHoldUntil = 0;
@@ -260,6 +258,7 @@ function updateRoomView() {
   }
   if(performance.now()<roomLayoutHoldUntil && !Object.values(avatars).some(a=>a.travelFrom))return;
   if (signature === roomViewSignature) { startPendingTrips(); return; }
+  for(const duel of roomDuels)endDuel(duel);
   const positions = new Map(Object.values(avatars).map(a => {
     const r = ROOM_BY_ROLE[a.travelFrom || a.role];
     return [a.key, { x:a.x-r.gx, y:a.y-r.gy, visible:displayedRooms.includes(r) }];
@@ -1193,6 +1192,8 @@ function drawGarden() {
 const CHARS = [84, 85, 86, 87, 88, 96, 97, 98, 99, 100, 109, 111, 112, 121];
 function charFor(key) { return CHARS[hashSeed(key) % CHARS.length]; }
 const avatars = {};   // "proj|sid[:sub]" -> {x,y,tx,ty,face,idx,proj,sid,role}
+const roomDuels = new Set();
+let nextDuelCheck=0;
 const roomFlashAt = {};   // role -> performance.now(), 그 방에 이벤트가 막 들어온 시각 (모니터 플래시용)
 
 // --- iter7: 캐릭터 애니메이션 상수 ------------------------------------------
@@ -1251,6 +1252,7 @@ const stageFace = (faces, count) => faces[stageIdx(count, faces)];
 // 때리는 쪽과 쓰다듬는 쪽이 대칭이다 — 계속 때리면 화가 올라가고, 계속 쓰다듬으면
 // 기분이 올라간다. 반대 행동을 하면 상대쪽 누계는 0 으로 내려간다.
 function applyGesture(a, kind) {
+  if(a.duel)endDuel(a.duel);
   armGestureTimeout();          // 쓸 때마다 10초를 다시 센다
   const now = performance.now();
   a.reactStart = now; a.reactKind = kind;
@@ -1298,6 +1300,119 @@ function setGesture(next) {
   }
   cv.style.cursor = gesture ? 'pointer' : 'grab';
   armGestureTimeout();
+}
+
+function duelWinChance(sizeA,sizeB) {
+  return Math.abs(sizeA-sizeB)<.001 ? .5 : sizeA>sizeB ? .9 : .1;
+}
+
+function duelFrame(t) {
+  const ease=p=>{p=Math.max(0,Math.min(1,p));return p*p*(3-2*p);};
+  const f={approach:1,back:0,hop:0,angle:0,sword:null,flash:0,result:0};
+  if(t<.6){f.approach=ease(t/.6);}
+  else if(t<1){const p=(t-.6)/.4;f.sword=-.65+ease(p)*1.8;f.angle=.1*ease(p);f.flash=Math.max(0,(p-.7)/.3);}
+  else if(t<1.7){const p=(t-1)/.7;f.back=ease(p);f.hop=Math.sin(p*Math.PI)*.3;f.angle=-.13*Math.sin(p*Math.PI);f.sword=1.15*(1-ease(p));f.flash=Math.max(0,1-p*5);}
+  else if(t<2.5){const p=(t-1.7)/.8;f.back=1-ease(p);f.sword=-.4;f.hop=Math.abs(Math.sin(p*Math.PI*3))*.035;}
+  else if(t<2.9){const p=(t-2.5)/.4;f.sword=-.4+ease(p)*1.55;f.angle=.1*ease(p);f.flash=Math.max(0,(p-.7)/.3);}
+  else if(t<3.6){const p=(t-2.9)/.7;f.back=ease(p);f.hop=Math.sin(p*Math.PI)*.25;f.angle=-.12*Math.sin(p*Math.PI);f.sword=p<.6?1.15*(1-ease(p/.6)):null;f.flash=Math.max(0,1-p*5);}
+  else{f.back=1;f.result=Math.min(1,(t-3.6)/.2)*Math.max(0,Math.min(1,(5.6-t)/.4));}
+  return f;
+}
+
+function duelEligible(a) {
+  return avatars[a.key]===a && !a.travelFrom && !a.portal && workerState(a)!=='done'
+    && !state.sessionInfo[`${a.proj}|${a.sid}`]?.needsInput && displayedRooms.includes(ROOM_BY_ROLE[a.role]);
+}
+
+function beginDuel(first,second,now) {
+  if(window.townUI?.motionReduced || first===second || first.duel || second.duel || first.role!==second.role || !duelEligible(first)||!duelEligible(second))return false;
+  const [a,b]=first.x<=second.x?[first,second]:[second,first];
+  const ha=spriteScaleFor(a,layout.scale)/layout.scale,hb=spriteScaleFor(b,layout.scale)/layout.scale;
+  const ba=wanderBox(a,ha),bb=wanderBox(b,hb);
+  if(!ba||!bb)return false;
+  // Every movement is inside a convex floor box, including the recoil endpoints.
+  const inside=(p,box)=>p.x>=box.x0&&p.x<=box.x1&&p.y>=box.y0&&p.y<=box.y1;
+  if(!inside(a,ba)||!inside(b,bb))return false;
+  const y0=Math.max(ba.y0,bb.y0)+.35,y1=Math.min(ba.y1,bb.y1);
+  if(y0>y1)return false;
+  const mid=(a.x+b.x)/2,gap=(ha+hb)*.34+.35;
+  const xA=mid-gap/2,xB=mid+gap/2,y=Math.max(y0,Math.min(y1,(a.y+b.y)/2));
+  if(xA<ba.x0||xA>ba.x1||xB<bb.x0||xB>bb.x1)return false;
+  const backA=Math.min(.55,xA-ba.x0),backB=Math.min(.55,bb.x1-xB);
+  if(backA<.12||backB<.12)return false;
+  const bounds={x0:xA-backA-ha/2,x1:xB+backB+hb/2,y0:y-Math.max(ha,hb),y1:y+1};
+  for(const d of roomDuels)if(d.role===a.role && bounds.x0<d.bounds.x1 && bounds.x1>d.bounds.x0 && bounds.y0<d.bounds.y1 && bounds.y1>d.bounds.y0)return false;
+  const room=ROOM_BY_ROLE[a.role];
+  const d={a,b,ha,hb,role:a.role,gx:room.gx,gy:room.gy,start:now,xA,xB,y,backA,backB,bounds,
+    fromA:{x:a.x,y:a.y},fromB:{x:b.x,y:b.y},winner:Math.random()<duelWinChance(ha,hb)?a:b,awarded:false};
+  for(const actor of [a,b]){actor.duel=d;actor.roomAction=null;actor.tx=actor.x;actor.ty=actor.y;actor.lean=0;}
+  a.face=1;b.face=-1;roomDuels.add(d);return true;
+}
+
+function endDuel(d) {
+  roomDuels.delete(d);
+  for(const a of [d.a,d.b])if(a.duel===d){
+    a.duel=null;a.duelPose=null;a.tx=a.x;a.ty=a.y;a.wasMoving=false;a.lean=0;
+    a.duelAfter=performance.now()+22000+Math.random()*18000;a.wanderAt=performance.now()+2000;
+  }
+}
+
+function stepDuels(now) {
+  for(const d of roomDuels){
+    const room=ROOM_BY_ROLE[d.role];
+    if(window.townUI?.motionReduced || !duelEligible(d.a)||!duelEligible(d.b)||d.a.role!==d.role||d.b.role!==d.role||room.gx!==d.gx||room.gy!==d.gy){endDuel(d);continue;}
+    const t=(now-d.start)/1000;
+    if(t>=5.6){endDuel(d);continue;}
+    const f=duelFrame(t);d.frame=f;
+    for(const [a,from,x,back,dir] of [[d.a,d.fromA,d.xA,d.backA,-1],[d.b,d.fromB,d.xB,d.backB,1]]){
+      a.x=a.tx=from.x+(x-from.x)*f.approach+dir*back*f.back;a.y=a.ty=from.y+(d.y-from.y)*f.approach;
+      const won=a===d.winner;
+      a.duelPose={...f,hop:f.hop+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
+    }
+    if(t>=3.6&&!d.awarded){d.awarded=true;window.townUI?.recordWin(d.winner);}
+  }
+  if(window.townUI?.motionReduced || now<nextDuelCheck)return;
+  nextDuelCheck=now+600;
+  const candidates=Object.values(avatars).filter(a=>{
+    if(a.duelAfter===undefined)a.duelAfter=now+4000+Math.random()*8000;
+    return !a.duel && now>=a.duelAfter && now-(a.summonAt??-Infinity)>1200 && duelEligible(a);
+  });
+  for(let i=0;i<candidates.length;i++)for(let j=i+1;j<candidates.length;j++){
+    const a=candidates[i],b=candidates[j];
+    if(a.duel||b.duel||a.role!==b.role)continue;
+    const range=(spriteScaleFor(a,layout.scale)+spriteScaleFor(b,layout.scale))/layout.scale*.5+.5;
+    if(Math.hypot(a.x-b.x,a.y-b.y)<=range&&Math.abs(a.y-b.y)<.8&&Math.random()<.2)beginDuel(a,b,now);
+  }
+}
+
+function drawDuelAccessory(a,feetX,feetY,size) {
+  const f=a.duelPose;if(!f)return;
+  ctx.save();ctx.translate(feetX,feetY);ctx.scale(a.face,1);
+  if(f.sword!==null){ctx.translate(size*.28,-size*.48);ctx.rotate(f.sword);ctx.fillStyle='#927099';ctx.fillRect(-size*.05,0,size*.1,size*.2);ctx.fillStyle='#ffe3a0';ctx.fillRect(-size*.16,-size*.08,size*.32,size*.07);ctx.fillStyle='#b5e5df';ctx.fillRect(-size*.06,-size*.63,size*.12,size*.55);ctx.fillStyle='#edfff2';ctx.fillRect(-size*.025,-size*.63,size*.04,size*.5);}
+  ctx.restore();
+}
+
+function drawDuelResults() {
+  const P=TILE*layout.scale;
+  for(const d of roomDuels){
+    const f=d.frame;if(!f)continue;
+    if(f.flash>0){
+      const x=layout.offsetX+((d.a.x+d.b.x)/2+.5)*P,y=layout.offsetY+(d.y+.25)*P;
+      ctx.save();ctx.globalAlpha=f.flash;ctx.fillStyle='#ffe19b';ctx.beginPath();
+      for(let i=0;i<8;i++){const ang=i*Math.PI/4,r=P*(i%2?.1:.3);ctx.lineTo(x+Math.cos(ang)*r,y+Math.sin(ang)*r);}ctx.closePath();ctx.fill();
+      ctx.font=`500 ${Math.max(11*dpr,6*layout.scale)}px sans-serif`;ctx.textAlign='center';ctx.fillText('챙!',x,y-P*.45);ctx.restore();
+    }
+    if(f.result<=0)continue;
+    for(const a of [d.a,d.b]){
+      const won=a===d.winner,size=spriteScaleFor(a,layout.scale)*TILE,x=layout.offsetX+(a.x+.5)*P;
+      const y=layout.offsetY+(a.y+1-a.duelPose.hop)*P-size;
+      ctx.save();ctx.globalAlpha=f.result;ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.textAlign='center';ctx.font=`600 ${Math.max(11*dpr,5*layout.scale)}px sans-serif`;
+      ctx.fillText(won?'WIN':'LOSE',x,y-P*.6);
+      if(won){const r=P*.25;ctx.beginPath();ctx.moveTo(x-r,y-P*.15);ctx.lineTo(x-r*1.15,y-P*.4);ctx.lineTo(x-r*.4,y-P*.3);ctx.lineTo(x,y-P*.5);ctx.lineTo(x+r*.4,y-P*.3);ctx.lineTo(x+r*1.15,y-P*.4);ctx.lineTo(x+r,y-P*.15);ctx.closePath();ctx.fill();}
+      else{const dx=x+size*.45,dy=y+P*.15;ctx.beginPath();ctx.moveTo(dx,dy-P*.15);ctx.quadraticCurveTo(dx-P*.16,dy+P*.12,dx,dy+P*.13);ctx.quadraticCurveTo(dx+P*.16,dy+P*.12,dx,dy-P*.15);ctx.fill();}
+      ctx.restore();
+    }
+  }
 }
 
 function randomRoomPose(a, now, scale, allowed) {
@@ -1588,7 +1703,7 @@ function layoutRoomOccupants(role) {
     // 슬롯으로 되돌리면 한 발짝 뗄 때마다 도로 끌려간다. 자리가 바뀐 사람만 다시 보낸다.
     const moved = a.homeX !== nx || a.homeY !== ny;
     a.homeX = nx; a.homeY = ny;
-    if ((!WANDER || moved) && !a.route?.length && !a.travelFrom) {
+    if ((!WANDER || moved) && !a.route?.length && !a.travelFrom && !a.duel) {
       a.face = nx >= a.tx ? 1 : -1;
       a.tx = nx; a.ty = ny;
       a.strolling = false;     // 자리 배치(주로 방 이동)다 — 어슬렁거리지 않고 빠르게 간다
@@ -1629,6 +1744,7 @@ function roomRoute(from, to, start, end) {
 function changeRoom(a, want) {
   if (a.route?.length || a.travelFrom) { a.nextRole=want; return; }
   if (want===a.role) return;
+  if(a.duel)endDuel(a.duel);
   const prev=a.role;
   a.travelSizeMul=spriteScaleFor(a,layout.scale)/layout.scale;
   a.role=want; a.slotIdx=undefined;
@@ -1707,7 +1823,7 @@ function moveAvatar(ev) {
     a.bobStart = performance.now();
     a.emoteStart = performance.now();
     a.emoteGlyph = glyphFor(ev.name, ev.label);
-    roomFlashAt[ev.role] = performance.now();
+    roomFlashAt[roomRole(ev.role)] = performance.now();
   }
   const want=roomForState(a);
   if(prevRole) changeRoom(a,want);
@@ -1719,12 +1835,14 @@ function moveAvatar(ev) {
 let lastStep = 0;
 function stepAvatars() {
   const now = performance.now();
+  stepDuels(now);
   if (window.townUI?.motionReduced) { for (const a of Object.values(avatars)) { if(a.travelFrom)finishTrip(a);else {a.x = a.tx; a.y = a.ty;} } lastStep = now; return; }
   // 프레임 간격만큼 움직인다 — 화면 주사율이 달라도 걷는 속도는 같아야 한다. 상한을
   // 두는 건 창을 최소화했다 돌아왔을 때 한 프레임에 순간이동하지 않게 하려는 것.
   const dt = lastStep ? Math.min(0.1, (now - lastStep) / 1000) : 0;
   lastStep = now;
   for (const a of Object.values(avatars)) {
+    if(a.duel)continue;
     if(a.portal){
       const progress=(now-a.portal.at)/PORTAL_MS;
       if(progress>=.5){a.x=a.portal.to.x;a.y=a.portal.to.y;}
@@ -1879,6 +1997,7 @@ function computeTagLayout() {
   const now = performance.now();
   const boxes = [];
   for (const a of Object.values(avatars)) {
+    if(a.duel || a.portal)continue;
     const px = layout.offsetX + a.x * P, py = layout.offsetY + a.y * P;
     // 명찰은 걷기 흔들림도 방 몸짓도 안 따라간다 — 글자가 같이 떨리면 읽기 나쁘다.
     // 흔들림이 1px 라 가만히 둬도 머리가 명찰을 뚫지 않는다.
@@ -2102,10 +2221,11 @@ function drawWorker(a) {
   const st = workerState(a);
   const seed = hashSeed(a.key);
   const moving = isMoving(a);
-  const playful=randomRoomPose(a,now,scale,!reduced && !moving && !a.travelFrom && !a.portal && st!=='done' && !(now-a.reactStart<REACT_MS));
+  const duelPose=!reduced?a.duelPose:null;
+  const playful=randomRoomPose(a,now,scale,!reduced && !a.duel && !moving && !a.travelFrom && !a.portal && st!=='done' && !(now-a.reactStart<REACT_MS));
   // 때린 직후에는 잠깐 바쁘게 움직인다(겉보기 가속). 진짜 세션은 안 바뀐다.
   const hasted = a.hasteUntil !== undefined && now < a.hasteUntil;
-  const idle = moving || reduced || a.portal || a.roomAction ? { dx: 0, dy: 0, face: null, glyph: null }
+  const idle = moving || reduced || a.duel || a.portal || a.roomAction ? { dx: 0, dy: 0, face: null, glyph: null }
                       : idleMotion(a, now, seed, layout.scale, hasted ? HASTE_K : 1);
   // 제스처 반응: 맞으면 부르르 떨며 움찔하고, 쓰다듬으면 기분 좋게 들썩인다.
   let reactDX = 0, reactSq = 1, reactGlyph = null;
@@ -2155,11 +2275,11 @@ function drawWorker(a) {
   }
   // 작업 중인데 제자리인 사람은 가끔 기지개를 켠다 — 숨쉬기만 돌면 정지 화면처럼 보인다.
   let stretchSq = 1;
-  if (st === 'working' && !moving && !a.roomAction) {
+  if (st === 'working' && !moving && !a.roomAction && !a.duel) {
     const t = (now + seed) % STRETCH_EVERY_MS;
     if (t < STRETCH_MS) stretchSq = 1 + (STRETCH_PX / P) * Math.sin((t / STRETCH_MS) * Math.PI);
   }
-  const hScale = reduced ? 1 : breathSq * arrivalSq * stretchSq * reactSq * playful.sq;
+  const hScale = reduced ? 1 : duelPose ? duelPose.squash : breathSq * arrivalSq * stretchSq * reactSq * playful.sq;
 
   // B: 이벤트 도착 시 짧고 빠른 bob — 3.5사이클, 감쇠 엔벨로프로 다시 idle 로.
   let bob = 0;
@@ -2173,12 +2293,12 @@ function drawWorker(a) {
 
   // 가속 중이면 계속 까딱인다 — 타이핑을 몰아치는 느낌.
   const hasteBob = hasted ? Math.abs(Math.sin(now / 70)) * 1.5 * layout.scale : 0;
-  const topY = reduced ? py : py - bounce - bob - idle.dy - hasteBob - playful.dy;
+  const topY = reduced ? py : duelPose ? py-duelPose.hop*P : py - bounce - bob - idle.dy - hasteBob - playful.dy;
   const feetX = px + P / 2 + (reduced ? 0 : idle.dx + reactDX + playful.dx), feetY = topY + P;
   // 방 몸짓이 방향을 정하면 그걸 쓴다(두리번, 마주보기). a.face 자체는 배치가 정하는
   // 값이라 건드리지 않고 그리는 순간에만 갈아끼운다.
   const face = idle.face !== null ? idle.face : a.face;
-  const leanAngle = reduced ? 0 : a.lean * face * LEAN_MAX + playful.angle;
+  const leanAngle = reduced ? 0 : duelPose ? duelPose.angle*face : a.lean * face * LEAN_MAX + playful.angle;
 
   ctx.save();
   // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.
@@ -2211,6 +2331,7 @@ function drawWorker(a) {
   ctx.restore();
 
   if(a.portal)return;
+  if(duelPose){drawDuelAccessory(a,feetX,feetY,sSize);return;}
   if (window.townUI?.selectedKey === a.key) {
     ctx.save();ctx.strokeStyle = '#f0d18b';ctx.lineWidth = Math.max(2, scale);
     ctx.beginPath();ctx.ellipse(feetX, feetY + scale, sSize * .65, 3 * scale, 0, 0, Math.PI*2);ctx.stroke();ctx.restore();
@@ -2291,6 +2412,7 @@ function tokenSizeMul(tokens) {
 // 정수로 올리면 작은 세션까지 덩달아 커져서 기준이 어긋난다.
 // scale=1 이면 1·1.5·2 세 단계, scale=2 면 2·2.5·3·3.5·4 로 나온다.
 function spriteScaleFor(a, scale) {
+  if(a.duel)return scale*(a===a.duel.a?a.duel.ha:a.duel.hb);
   // Keep the departure size while crossing streets, even if the destination is crowded.
   if(a.travelFrom && a.travelSizeMul>0)return scale*a.travelSizeMul;
   const count = roomOccCount(a.role);
@@ -2313,7 +2435,7 @@ function formatTokens(n) {
 // 실제로 서 있을 방. 일하는 중이면 그 작업의 업무 구역, 아니면 상태 구역이다.
 function roomForState(a) {
   const st = workerState(a);
-  if (st === 'working') return a.workRole || a.role;
+  if (st === 'working') return roomRole(a.workRole || a.role);
   return st;   // 'waiting' | 'done' — 방 role 과 같은 이름을 쓴다
 }
 
@@ -2407,6 +2529,7 @@ function draw() {
   computeTagLayout();
   drawPortals();
   for (const a of Object.values(avatars)) { if (displayedRooms.includes(ROOM_BY_ROLE[a.role]) || a.route?.length) drawWorker(a); }
+  drawDuelResults();
   drawConflicts();
   drawParticles();
 

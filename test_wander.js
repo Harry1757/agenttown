@@ -83,6 +83,7 @@ const grabFn = (name, args) =>
 const avatars = {};
 const room = { gx: 8, gy: 7 };
 const env = {
+  stepDuels: () => {}, // Pair encounters have their own lifecycle/bounds tests.
   window: {},
   ROOM_BY_ROLE: { r: room }, ROOM_W, ROOM_H, DESK_CLEAR, Math,
   WANDER: true, WANDER_PAUSE: JSON.parse(grab(/const WANDER_PAUSE = (\[[^\]]+\])/, 'WANDER_PAUSE')[1]),

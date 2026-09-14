@@ -8,7 +8,15 @@
   const storedDismissed = read('codextown.dismissed', {});
   const dismissed = new Map(Object.entries(storedDismissed && typeof storedDismissed==='object' ? storedDismissed : {}).filter(([,at])=>Number.isFinite(at)));
   const saveDismissed = () => save('codextown.dismissed',Object.fromEntries(dismissed));
+  const savedWins=read('codextown.duelWins',{});
+  const duelWins=new Map(Object.entries(savedWins&&typeof savedWins==='object'?savedWins:{}).filter(([,n])=>Number.isSafeInteger(n)&&n>0));
   const ui = window.townUI = {
+    recordWin(a) {
+      const key=`${a.proj}|${a.sid}`;
+      duelWins.set(key,Math.min(Number.MAX_SAFE_INTEGER,(duelWins.get(key)||0)+1));
+      save('codextown.duelWins',Object.fromEntries(duelWins));
+      renderLeaders();
+    },
     isDismissed(key, at) {
       if(!dismissed.has(key))return false;
       if(Number(at)>dismissed.get(key)){dismissed.delete(key);saveDismissed();return false;}
@@ -49,7 +57,26 @@
     drawTile(c, 'dungeon', sub ? T.charSlime : charFor(key), 0, 0, 2);
   }
   let lastList = '', lastDetail = '', lastProjects = '', lastDetailKey = '';
+  let lastLeaders='';
+  function renderLeaders() {
+    const leaders=rows().filter(r=>duelWins.has(r.key)).sort((a,b)=>duelWins.get(b.key)-duelWins.get(a.key)||a.key.localeCompare(b.key)).slice(0,3);
+    const el=$('duel-leaders');el.hidden=!leaders.length;
+    const signature=JSON.stringify(leaders.map(r=>[r.key,r.title,r.sub,duelWins.get(r.key)]));
+    if(signature===lastLeaders)return;
+    lastLeaders=signature;el.replaceChildren();
+    const label=document.createElement('span');label.className='duel-leader-label';label.textContent='동네 챔피언';el.append(label);
+    const list=document.createElement('div');list.className='duel-leader-faces';
+    leaders.forEach((row,i)=>{
+      const wins=duelWins.get(row.key),button=document.createElement('button');
+      button.title=`${i+1}위 · ${row.title} · ${wins}승`;
+      button.setAttribute('aria-label',button.title);button.onclick=()=>ui.select(row.key);
+      const canvas=document.createElement('canvas');canvas.width=32;canvas.height=32;canvas.setAttribute('aria-hidden','true');
+      const count=document.createElement('span');count.textContent=`${i===0?'♛ ':''}${wins}`;
+      button.append(canvas,count);list.append(button);drawPortrait(canvas,row.key,row.sub);
+    });el.append(list);
+  }
   function render() {
+    renderLeaders();
     const all = rows();
     const counts = {
       all:all.length, input:all.filter(r=>r.needsInput).length,
@@ -208,5 +235,5 @@
   });
   setInterval(()=>{if(!window.townHidden)render();},1000);
   render();
-  const portraits=setInterval(()=>{if(!SHEETS.dungeon.img)return;drawPortrait($('brand-avatar'),'codextown-brand',false);lastList='';render();clearInterval(portraits);},150);
+  const portraits=setInterval(()=>{if(!SHEETS.dungeon.img)return;drawPortrait($('brand-avatar'),'codextown-brand',false);lastList='';lastLeaders='';render();clearInterval(portraits);},150);
 })();

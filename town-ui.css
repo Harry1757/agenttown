@@ -94,3 +94,11 @@ body{grid-template-rows:76px minmax(0,1fr) auto}
 @media(max-width:760px){body{grid-template-rows:66px minmax(0,1fr) auto}.statusbar{padding:14px 16px;grid-template-columns:90px minmax(0,1fr);gap:16px}#usage-bars{gap:18px}}
 @media(max-height:650px){body{grid-template-rows:56px minmax(0,1fr) auto}}
 @media(max-width:450px){.statusbar{padding-inline:12px;grid-template-columns:76px minmax(0,1fr);gap:12px}.today-label{font-size:10px}}
+.duel-leaders{padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-shrink:0}
+.duel-leaders[hidden],.roster.show-detail .duel-leaders{display:none}
+.duel-leader-label{font-size:11px;color:var(--muted);white-space:nowrap}
+.duel-leader-faces{display:flex;gap:6px;margin-left:auto}
+.duel-leader-faces button{display:flex;flex-direction:column;align-items:center;padding:3px 6px;min-width:42px;gap:2px}
+.duel-leader-faces canvas{width:28px;height:28px;image-rendering:pixelated}
+.duel-leader-faces span{font-size:11px;color:var(--sand)}
+@media(max-height:560px){.duel-leaders{display:none}}
