@@ -1502,8 +1502,15 @@ function drawDuelSpotlight() {
   if(k<=0)return;
   const enter=Math.min(1,(t-.18)/.22),exit=Math.min(1,(5.6-t)/.35);
   const pop=.94+.06*Math.sin(enter*Math.PI/2);
-  ctx.save();ctx.translate(cv.width/2,cv.height-10*dpr-105*k*dpr);
-  ctx.scale(dpr*k*pop,dpr*k*pop);ctx.globalAlpha=Math.max(0,Math.min(enter,exit));
+  const opacity=Math.max(0,Math.min(enter,exit));
+  const impactAge=t>=2.86?t-2.86:t-.96;
+  const impact=impactAge>=0&&impactAge<.45?1-impactAge/.45:0;
+  // Dim only the village, keeping the task controls and usage readable.
+  ctx.save();ctx.fillStyle=`rgba(4,10,15,${.48*opacity})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
+  ctx.save();ctx.translate(cv.width/2,cv.height/2);
+  ctx.scale(dpr*k*pop,dpr*k*pop);ctx.globalAlpha=opacity;
+  const shake=impactAge>=0&&impactAge<.16?3*(1-impactAge/.16):0;
+  ctx.translate(Math.sin(impactAge*115)*shake,Math.cos(impactAge*95)*shake*.5);
   ctx.fillStyle='#101f20';ctx.fillRect(-180,-105,360,210);
   ctx.strokeStyle='#a7c7a1';ctx.lineWidth=2;ctx.strokeRect(-178,-103,356,206);
   ctx.save();ctx.beginPath();ctx.rect(-175,-100,350,200);ctx.clip();
@@ -1540,10 +1547,23 @@ function drawDuelSpotlight() {
     ctx.fillText(label,dir*87,88);
   }
   if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
-  else if(f.flash>0){
-    ctx.save();ctx.globalAlpha*=f.flash;ctx.fillStyle='#ffe19b';ctx.beginPath();
-    for(let i=0;i<16;i++){const a=i*Math.PI/8,r=i%2?9:25;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r+5);}ctx.closePath();ctx.fill();
-    ctx.font='bold 17px sans-serif';ctx.fillText('챙!',0,-27);ctx.restore();
+  else if(impact>0){
+    ctx.save();ctx.globalAlpha*=impact;
+    // Deterministic sparks fly outward from the blade contact, then fall gently.
+    const p=1-impact,cy=5;
+    ctx.strokeStyle='#fce8b2';ctx.lineWidth=2*(1-p)+.5;
+    ctx.beginPath();ctx.ellipse(0,cy,10+p*47,5+p*23,-.3,0,Math.PI*2);ctx.stroke();
+    for(let i=0;i<14;i++){
+      const angle=i*Math.PI*2/14+.21,reach=12+p*(32+(i%4)*9);
+      const x=Math.cos(angle)*reach,y=cy+Math.sin(angle)*reach*.7+p*p*17;
+      ctx.strokeStyle=i%3?'#ffd580':'#f4ffff';ctx.lineWidth=i%2?2:3;
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-Math.cos(angle)*(4+6*impact),y-Math.sin(angle)*(4+6*impact));ctx.stroke();
+    }
+    if(p<.4){
+      ctx.fillStyle='#fff9df';ctx.beginPath();
+      for(let i=0;i<8;i++){const a=i*Math.PI/4,r=(i%2?5:25)*(1-p);ctx.lineTo(Math.cos(a)*r,cy+Math.sin(a)*r);}ctx.closePath();ctx.fill();
+    }
+    ctx.fillStyle='#ffe19b';ctx.font='bold 17px sans-serif';ctx.fillText('챙!',0,-30-p*9);ctx.restore();
   }
   ctx.restore();ctx.restore();
 }
