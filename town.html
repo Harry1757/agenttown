@@ -1432,18 +1432,18 @@ function stepDuels(now) {
     const raw=(now-d.start)/1000,pb=window.townAdventure?.duelPlayback?.(d,now),t=pb?pb.t:d.legendary&&raw>=2.5?(raw<4.5?2.5:raw-2):raw;
     d.playback=pb;
     if(!pb&&t>=5.6){endDuel(d,true);continue;}
-    const f=duelFrame(t);d.frame=f;
+    const f=duelFrame(t);if(pb&&(pb.charging||pb.skillCharging||pb.finalApproach||pb.skillApproach)){f.flash=0;f.sword=.48;}d.frame=f;
     for(const [a,from,x,back,dir] of [[d.a,d.fromA,d.xA,d.backA,-1],[d.b,d.fromB,d.xB,d.backB,1]]){
       const won=a===d.winner;
       const attacker=pb?(pb.attacker??d.combat.strikes[0].attacker):(t<2.5?0:d.winner===d.a?0:1);
       const attacking=attacker===(a===d.a?0:1),struck=!attacking&&(pb?Boolean(pb.hit)&&!pb.charging:t>=1);
       let lunge=attacking&&!f.result?(pb?.hit&&!pb.charging?Math.max(0,1-pb.hitAge/.4):f.flash*.25):0;
       let preparedSword=null;
-      if(pb){const ease=n=>{n=Math.max(0,Math.min(1,n));return n*n*(3-2*n);},index=a===d.a?0:1,next=d.combat.strikes[pb.index+1],lead=next?(next.chargeStart??next.at)-pb.raw:Infinity;
-        const approach=next?.attacker===index&&!pb.result?ease((.35-lead)/.22):0;
-        const returning=pb.hit?.attacker===index&&pb.hitAge>=0?1-ease((pb.hitAge-(pb.hit.final?window.townAdventure.finishDuration(!!d.legendary):pb.hit.skill?window.townAdventure.skillDuration:.45))/.3):0;
+      if(pb){const ease=n=>{n=Math.max(0,Math.min(1,n));return n*n*(3-2*n);},index=a===d.a?0:1,next=d.combat.strikes[pb.index+1],lead=next?next.at-pb.raw:Infinity;
+        const approach=next?.attacker===index&&!pb.result?next.chargeEnd!==undefined?ease((pb.raw-next.chargeEnd)/.2):ease((.25-lead)/.17):0;
+        const returning=pb.hit?.attacker===index&&pb.hitAge>=0?1-ease((pb.hitAge-(pb.hit.final?window.townAdventure.finishDuration(!!d.legendary):pb.hit.skill?window.townAdventure.skillDuration:.45))/.2):0;
         lunge=Math.max(approach,returning);
-        if(next?.attacker===index&&lead<.35){const swingLead=next.at-pb.raw;preparedSword=approach<1?.48:.48+.82*ease((.13-swingLead)/.13);}
+        if(next?.attacker===index&&(next.chargeEnd!==undefined||lead<.25)){const swingLead=next.at-pb.raw;preparedSword=approach<1?.48:.48+.82*ease((.08-swingLead)/.08);}
       }
       a.duelPose={...f,back:f.result?(won?0:1):struck?f.back:0,lunge,sword:attacking?f.sword:.48,flash:attacking?f.flash:0,angle:attacking?.1*lunge:struck?f.angle:0,hop:(struck?f.hop:0)+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
       if(preparedSword!==null){a.duelPose.sword=preparedSword;a.duelPose.flash=0;}
@@ -1479,7 +1479,7 @@ function stepDuels(now) {
 
 function drawDuelAccessory(a,feetX,feetY,size,bodyPose=null) {
   const f=a.duelPose;if(!f||f.collapse>.4)return;bodyPose??={angle:(f.angle||0)*a.face,squash:f.squash??1};
-  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):Math.max(0,1-Math.max(0,pb.finalHitAge-1.5)/1.4)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount,bodyPose);return;}
+  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalApproach||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):pb.finalApproach?1:Math.max(0,1-Math.max(0,pb.finalHitAge-1.5)/1.4)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount,bodyPose);return;}
   ctx.save();ctx.translate(feetX,feetY);ctx.scale(a.face,1);
   if(f.sword!==null){ctx.translate(size*.28,-size*.48);ctx.rotate(f.sword);ctx.fillStyle='#927099';ctx.fillRect(-size*.05,0,size*.1,size*.2);ctx.fillStyle='#ffe3a0';ctx.fillRect(-size*.16,-size*.08,size*.32,size*.07);ctx.fillStyle='#b5e5df';ctx.fillRect(-size*.06,-size*.63,size*.12,size*.55);ctx.fillStyle='#edfff2';ctx.fillRect(-size*.025,-size*.63,size*.04,size*.5);}
   ctx.restore();
@@ -1552,9 +1552,9 @@ function drawDuelSpotlight() {
   const impact=impactAge>=0&&impactAge<.45?1-impactAge/.45:0;
   const finalAge=pb?pb.finalHitAge:t-2.9;
   const skillHit=pb?.hit?.skill&&!pb.hit.final&&impactAge>=0&&impactAge<window.townAdventure.skillDuration;
-  const skill=pb?.skillCharging?pb.upcoming:skillHit?pb.hit:null;
-  const element=skill?.element??(pb?.hit?.final&&pb.hit.skill?pb.hit.element:window.townAdventure?.elementFor?.(d.winner)??hashSeed(d.winner.key)%5);
-  const mood=pb?(pb.charging?pb.charge:pb.skillCharging?pb.skillCharge*.65:skillHit?(1-impactAge/window.townAdventure.skillDuration)*.6:finalAge>=0?window.townAdventure.finishFade(finalAge,!!d.legendary):0):t<2.86?Math.max(0,Math.min(1,(t-1.9)/.96)):(window.townAdventure?.finishFade?.(t-2.86)||0);
+  const skill=pb?.skillCharging||pb?.skillApproach?pb.upcoming:skillHit?pb.hit:null;
+  const element=skill?.element??(pb?.upcoming?.final&&pb.upcoming.skill?pb.upcoming.element:undefined)??(pb?.hit?.final&&pb.hit.skill?pb.hit.element:window.townAdventure?.elementFor?.(d.winner)??hashSeed(d.winner.key)%5);
+  const mood=pb?(pb.finalApproach?1:pb.charging?pb.charge:pb.skillApproach?.65:pb.skillCharging?pb.skillCharge*.65:skillHit?(1-impactAge/window.townAdventure.skillDuration)*.6:finalAge>=0?window.townAdventure.finishFade(finalAge,!!d.legendary):0):t<2.86?Math.max(0,Math.min(1,(t-1.9)/.96)):(window.townAdventure?.finishFade?.(t-2.86)||0);
   // Dim the scene around the final strike while keeping the combatants bright.
   ctx.save();ctx.fillStyle=`rgba(4,10,15,${(.48+mood*.28)*opacity})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
   ctx.save();ctx.translate(cv.width/2,cv.height/2);
@@ -1582,8 +1582,8 @@ function drawDuelSpotlight() {
   const intro=t<.65;
   const arrival=Math.max(0,Math.min(1,t/.65)),stance=100-52*arrival*arrival*(3-2*arrival);
   const actorX=a=>(a===d.a?-1:1)*(stance+(a.duelPose?.back||0)*32-(a.duelPose?.lunge||0)*12);
-  if(pb?.charging){ctx.save();ctx.beginPath();ctx.rect(-edge+5,-45,arenaWidth-10,123);ctx.clip();const charger=d.legendary||d.winner;window.townAdventure.chargeAura(actorX(charger),59,76*(charger===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.charge,now/1000,element,!!d.legendary);ctx.restore();}
-  if(pb?.skillCharging){const caster=pb.upcoming.attacker===0?d.a:d.b;window.townAdventure.chargeAura(actorX(caster),59,76*(caster===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.skillCharge,now/1000,element,false);}
+  if(pb?.charging||pb?.finalApproach){ctx.save();ctx.beginPath();ctx.rect(-edge+5,-45,arenaWidth-10,123);ctx.clip();const charger=d.legendary||d.winner;window.townAdventure.chargeAura(actorX(charger),59,76*(charger===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.finalApproach?1:pb.charge,now/1000,element,!!d.legendary);ctx.restore();}
+  if(pb?.skillCharging||pb?.skillApproach){const caster=pb.upcoming.attacker===0?d.a:d.b;window.townAdventure.chargeAura(actorX(caster),59,76*(caster===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.skillApproach?1:pb.skillCharge,now/1000,element,false);}
   for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
     const won=a===d.winner,size=76*h/Math.max(d.ha,d.hb);
     const pose=a.duelPose||{...f,squash:1,hop:0};
@@ -1606,7 +1606,7 @@ function drawDuelSpotlight() {
     ctx.fillText(label,dir*87,88);
   }
   // Draw both weapons after both bodies so the opponent cannot hide a swing.
-  const frontActor=pb?(pb.charging||pb.finalHitAge>=0?d.legendary||d.winner:pb.attacker===0?d.a:d.b):d.legendary||d.winner;
+  const frontActor=pb?(pb.charging||pb.finalApproach||pb.finalHitAge>=0?d.legendary||d.winner:pb.attacker===0?d.a:d.b):d.legendary||d.winner;
   if(!intro)for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]].sort(([a],[b])=>Number(a===frontActor)-Number(b===frontActor))){
     const pose=a.duelPose||{...f,squash:1,hop:0};
     drawDuelAccessory({...a,face:-dir,duelPose:pose},actorX(a),59-pose.hop*70,76*h/Math.max(d.ha,d.hb));
@@ -1618,7 +1618,8 @@ function drawDuelSpotlight() {
     else window.townAdventure.foregroundFinish(actorX(loser),20,p,1.3,element);
   }
   if(skillHit){const target=pb.hit.attacker===0?d.b:d.a;window.townAdventure.foregroundFinish(actorX(target),20,impactAge/window.townAdventure.skillDuration,1.05,element);}
-  if(skill){ctx.fillStyle='#cfe9ff';ctx.font='12px sans-serif';ctx.fillText(['화염','번개','물결','바람','안개'][element]+' 기술'+(pb.skillCharging?' · 힘을 모으는 중…':'!'),0,-36);}
+  if(skill){ctx.fillStyle='#cfe9ff';ctx.font='12px sans-serif';ctx.fillText(['화염','번개','물결','바람','안개'][element]+' 기술'+(pb.skillCharging?' · 힘을 모으는 중…':pb.skillApproach?' · 돌진!':'!'),0,-36);}
+  if(pb?.finalApproach){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText('힘을 모았어요 · 돌진!',0,-36);}
   if(pb?pb.charging:d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText(d.legendary?'전설검 · 별빛을 모으는 중…':'마지막 일격 · 힘을 모으는 중…',0,-36);}
   if(pb?.hit?.fatigue&&!pb.result&&!pb.charging){ctx.fillStyle='#d5ccb8';ctx.font='10px sans-serif';ctx.fillText('장기전 · 방어가 약해져요',0,75);}
   if(pb?.result){const label='승리! 별가루 +'+d.combat.reward;ctx.font='12px sans-serif';const w=ctx.measureText(label).width;ctx.fillStyle='#192c28';ctx.fillRect(-w/2-8,-109,w+16,18);ctx.fillStyle='#ffe3a3';ctx.fillText(label,0,-96);}

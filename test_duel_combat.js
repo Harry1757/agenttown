@@ -23,7 +23,7 @@ for(const hit of d.combat.strikes){
  assert.ok((striker.x-(hit.attacker===0?d.xA:d.xB))*strikerDir<=0,'attacker stays forward');
  assert.ok((target.x-(hit.attacker===0?d.xB:d.xA))*targetDir>0,'victim moves away');
 }
-assert.ok(prior.includes(0));const last=d.combat.strikes.at(-1);assert.equal(last.at-last.chargeStart,3,'final attack has a full charge');
+assert.ok(prior.includes(0));const last=d.combat.strikes.at(-1);assert.equal(last.chargeEnd-last.chargeStart,3,'final attack has a full charge');
 const loser=d.winner===d.a?d.b:d.a;
 for(const age of [.1,1,2.09]){now=d.start+(d.combat.finalAt+age)*1000;env.stepDuels(now);assert.equal(loser.duelPose.collapse,0,'target stays upright throughout the skill');}
 now=d.start+(d.combat.finalAt+2.35)*1000;env.stepDuels(now);assert.ok(loser.duelPose.collapse>.6&&loser.duelPose.collapse<1,'gradual fall after skill');
@@ -34,7 +34,7 @@ g.rewardDuel(d);env.stepDuels(now+1);assert.equal(g.balance(d.winner.key),d.comb
 const winnerKey=d.winner.key,stars=d.combat.reward;vm.runInContext(source,env);g=env.window.townAdventure;assert.equal(g.balance(winnerKey),stars);assert.equal(g.record(d.winner).duelWins,1,'duel earnings survive reload');
 d.a.nextRole='research';now=d.start+d.combat.endAt*1000+1;env.stepDuels(now);assert.equal(d.a.role,'research');assert.equal(env.roomDuels.size,0);assert.equal(wins,1);
 const c=actor('c',2.2),e=actor('e',4.2,2,1e7);env.Math.random=()=>.1;now+=70000;assert.ok(env.beginDuel(c,e,now));const legend=c.duel;
-assert.equal(legend.legendary,c);const end=legend.combat.strikes.at(-1);assert.ok(Math.abs(end.at-end.chargeStart-4.8)<1e-9);assert.equal(legend.combat.winner,c);assert.ok(end.legendary&&end.hp[1]===0);assert.ok(legend.combat.strikes.slice(0,-1).every(hit=>hit.hp[0]>0),'legend survives until its final swing');
+assert.equal(legend.legendary,c);const end=legend.combat.strikes.at(-1);assert.ok(Math.abs(end.chargeEnd-end.chargeStart-4.8)<1e-9);assert.equal(legend.combat.winner,c);assert.ok(end.legendary&&end.hp[1]===0);assert.ok(legend.combat.strikes.slice(0,-1).every(hit=>hit.hp[0]>0),'legend survives until its final swing');
 // A backgrounded window can jump straight past the end without losing or duplicating rewards.
 now=legend.start+legend.combat.endAt*1000+100;env.stepDuels(now);assert.equal(g.balance(c.key),legend.combat.reward);assert.equal(wins,2);assert.equal(env.roomDuels.size,0);
 const f=actor('f',2.2),h=actor('h',3.7);now+=70000;env.Math.random=()=>.99;assert.ok(env.beginDuel(f,h,now));env.state.sessionInfo[f.key].needsInput=true;env.stepDuels(now+500);assert.equal(env.roomDuels.size,0);assert.equal(g.balance(f.key),0);assert.equal(g.balance(h.key),0,'cancelled battles grant no reward');

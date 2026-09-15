@@ -46,8 +46,8 @@ for(const reason of ['input','motion']){
 console.log('Boss specials: 8% boundary, boss-only, 3x attack, independent criticals, telegraph, impact pause, rerolls, defeat, legendary survival and cancellation pass');
 for(const special of [false,true]){
  const f=fixture(),b=f.start();f.env.Math.random=()=>special?.01:.99;f.at(b.next);const late=b.counterAt+5000,round=b.round;f.at(late);
- const hold=special?1250:500,recovery=hold+450;
- assert.ok(b.next>=late+recovery+480+b.windup,'background delay preserves recovery, approach and cast');
+ const hold=special?1250:500,recovery=hold+260;
+ assert.ok(b.next>=late+recovery+280+b.windup,'background delay preserves recovery, approach and cast');
  f.at(late+1);assert.equal(b.round,round,'no immediate extra attack after tab resumes');
  const contact=f.g.battleMotion(b,late+10,70,96).mx;
  assert.equal(f.g.battleMotion(b,late+hold-1,70,96).mx,contact,'boss stays through the complete effect');

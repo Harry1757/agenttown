@@ -127,7 +127,7 @@ reloaded.reward(legacy,true);assert.equal(reloaded.balance('legacy'),35,'future 
 console.log('Legacy balances, purchases and graded earnings survive migration and reload');
 
 const motionState={next:2000,hitAt:-10000,playerHitAt:-10000,done:false,counterAt:0};
-const home=game.battleMotion(motionState,1000,50,96),walk=game.battleMotion(motionState,1540,50,96),ready=game.battleMotion(motionState,1800,50,96),swinging=game.battleMotion(motionState,1950,50,96);
+const home=game.battleMotion(motionState,1000,50,96),walk=game.battleMotion(motionState,1640,50,96),ready=game.battleMotion(motionState,1800,50,96),swinging=game.battleMotion(motionState,1950,50,96);
 assert.equal(home.px,-83);assert.ok(walk.px>home.px&&walk.px<ready.px);assert.equal(walk.swing,.48,'weapon stays still while approaching');assert.equal(ready.px,swinging.px,'feet stop before sword swing');assert.ok(swinging.swing>ready.swing);assert.ok(Math.abs(swinging.playerHop)<1e-8);
 const targetHit=game.battleMotion({...motionState,hitAt:2000,next:4100},2050,50,96);assert.ok(targetHit.bossPush>0&&targetHit.playerPush===0,'only the target gets impact impulse');
 console.log('Combat movement: eased approach, stationary swing and target-only impulse pass');
@@ -139,5 +139,14 @@ for(const chance of [0,.249999,.25,.999])for(let element=0;element<5;element++){
 }
 let ri=0;env.Math.random=()=>[.1,.41,.01][ri++];assert.equal(game.rollPlayerHit(40,10,.1).damage,102,'skill and critical multiply attack before armor');
 env.Math.random=()=>.1;env.spriteScaleFor=()=>2;const skills=game.resolveDuel({key:'mid-a',tokens:1e9},{key:'mid-b',tokens:1e9}),mid=skills.strikes.filter(s=>s.skill&&!s.final);assert.ok(mid.length);
-for(const hit of mid){assert.ok(Math.abs(hit.at-hit.chargeStart-1.2)<1e-8);const at=skills.strikes.indexOf(hit),next=skills.strikes[at+1];assert.ok(next.chargeStart-hit.at>=2.3-1e-8,'effect and recovery finish before next cast');const duel={start:0,combat:skills};const before=game.duelPlayback(duel,(hit.at-.001)*1000),after=game.duelPlayback(duel,(hit.at+.001)*1000);assert.ok(before.skillCharging);assert.equal(after.hit,hit);assert.notEqual(before.hp[1-hit.attacker],after.hp[1-hit.attacker]);}
+for(const hit of mid){assert.ok(Math.abs(hit.chargeEnd-hit.chargeStart-1.2)<1e-8);const at=skills.strikes.indexOf(hit),next=skills.strikes[at+1];assert.ok(next.chargeStart-hit.at>=2.3-1e-8,'effect and recovery finish before next cast');const duel={start:0,combat:skills};const before=game.duelPlayback(duel,(hit.at-.001)*1000),after=game.duelPlayback(duel,(hit.at+.001)*1000);assert.ok(before.skillApproach);assert.equal(after.hit,hit);assert.notEqual(before.hp[1-hit.attacker],after.hp[1-hit.attacker]);}
 console.log('Mid skills: exact 25% boundary, five elements, 1.6x attack, armor/critical and cast/effect timing pass');
+
+for(const legendary of [false,true]){
+ const windup=legendary?4800:3000,state={next:10000,windup,finishing:true,legendary,done:false,counterAt:0};
+ const start=state.next-280-windup,end=state.next-280;
+ for(const time of [start+1,(start+end)/2,end-1])assert.equal(game.battleMotion(state,time,70,96).px,-83,'finish charges at the starting position');
+ const moving=game.battleMotion(state,end+100,70,96),arrived=game.battleMotion(state,state.next-50,70,96);
+ assert.ok(moving.px>-83&&moving.px<arrived.px,'move only after charge');assert.equal(moving.swing,.48,'no swing during travel');assert.equal(arrived.px,game.battleMotion(state,state.next-1,70,96).px,'stop before impact');
+}
+console.log('Final attacks: charge at home, then move, stop and swing');

@@ -24,7 +24,7 @@ async page=>{
    try{
     check(beginDuel(a,b,now),'actual encounter starts');const d=a.duel;check(d.combat.strikes.length>2,'multiple actual strikes');const before=g.balance(d.winner.key);let shown=0;now=d.start+200;stepDuels(now);drawDuelSpotlight();check(featuredDuel===d,'spotlight is visible');
     for(const hit of d.combat.strikes){if(hit.final){now=d.start+(hit.chargeStart+1.5)*1000;stepDuels(now);drawDuelSpotlight();check(d.playback.charging&&Math.abs(d.playback.charge-.5)<.001,'middle of charge');}now=d.start+hit.at*1000+1;stepDuels(now);drawDuelSpotlight();check(JSON.stringify(d.playback.hp)===JSON.stringify(hit.hp),'visible HP follows each strike');shown++;}
-    const last=d.combat.strikes.at(-1);check(Math.abs(last.at-last.chargeStart-3)<.001,'3 second charge');
+    const last=d.combat.strikes.at(-1);check(Math.abs(last.chargeEnd-last.chargeStart-3)<.001,'3 second charge');
     now=d.start+(d.combat.resultAt+.1)*1000;stepDuels(now);drawDuelSpotlight();check(g.balance(d.winner.key)===before+d.combat.reward,'grade-based reward');check(g.record(d.winner).kills===0,'no fake monster kills');
     now=d.start+(d.combat.endAt+.1)*1000;stepDuels(now);check(!a.duel&&!b.duel,'encounter completes');check(!beginDuel(a,b,now),'same visit cannot repeat reward');
     const elites=[];

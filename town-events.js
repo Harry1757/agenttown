@@ -40,7 +40,7 @@ function createTownEvents(host) {
   const ready=alive(r);if(!ready.length){finish(false,time);return;}
   for(let i=0;i<r.members.length;i++){const j=(r.cursor+i)%r.members.length,m=r.members[j];if(!m.left&&m.hp>0){r.actor=m;r.cursor=(j+1)%r.members.length;break;}}
   const skill=random()<.25,element=skill?Math.floor(random()*5):null;
-  r.pending={...host.damage(r.actor.stats.attack*(skill?1.6:1),r.defense,r.actor.stats.crit),skill,element};r.finishing=r.pending.damage>=r.hp;r.phase='playerApproach';r.phaseAt=time;r.next=time+450;
+  r.pending={...host.damage(r.actor.stats.attack*(skill?1.6:1),r.defense,r.actor.stats.crit),skill,element};r.finishing=r.pending.damage>=r.hp;r.phase=r.finishing||skill?'playerCharge':'playerApproach';r.phaseAt=time;r.next=time+(r.finishing?2600:skill?1300:260);
  }
  function stepRaid(time){
   const r=raid;if(!r)return;
@@ -50,9 +50,13 @@ function createTownEvents(host) {
   if(!alive(r).length){finish(false,time);return;}
   if(time<r.next)return;
   if(r.phase==='arrival'||r.phase==='bossReturn'){preparePlayer(r,time);return;}
+  if(r.phase==='playerCharge'){
+   if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
+   r.phase='playerApproach';r.phaseAt=time;r.next=time+260;return;
+  }
   if(r.phase==='playerApproach'){
    if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
-   r.phase='playerWindup';r.phaseAt=time;r.next=time+(r.finishing?2600:r.pending.skill?1300:500);return;
+   r.phase='playerWindup';r.phaseAt=time;r.next=time+(r.finishing||r.pending.skill?120:500);return;
   }
   if(r.phase==='playerWindup'){
    if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
@@ -60,23 +64,23 @@ function createTownEvents(host) {
    r.phase='playerImpact';r.phaseAt=time;r.next=time+(r.pending.skill?1400:350);if(!r.hp)finish(true,time);return;
   }
   if(r.phase==='playerImpact'){
-   r.phase='playerReturn';r.phaseAt=time;r.next=time+450;return;
+   r.phase='playerReturn';r.phaseAt=time;r.next=time+260;return;
   }
   if(r.phase==='playerReturn'){
-   const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.special=random()<.1;r.phase='bossApproach';r.phaseAt=time;r.next=time+450;return;
+   const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.special=random()<.1;r.phase='bossApproach';r.phaseAt=time;r.next=time+260;return;
   }
   if(r.phase==='bossApproach'){
-   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.phaseAt=time;r.next=time+450;return;}
+   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.phaseAt=time;r.next=time+260;return;}
    r.phase='bossWindup';r.phaseAt=time;r.next=time+(r.special?1600:500);return;
   }
   if(r.phase==='bossWindup'){
-   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.phase='bossApproach';r.phaseAt=time;r.next=time+450;return;}
+   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.phase='bossApproach';r.phaseAt=time;r.next=time+260;return;}
    const hit=host.damage(r.attack*(r.special?2.6:1),r.target.stats.defense,r.crit);r.target.hp=Math.max(0,r.target.hp-hit.damage);r.hit={at:time,...hit,target:r.target,actor:'boss',special:r.special};
    if(!r.target.hp){r.target.defeatedAt=time;r.target.defeatEffectDuration=r.special?1250:800;host.defeat?.(r.target.a);}
    r.phase='bossImpact';r.phaseAt=time;r.next=time+(r.special?1450:800);if(!alive(r).length)finish(false,time);return;
   }
   if(r.phase==='bossImpact'){
-   r.phase='bossReturn';r.phaseAt=time;r.next=time+450;
+   r.phase='bossReturn';r.phaseAt=time;r.next=time+260;
   }
  }
  function removeTreasure(caught,stars=0){if(!treasure)return;const t=treasure;treasure=null;if(!t.reported){t.reported=true;notify('treasure',caught?'caught':'escaped',stars);}if(game().active?.m!==t.monster){const list=game().monsters,i=list.indexOf(t.monster);if(i>=0)list.splice(i,1);}nextTreasure=now()+150000+random()*90000;}
@@ -141,15 +145,15 @@ function drawBattle(){
  const r=events.active;if(!r)return;const time=clock(),age=r.hit?(time-r.hit.at)/1000:99,t=(time-r.start)/1000;
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
  const arenaHeight=Math.min(470,310+Math.max(0,Math.ceil(r.members.length/4)-2)*36),arenaWidth=Math.min(820,Math.max(450,width/height*arenaHeight)),scale=Math.min(1.65,width/arenaWidth,height/arenaHeight),edge=arenaWidth/2,formation=raidFormation(r.members.length,arenaWidth,arenaHeight);
- const skillDuration=g.skillDuration||1.4,playerCharge=r.phase==='playerWindup'&&(r.finishing||r.pending.skill),charge=playerCharge?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):r.phase==='bossWindup'&&r.special?Math.min(1,(time-r.phaseAt)/1600):0,element=r.pending?.element??(r.actor?g.elementFor(r.actor.a):4)??4;
+ const skillDuration=g.skillDuration||1.4,playerCharge=r.phase==='playerCharge',chargedMove=['playerApproach','playerWindup'].includes(r.phase)&&(r.finishing||r.pending.skill),charge=chargedMove?1:playerCharge?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):r.phase==='bossWindup'&&r.special?Math.min(1,(time-r.phaseAt)/1600):0,element=r.pending?.element??(r.actor?g.elementFor(r.actor.a):4)??4;
  ctx.save();ctx.fillStyle=`rgba(3,7,15,${.68+charge*.18})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
- ctx.save();ctx.scale(1,arenaHeight/270);g.chamber?.(r.monster.kind,arenaWidth);ctx.restore();ctx.fillStyle='#13202b';ctx.fillRect(-edge+14,-arenaHeight/2+10,arenaWidth-28,64);g.atmosphere?.(playerCharge?element:4,charge,t,arenaWidth,formation.bossY+10,false);
+ ctx.save();ctx.scale(1,arenaHeight/270);g.chamber?.(r.monster.kind,arenaWidth);ctx.restore();ctx.fillStyle='#13202b';ctx.fillRect(-edge+14,-arenaHeight/2+10,arenaWidth-28,64);g.atmosphere?.(playerCharge||chargedMove?element:4,charge,t,arenaWidth,formation.bossY+10,false);
  ctx.textAlign='center';ctx.fillStyle='#e8d5ff';ctx.font='bold 15px sans-serif';ctx.fillText('공동 토벌 · 균열의 월식 군주',0,-arenaHeight/2+30);
  ctx.fillStyle='#2e273d';ctx.fillRect(-140,-arenaHeight/2+42,280,9);ctx.fillStyle='#ce97e9';ctx.fillRect(-140,-arenaHeight/2+42,280*r.hp/r.maxHp,9);ctx.font='10px sans-serif';ctx.fillStyle='#ebdfef';ctx.fillText(r.hp+' / '+r.maxHp+' · '+r.members.length+'명 참가',0,-arenaHeight/2+66);
  const sizes=r.members.map(m=>spriteScaleFor(m.a,layout.scale)/layout.scale),unit=formation.size/Math.max(2,...sizes);
  const bossX=formation.bossX,bossY=formation.bossY,bossSize=94,hitBoss=r.hit?.target==='boss'?Math.max(0,1-age/.7):0;
- const progress=Math.max(0,Math.min(1,(time-r.phaseAt)/450)),smooth=q=>q*q*(3-2*q);
- const bossTravel=r.done&&!r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-(r.hit?.special?1450:800))/450))):r.phase==='bossApproach'?smooth(progress):r.phase==='bossReturn'?1-smooth(progress):['bossWindup','bossImpact'].includes(r.phase)?1:0;
+ const progress=Math.max(0,Math.min(1,(time-r.phaseAt)/260)),smooth=q=>q*q*(3-2*q);
+ const bossTravel=r.done&&!r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-(r.hit?.special?1450:800))/260))):r.phase==='bossApproach'?smooth(progress):r.phase==='bossReturn'?1-smooth(progress):['bossWindup','bossImpact'].includes(r.phase)?1:0;
  const bossRecoil=hitBoss?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0,bossWalking=['bossApproach','bossReturn'].includes(r.phase)&&!r.done,bossBob=bossWalking?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2.6:0;
  const entrance=r.phase==='arrival'?smooth(Math.max(0,Math.min(1,(time-r.start-1800)/1000))):1,targetIndex=r.target?r.members.indexOf(r.target):-1,targetSize=Math.max(8,(sizes[targetIndex]||1)*unit),bossGap=(bossSize+targetSize)*.46+10,meetingX=formation.meetingX,bossDrawX=meetingX+(bossX-meetingX)*entrance+bossRecoil*8+(meetingX+bossGap-bossX)*bossTravel,bossDrawY=bossY-bossRecoil*4+bossBob;
  const bossFall=r.done&&r.won?Math.max(0,Math.min(1,((time-r.ended)/1000-g.finisherDuration)/.8)):0,bossEase=bossFall*bossFall*(3-2*bossFall);
@@ -160,7 +164,7 @@ function drawBattle(){
  r.members.forEach((m,i)=>{
   const receivedDuration=r.hit?.special?1.25:.8,{x,y}=formation.positions[i],size=Math.max(8,sizes[i]*unit),received=r.hit?.target===m?Math.max(0,1-age/receivedDuration):0,attacking=r.hit?.actor===m&&r.phase==='playerImpact'?Math.max(0,1-age/.35):0;
   const fall=!m.hp?Math.max(0,Math.min(1,(time-(m.defeatedAt??-1e8)-(m.defeatEffectDuration??800))/500)):0,fallEase=fall*fall*(3-2*fall);
-  const travel=r.actor!==m?0:r.done&&r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-g.finisherDuration*1000)/450))):r.phase==='playerApproach'?smooth(progress):r.phase==='playerReturn'?1-smooth(progress):['playerWindup','playerImpact'].includes(r.phase)?1:0;
+  const travel=r.actor!==m?0:r.done&&r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-g.finisherDuration*1000)/260))):r.phase==='playerApproach'?smooth(progress):r.phase==='playerReturn'?1-smooth(progress):['playerWindup','playerImpact'].includes(r.phase)?1:0;
   const defending=r.target===m?bossTravel:0,moving=!r.done&&(r.actor===m&&['playerApproach','playerReturn'].includes(r.phase)||r.target===m&&bossWalking),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0;
   const contactGap=bossSize*.43+size*.4+14,px=x+(bossX-contactGap-x)*travel+(meetingX-x)*defending-recoil*8,py=y+(bossY-y)*Math.max(travel,defending)+bob,pose={angle:fall>0?-.9*fallEase:received?-.18*recoil:0,alpha:m.left?.2:!m.hp?1:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y:py,size});
   ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,1,edge-15,pose);
@@ -170,14 +174,14 @@ function drawBattle(){
   ctx.font='8px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'비움':m.hp?r.members.length>9?Math.round(m.hp/m.maxHp*100)+'%':m.hp+' / '+m.maxHp:'기절',x,y+16);
   if(received){g.impact?.(px,py-size*.5,age/receivedDuration,r.hit.damage,'#d4a5ff');ctx.fillStyle='#ffc4c3';ctx.font='bold 13px sans-serif';ctx.fillText('−'+r.hit.damage,px,py-size-12-age*12);}
  });
- if(playerCharge){const p=positions.get(r.actor);if(p)g.chargeAura?.(p.x,p.y,p.size,charge,t,element);}
+ if(playerCharge||chargedMove){const p=positions.get(r.actor);if(p)g.chargeAura?.(p.x,p.y,p.size,charge,t,element);}
  if(r.phase==='bossWindup'&&r.special)g.chargeAura?.(bossDrawX,bossDrawY,bossSize,charge,t,4);
  if(hitBoss&&!r.done)g.impact?.(bossX,bossY-bossSize*.5,age/.7,r.hit.damage,'#ffe1a2');
  if(r.hit?.target==='boss'&&age<1){ctx.fillStyle=r.hit.critical?'#ffe39d':'#f0e8db';ctx.font='bold 16px sans-serif';ctx.fillText((r.hit.critical?'치명타! ':'')+'−'+r.hit.damage,bossX,bossY-bossSize-age*15);}
  if(r.done&&r.won&&age<g.finisherDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/g.finisherDuration,1.8,r.hit.element??g.elementFor(r.hit.actor.a)??4);
  else if(r.hit?.skill&&r.hit.target==='boss'&&age<skillDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/skillDuration,.9,r.hit.element);
  ctx.textAlign='center';ctx.font='12px sans-serif';ctx.fillStyle='#ecdbb6';
- const message=r.done?(r.cancelled?'토벌을 잠시 멈췄어요':r.won?'함께 해냈어요! 참여한 친구에게 별가루를 나눠요':'잠깐 쉬고 다음에 다시 도전해요'):r.phase==='arrival'?'중앙의 균열이 열려요 · 모두 함께 힘을 모아요!':charge?r.phase==='bossWindup'?'위험! 달그림자 폭풍이 몰려와요…':r.finishing?'친구들의 힘을 모아 마지막 일격!':['화염','번개','물','바람','안개'][element]+' 기술 · 힘을 모아요!':`${r.members.filter(m=>m.hp&&!m.left).length}명과 함께 · ${r.turn+1}번째 공방`;
+ const message=r.done?(r.cancelled?'토벌을 잠시 멈췄어요':r.won?'함께 해냈어요! 참여한 친구에게 별가루를 나눠요':'잠깐 쉬고 다음에 다시 도전해요'):r.phase==='arrival'?'중앙의 균열이 열려요 · 모두 함께 힘을 모아요!':chargedMove?'힘을 모았어요 · 보스에게 돌진!':charge?r.phase==='bossWindup'?'위험! 달그림자 폭풍이 몰려와요…':r.finishing?'친구들의 힘을 모아 마지막 일격!':['화염','번개','물','바람','안개'][element]+' 기술 · 힘을 모아요!':`${r.members.filter(m=>m.hp&&!m.left).length}명과 함께 · ${r.turn+1}번째 공방`;
  ctx.fillText(message,0,arenaHeight/2-14);
  if(r.done&&r.won&&time-r.ended>(g.finisherDuration+.55)*1000){ctx.fillStyle='#ffe39d';ctx.font='bold 13px sans-serif';const paid=r.members.filter(m=>m.reward);ctx.fillText(paid.length>5?'✦ '+paid.length+'명에게 별가루 '+paid.reduce((n,m)=>n+m.reward,0)+'개를 나눴어요':'✦ 별가루 획득 · '+paid.map(m=>'+'+m.reward).join('  '),0,-arenaHeight/2+92);}
  if(r.phase==='arrival'){

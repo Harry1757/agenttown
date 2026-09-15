@@ -107,7 +107,7 @@ function statsFor(a){const size=spriteScaleFor(a,layout.scale)/layout.scale,base
 function rollDamage(attack,defense,critChance){const critical=Math.random()<critChance;return {damage:Math.max(1,Math.round(attack*(critical?1.75:1)-defense)),critical};}
 const skillDuration=1.4;
 function rollPlayerHit(attack,defense,critChance){const skill=Math.random()<.25,element=skill?Math.floor(Math.random()*5):null;return {...rollDamage(attack*(skill?1.6:1),defense,critChance),skill,element};}
-function prepareBattleHit(b,readyAt){b.nextHit=rollPlayerHit(b.damage,b.monsterDefense,b.stats.crit);b.finishing=b.legendary&&b.round===1||b.monsterHp<=b.nextHit.damage;b.windup=b.finishing?(b.legendary?4800:3000):b.nextHit.skill?1200:220;b.next=readyAt+480+b.windup;}
+function prepareBattleHit(b,readyAt){b.nextHit=rollPlayerHit(b.damage,b.monsterDefense,b.stats.crit);b.finishing=b.legendary&&b.round===1||b.monsterHp<=b.nextHit.damage;b.windup=b.finishing?(b.legendary?4800:3000):b.nextHit.skill?1200:220;b.next=readyAt+280+b.windup;if(b.finishing&&b.nextHit.skill&&!b.legendary)b.element=b.nextHit.element;}
 // Each displayed hit is the actual damage event, including armor and critical hits.
 const gradeFor=stats=>Math.max(1,Math.min(10,Math.ceil((stats.attack*2+stats.defense*3+stats.hp*.12-32)/35)));
 function resolveDuel(a,b,legendary=null){
@@ -125,7 +125,7 @@ function resolveDuel(a,b,legendary=null){
   }
  }
  const winner=hp[0]>0?a:b,grades=stats.map(gradeFor);let at=1;
- for(let i=0;i<strikes.length;i++){const hit=strikes[i];hit.final=i===strikes.length-1;hit.chargeStart=at-.3;if(hit.final){hit.chargeStart=at;at+=legendary?4.8:3;}else if(hit.skill){hit.chargeStart=at;at+=1.2;}hit.at=at;at+=hit.skill&&!hit.final?2.3:.85;}
+ for(let i=0;i<strikes.length;i++){const hit=strikes[i];hit.final=i===strikes.length-1;hit.chargeStart=at-.3;if(hit.final||hit.skill){hit.chargeStart=at;hit.chargeEnd=at+(hit.final?(legendary?4.8:3):1.2);at=hit.chargeEnd+.28;}hit.at=at;at+=hit.skill&&!hit.final?2.3:.85;}
  const finalAt=strikes.at(-1).at,resultAt=finalAt+(legendary?3.15:2.25);
  return {winner,stats,snapshots,strikes,grades,reward:grades[winner===a?1:0]*2,finalAt,resultAt,endAt:resultAt+2};
 }
@@ -133,15 +133,15 @@ function duelPlayback(d,now=performance.now()){
  if(!d.combat?.strikes)return null;
  const raw=(now-d.start)/1000,c=d.combat,last=c.strikes.at(-1);let index=-1;
  for(let i=0;i<c.strikes.length;i++){if(c.strikes[i].at>raw)break;index=i;}
- const hit=index<0?null:c.strikes[index],age=hit?raw-hit.at:-1,charging=raw>=last.chargeStart&&raw<last.at;
- const charge=charging?(raw-last.chargeStart)/(last.at-last.chargeStart):0,upcoming=c.strikes[index+1],skillCharging=Boolean(upcoming?.skill&&!upcoming.final&&raw>=upcoming.chargeStart&&raw<upcoming.at),skillCharge=skillCharging?(raw-upcoming.chargeStart)/(upcoming.at-upcoming.chargeStart):0;
+ const hit=index<0?null:c.strikes[index],age=hit?raw-hit.at:-1,charging=raw>=last.chargeStart&&raw<(last.chargeEnd??last.at),finalApproach=raw>=(last.chargeEnd??last.at)&&raw<last.at;
+ const charge=charging?(raw-last.chargeStart)/((last.chargeEnd??last.at)-last.chargeStart):0,upcoming=c.strikes[index+1],skillCharging=Boolean(upcoming?.skill&&!upcoming.final&&raw>=upcoming.chargeStart&&raw<(upcoming.chargeEnd??upcoming.at)),skillCharge=skillCharging?(raw-upcoming.chargeStart)/((upcoming.chargeEnd??upcoming.at)-upcoming.chargeStart):0,skillApproach=Boolean(upcoming?.skill&&!upcoming.final&&raw>=(upcoming.chargeEnd??upcoming.at)&&raw<upcoming.at);
  let t;
  if(raw>=c.resultAt)t=3.6+raw-c.resultAt;
  else if(raw>=last.at)t=2.9+Math.min(.69,raw-last.at);
  else if(charging)t=2.5+Math.max(0,1-(last.at-raw)/.3)*.39;
  else if(!hit)t=Math.min(.99,raw);
  else t=age<.4?1+age/.4*.7:1.7+Math.min(1,(age-.4)/.45)*.8;
- return {raw,t,index,hit,hitAge:age,charging,charge,upcoming,skillCharging,skillCharge,hp:hit?.hp||c.stats.map(s=>s.hp),finalHitAge:raw-last.at,attacker:charging?last.attacker:skillCharging?upcoming.attacker:hit?.attacker,finished:raw>=c.endAt,result:raw>=c.resultAt};
+ return {raw,t,index,hit,hitAge:age,charging,charge,finalApproach,upcoming,skillCharging,skillCharge,skillApproach,hp:hit?.hp||c.stats.map(s=>s.hp),finalHitAge:raw-last.at,attacker:charging||finalApproach?last.attacker:skillCharging||skillApproach?upcoming.attacker:hit?.attacker,finished:raw>=c.endAt,result:raw>=c.resultAt};
 }
 function rewardDuel(d){if(d.lootAwarded||!d.combat)return;d.lootAwarded=true;chronicle?.duel(named(d.a),named(d.b));const r=record(d.winner);records[d.winner.key]={...r,duelWins:(r.duelWins||0)+1,duelStars:(r.duelStars||0)+d.combat.reward,earnedStardust:r.earnedStardust+d.combat.reward};save('codextown.adventure',records);renderLog();}
 function drawDuelStats(d,t){if(!d.combat)return;const c=d.combat,values=d.playback?.hp||c.snapshots[Math.floor((c.snapshots.length-1)*(t<.96?0:t<1.9?.33:t<2.86?.66:1))];ctx.save();ctx.textAlign='center';ctx.font='10px sans-serif';for(let i=0;i<2;i++){const x=i?30:-160;ctx.fillStyle='#162726';ctx.fillRect(x,-71,130,5);ctx.fillStyle=i?'#caa7d9':'#a8d89b';ctx.fillRect(x,-71,130*values[i]/c.stats[i].hp,5);ctx.fillStyle='#e6ecda';ctx.fillText(`${values[i]} / ${c.stats[i].hp}`+(c.grades?' · '+c.grades[i]+'등급':''),x+65,-54);}ctx.restore();}
@@ -206,10 +206,10 @@ function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastSte
  for(const m of monsters)if(battle?.m!==m)wander(m,now,dt);
  if(battle){const b=battle;if(avatars[b.a.key]!==b.a||state.sessionInfo[b.a.key]?.needsInput||b.a.role!==b.m.role){cancel();return;}
   if(b.done){if(now-b.ended>(b.won?(b.legendary?5600:4600):2200)){rest.set(b.a.key,now+(b.won?45000:65000));if(b.won)monsters.splice(monsters.indexOf(b.m),1);else{b.m.pauseUntil=now+1500;b.a.summonAt=now;b.a.wanderAt=now+65000;}battle=null;nextSpawn=now+5000;const next=b.a.nextRole;b.a.nextRole=null;if(next&&next!==b.a.role)changeRoom(b.a,next);}return;}
-  if(b.counterAt&&now>=b.counterAt){const hit=rollDamage(b.monsterAttack*(b.counterSpecial?3:1),b.stats.defense,b.monsterCrit);b.receivedSpecial=b.counterSpecial;b.receivedDamage=hit.damage;b.receivedCritical=hit.critical;b.hp=Math.max(b.legendary?1:0,b.hp-hit.damage);b.playerHitAt=now;b.counterAt=0;b.next=Math.max(b.next,now+(b.receivedSpecial?1700:950)+480+(b.windup||220));if(!b.hp){b.done=true;b.won=false;b.ended=now;chronicle?.result(b.m,false);defeat(b.a);}return;}
+  if(b.counterAt&&now>=b.counterAt){const hit=rollDamage(b.monsterAttack*(b.counterSpecial?3:1),b.stats.defense,b.monsterCrit);b.receivedSpecial=b.counterSpecial;b.receivedDamage=hit.damage;b.receivedCritical=hit.critical;b.hp=Math.max(b.legendary?1:0,b.hp-hit.damage);b.playerHitAt=now;b.counterAt=0;b.next=Math.max(b.next,now+(b.receivedSpecial?1510:760)+280+(b.windup||220));if(!b.hp){b.done=true;b.won=false;b.ended=now;chronicle?.result(b.m,false);defeat(b.a);}return;}
   if(now>=b.next){b.round++;b.hitAt=now;b.hitPlayer=false;const final=b.legendary&&b.round===2;const hit=b.nextHit;b.attackSkill=hit.skill&&!final;b.attackElement=hit.element??b.element;b.inflictedDamage=final?b.maxMonsterHp:hit.damage;b.dealtCritical=hit.critical&&!final;chronicle?.hit(b.m,Math.min(b.monsterHp,b.inflictedDamage));b.monsterHp=Math.max(0,b.monsterHp-b.inflictedDamage);
    if(b.monsterHp===0){if(hit.skill&&!final)b.element=hit.element;b.done=true;b.won=true;b.ended=now;const before=record(b.a),badge=b.m.boss&&!before.bosses?'보스 배지':before.kills===2?'별 장식':before.kills===9?'보라 별 장식':'';b.rewardLabel=`별가루 +${b.reward}`+(badge?' · '+badge:'');chronicle?.result(b.m,true);reward(b.a,b.m.boss,b.reward);}
-   else{b.counterSpecial=Boolean(b.m.boss)&&Math.random()<.08;b.counterAt=now+(b.counterSpecial?2550:1500)+(b.attackSkill?900:0);b.counterStartedAt=b.counterAt-(b.counterSpecial?1400:200);prepareBattleHit(b,b.counterAt+(b.counterSpecial?1700:950));}
+   else{b.counterSpecial=Boolean(b.m.boss)&&Math.random()<.08;b.counterAt=now+(b.counterSpecial?2400:1200)+(b.attackSkill?900:0);b.counterStartedAt=b.counterAt-(b.counterSpecial?1400:200);prepareBattleHit(b,b.counterAt+(b.counterSpecial?1510:760));}
   }
  }else{
   const residents=Object.values(avatars).filter(eligible);
@@ -403,38 +403,39 @@ function battleMotion(b,now,as,ms){
  const smooth=value=>{const p=Math.max(0,Math.min(1,value));return p*p*(3-2*p);};
  const age=(now-(b.hitAt??-1e8))/1000,received=(now-(b.playerHitAt??-1e8))/1000;
  const impulse=t=>t<0||t>1?0:(1-Math.exp(-t/0.025))*Math.exp(-t/.2)*1.5;
- const arrive=b.next-(b.windup||220),depart=Math.max(arrive-480,(b.playerHitAt??-1e8)+(b.receivedSpecial?1250:700));
+ const chargedAttack=b.finishing||b.nextHit?.skill,arrive=b.next-(chargedAttack?80:(b.windup||220)),depart=Math.max(chargedAttack?b.next-280:arrive-280,(b.playerHitAt??-1e8)+(b.receivedSpecial?1250:700));
  const approach=!b.done&&!b.counterAt&&arrive>depart?smooth((now-depart)/(arrive-depart)):0;
- const held=b.done&&b.won?finishDuration(b.legendary):b.attackSkill?skillDuration:.5,returning=age>=0&&age<held+.45?1-smooth((age-held)/.45):0;
- const bossArrival=b.counterAt-(b.counterSpecial?1400:200),bossApproach=b.counterAt?smooth((now-(bossArrival-350))/350):0;
- const bossHold=b.receivedSpecial?1.25:.5,bossReturn=received>=0&&received<bossHold+.45?1-smooth((received-bossHold)/.45):0;
+ const held=b.done&&b.won?finishDuration(b.legendary):b.attackSkill?skillDuration:.5,returning=age>=0&&age<held+.26?1-smooth((age-held)/.26):0;
+ const bossArrival=b.counterAt-(b.counterSpecial?1400:200),bossApproach=b.counterAt?smooth((now-(bossArrival-220))/220):0;
+ const bossHold=b.receivedSpecial?1.25:.5,bossReturn=received>=0&&received<bossHold+.26?1-smooth((received-bossHold)/.26):0;
  const playerPush=impulse(received),bossPush=impulse(age),playerContact=85-(ms*.4+as*.35+22),bossContact=-83+(as+ms)*.46+6;
- const preSwing=!b.done&&approach===1?smooth(1-(b.next-now)/120):0;
+ const preSwing=!b.done&&approach===1?smooth(1-(b.next-now)/(chargedAttack?80:120)):0;
  const swing=age>=0&&age<.5?age<.08?1.45+.5*smooth(age/.08):1.95-1.47*smooth((age-.08)/.42):.48+.97*preSwing;
  return {px:-83+(playerContact+83)*Math.max(approach,returning)-playerPush*(b.receivedSpecial?28:18),mx:85+(bossContact-85)*Math.max(bossApproach,bossReturn)+bossPush*9,swing,approach,bossApproach,playerPush,bossPush,bossMoving:bossApproach>0&&bossApproach<1||bossReturn>0&&bossReturn<1,playerHop:Math.sin(approach*Math.PI)*Math.abs(Math.sin(approach*Math.PI*2))*Math.min(3,as*.04),bossHop:Math.sin(bossApproach*Math.PI)*Math.min(4,ms*.04)};
 }
-function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(now-b.start)/1000,age=(now-(b.hitAt||-1e8))/1000,charge=!b.done&&!b.counterAt&&b.finishing&&now>=b.next-(b.windup||3000);
- const skillCharge=!b.done&&!b.counterAt&&!b.finishing&&b.nextHit?.skill&&now>=b.next-(b.windup||1200),cast=skillCharge?Math.max(0,Math.min(1,1-(b.next-now)/(b.windup||1200))):0,skillImpact=!b.done&&b.attackSkill&&age>=0&&age<skillDuration;
+function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(now-b.start)/1000,age=(now-(b.hitAt||-1e8))/1000,charge=!b.done&&!b.counterAt&&b.finishing&&now>=b.next-280-(b.windup||3000)&&now<b.next-280,chargedMove=!b.done&&!b.counterAt&&(b.finishing||b.nextHit?.skill)&&now>=b.next-280&&now<b.next;
+ const skillCharge=!b.done&&!b.counterAt&&!b.finishing&&b.nextHit?.skill&&now>=b.next-280-(b.windup||1200)&&now<b.next-280,cast=skillCharge?Math.max(0,Math.min(1,1-(b.next-280-now)/(b.windup||1200))):0,skillImpact=!b.done&&b.attackSkill&&age>=0&&age<skillDuration;
  const specialCharge=b.counterAt&&b.counterSpecial?Math.max(0,Math.min(1,(now-b.counterStartedAt)/1400)):0;
  const specialHit=b.receivedSpecial?Math.max(0,1-(now-(b.playerHitAt||-1e8))/1250):0;
  const bossMood=Math.max(specialCharge,specialHit),bossElement=({ember:0,storm:1,frost:2,moss:3,dusk:4})[b.m.kind?.effect||b.m.kind?.id]??4;
  const specialName=b.m.kind?bossSpecialName(b.m.kind):'';
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
  const arenaWidth=Math.min(520,Math.max(380,width/height*270)),scale=Math.min(1.8,width/arenaWidth,height/270);
- const mood=charge?Math.min(1,Math.max(0,1-(b.next-now)/(b.windup||3000))):b.done&&b.won?finishFade(age,b.legendary):skillCharge?cast*.65:skillImpact?(1-age/skillDuration)*.6:0;
+ const mood=chargedMove?1:charge?Math.min(1,Math.max(0,1-(b.next-280-now)/(b.windup||3000))):b.done&&b.won?finishFade(age,b.legendary):skillCharge?cast*.65:skillImpact?(1-age/skillDuration)*.6:0;
  ctx.save();ctx.fillStyle=`rgba(4,8,16,${.55+Math.max(mood,bossMood)*.25})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
  chamber(b.m.kind,arenaWidth);
  ctx.fillStyle=`rgba(2,4,12,${mood*.42})`;ctx.fillRect(-arenaWidth/2+14,-60,arenaWidth-28,181);
- atmosphere(bossMood?bossElement:skillCharge?b.nextHit.element:skillImpact?b.attackElement:b.element,Math.max(mood,bossMood),t,arenaWidth,99,b.legendary&&!bossMood&&!skillCharge&&!skillImpact);ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(`${b.m.name} · ${b.m.level}단계`+(b.m.elite?' 정예 보스':b.m.boss?' 보스':''),0,-111);
+ atmosphere(bossMood?bossElement:skillCharge||chargedMove&&!b.finishing?b.nextHit.element:skillImpact?b.attackElement:b.element,Math.max(mood,bossMood),t,arenaWidth,99,b.legendary&&!bossMood&&!skillCharge&&!skillImpact&&(!chargedMove||b.finishing));ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(`${b.m.name} · ${b.m.level}단계`+(b.m.elite?' 정예 보스':b.m.boss?' 보스':''),0,-111);
  ctx.font='11px sans-serif';ctx.fillText('주민 · 토큰 체력',-95,-95);ctx.fillText(`처치 보상 · ✦ ${b.reward}`,95,-95);
  bar(-160,-89,b.hp,b.maxHp,'#a8d89b');bar(30,-89,b.monsterHp,b.maxMonsterHp,b.m.kind?.color||'#dba0ca');
 
  const unit=96/Math.max(b.size,b.monsterSize),as=b.size*unit,ms=b.monsterSize*unit,hit=Math.max(0,1-Math.max(0,age)/(b.done&&b.won?1.2:.5)),counter=Math.max(0,1-(now-(b.playerHitAt||-1e8))/(b.receivedSpecial?1250:700));
  const motion=battleMotion(b,now,as,ms),{px,mx}=motion,preCounter=motion.bossApproach,windup=motion.approach,playerY=87-motion.playerHop;
- const legendAmount=b.legendary?(charge?Math.min(1,mood*1.35):b.done&&b.won?Math.max(0,1-Math.max(0,age-1.5)/1.4):0):0;
+ const legendAmount=b.legendary?(charge||chargedMove&&b.finishing?Math.min(1,mood*1.35):b.done&&b.won?Math.max(0,1-Math.max(0,age-1.5)/1.4):0):0;
  if(specialCharge){ctx.save();ctx.beginPath();ctx.rect(-arenaWidth/2+14,-60,arenaWidth-28,171);ctx.clip();chargeAura(mx,87,ms,specialCharge,t,bossElement);ctx.restore();}
  if(charge){ctx.save();ctx.beginPath();ctx.rect(-arenaWidth/2+14,-60,arenaWidth-28,171);ctx.clip();chargeAura(px,87,as,mood,t,b.element,b.legendary);ctx.restore();}
  if(skillCharge)chargeAura(px,playerY,as,cast,t,b.nextHit.element,false);
+ if(chargedMove)chargeAura(px,playerY,as,1,t,b.finishing?b.element:b.nextHit.element,b.legendary&&b.finishing);
  const defeated=b.done&&!b.won,fall=defeated?Math.max(0,Math.min(1,(now-b.playerHitAt-(b.receivedSpecial?1250:700))/500)):0,fallEase=fall*fall*(3-2*fall);
  const bodyPose={angle:fall>0?-.9*fallEase:counter?-.18*counter:charge?Math.sin(t*16)*.05:0,alpha:defeated?1:counter>.1?.65+.35*Math.abs(Math.sin(counter*24)):1};
  ctx.save();applyBattlePose(ctx,px,playerY,bodyPose);drawTile(ctx,'dungeon',b.a.idx,px-as/2,playerY-as,as/16);ctx.restore();
@@ -459,13 +460,13 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
   if(!b.done&&!b.attackSkill)impact(mx,87-ms*.45,age/.5,b.inflictedDamage||b.damage);
  }
  if(skillImpact)foregroundFinish(mx,87-ms*.45,age/skillDuration,1.1,b.attackElement);
- if(skillCharge||skillImpact){ctx.fillStyle='#d8edfa';ctx.font='bold 13px sans-serif';ctx.fillText(elements[skillCharge?b.nextHit.element:b.attackElement]+(skillCharge?' 기술 · 힘을 모으는 중':' 기술!'),0,-39);}
+ if(skillCharge||skillImpact||chargedMove&&!b.finishing){ctx.fillStyle='#d8edfa';ctx.font='bold 13px sans-serif';ctx.fillText(elements[skillCharge||chargedMove?b.nextHit.element:b.attackElement]+(skillCharge?' 기술 · 힘을 모으는 중':chargedMove?' 기술 · 돌진!':' 기술!'),0,-39);}
  if(age>=0&&age<.9){ctx.fillStyle=b.dealtCritical?'#ffe190':'#e4eddf';ctx.font=b.dealtCritical?'bold 17px sans-serif':'13px sans-serif';ctx.fillText((b.dealtCritical?'치명타! ':'')+'−'+b.inflictedDamage,mx,70-ms*.6-age*20);}
  const lootAt=finishDuration(b.legendary)+.55;
  if(finishAge>=lootAt){const q=Math.min(1,(finishAge-lootAt)/2.5),fly=Math.max(0,(q-.5)*2),ix=85+(-83-85)*fly,iy=35-Math.sin(q*Math.PI)*53+fly*30;
   ctx.save();ctx.globalAlpha=q>.9?(1-q)*10:1;ctx.shadowColor='#ffe4a5';ctx.shadowBlur=14;star(ix,iy,8+b.reward*.8,b.m.boss?'#efb4ed':'#ffe0a0');ctx.shadowBlur=0;star(ix,iy,5,'#fff8df');ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#ffe5ab';ctx.fillText(b.rewardLabel+' 획득!',0,-38);ctx.restore();}
  if(bossMood){ctx.fillStyle=b.m.kind.color;ctx.font='bold 15px sans-serif';ctx.fillText('필살기 · '+specialName,0,-48);}
- ctx.fillStyle='#e8dfba';ctx.font='12px sans-serif';ctx.fillText(specialCharge?'위험! '+specialName+' · 힘을 모으는 중…':specialHit?specialName+'!':b.done?(b.won?elements[b.element]+` 일격! 별가루 +${b.reward}`:'쓰러졌어요… 잠시 쉬고 다시 도전해요'):charge?(b.legendary?(b.mercy?'불굴의 전설검 · 이번엔 이길 거야!':mood<.4?'전설검 · 별들이 모여요…':mood<.8?'전설검 각성 · 검이 깨어나요!':'하늘을 가르는 일격 · 준비!'):elements[b.element]+' 일격 · 힘을 모으는 중…'):b.m.kind&&(b.counterAt||counter>0)?b.m.kind.skill+'!':`${b.round+1}번째 공방`,0,116);
+ ctx.fillStyle='#e8dfba';ctx.font='12px sans-serif';ctx.fillText(specialCharge?'위험! '+specialName+' · 힘을 모으는 중…':specialHit?specialName+'!':b.done?(b.won?elements[b.element]+` 일격! 별가루 +${b.reward}`:'쓰러졌어요… 잠시 쉬고 다시 도전해요'):chargedMove?'힘을 모았어요 · 돌진!':charge?(b.legendary?(b.mercy?'불굴의 전설검 · 이번엔 이길 거야!':mood<.4?'전설검 · 별들이 모여요…':mood<.8?'전설검 각성 · 검이 깨어나요!':'하늘을 가르는 일격 · 준비!'):elements[b.element]+' 일격 · 힘을 모으는 중…'):b.m.kind&&(b.counterAt||counter>0)?b.m.kind.skill+'!':`${b.round+1}번째 공방`,0,116);
  if(b.m.boss&&t<1.1){const ease=v=>{v=Math.max(0,Math.min(1,v));return v*v*(3-2*v);},opacity=t<.15?ease(t/.15):1-ease((t-.8)/.3);ctx.save();ctx.globalAlpha*=opacity;const shift=(1-ease(t/.35))*arenaWidth;ctx.fillStyle='#111725ed';ctx.fillRect(-arenaWidth/2+12,-36,arenaWidth-24,83);ctx.fillStyle=b.m.kind?.color||'#d6b0ff';ctx.fillRect(-arenaWidth/2+12+shift,-36,Math.max(0,arenaWidth-24-shift),3);ctx.textAlign='center';ctx.font='900 34px sans-serif';ctx.fillText(b.m.elite?'ELITE BOSS':'BOSS',0,2);ctx.font='13px sans-serif';ctx.fillStyle='#f3e6d2';ctx.fillText(b.m.name,0,29);ctx.restore();}
 
  ctx.restore();}
