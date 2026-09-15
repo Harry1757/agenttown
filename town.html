@@ -1447,9 +1447,9 @@ function stepDuels(now) {
       }
       a.duelPose={...f,back:f.result?(won?0:1):struck?f.back:0,lunge,sword:attacking?f.sword:.48,flash:attacking?f.flash:0,angle:attacking?.1*lunge:struck?f.angle:0,hop:(struck?f.hop:0)+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
       if(preparedSword!==null){a.duelPose.sword=preparedSword;a.duelPose.flash=0;}
-      // A defeated resident stays present for the complete skill, then falls and gets back up.
-      const fallAge=pb?pb.finalHitAge-(window.townAdventure?.finishDuration?.(!!d.legendary)??2.1):t-3.1;
-      const rise=pb?Math.max(0,Math.min(1,(raw-(d.combat.endAt-.75))/.75)):Math.max(0,Math.min(1,(t-4.85)/.75));
+      // Legendary hits topple the target after the cut; other skills finish before the fall.
+      const fallAge=pb?pb.finalHitAge-(window.townAdventure?.defeatDelay?.(!!d.legendary)??2.1):t-3.1;
+      const rise=pb&&d.legendary?0:pb?Math.max(0,Math.min(1,(raw-(d.combat.endAt-.75))/.75)):Math.max(0,Math.min(1,(t-4.85)/.75));
       const fall=!won&&fallAge>=0?Math.sin(Math.min(1,fallAge/.5)*Math.PI/2)*(1-rise*rise*(3-2*rise)):0;
       a.duelPose.collapse=fall;
       if(fall>0){a.duelPose.angle=-1.25*fall;a.duelPose.hop=0;a.duelPose.squash=1-.08*fall;a.duelPose.flash=0;a.duelPose.back=1;}
@@ -1479,7 +1479,7 @@ function stepDuels(now) {
 
 function drawDuelAccessory(a,feetX,feetY,size,bodyPose=null) {
   const f=a.duelPose;if(!f||f.collapse>.4)return;bodyPose??={angle:(f.angle||0)*a.face,squash:f.squash??1};
-  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalApproach||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):pb.finalApproach?1:Math.max(0,1-Math.max(0,pb.finalHitAge-1.5)/1.4)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount,bodyPose);return;}
+  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalApproach||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):pb.finalApproach?1:window.townAdventure.legendaryBladeAmount(pb.finalHitAge)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount,bodyPose);return;}
   ctx.save();ctx.translate(feetX,feetY);ctx.scale(a.face,1);
   if(f.sword!==null){ctx.translate(size*.28,-size*.48);ctx.rotate(f.sword);ctx.fillStyle='#927099';ctx.fillRect(-size*.05,0,size*.1,size*.2);ctx.fillStyle='#ffe3a0';ctx.fillRect(-size*.16,-size*.08,size*.32,size*.07);ctx.fillStyle='#b5e5df';ctx.fillRect(-size*.06,-size*.63,size*.12,size*.55);ctx.fillStyle='#edfff2';ctx.fillRect(-size*.025,-size*.63,size*.04,size*.5);}
   ctx.restore();

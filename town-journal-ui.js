@@ -86,7 +86,7 @@
   });
   dialog.querySelector('.journal-close').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => button.focus({preventScroll: true}));
-  if (!('closedBy' in HTMLDialogElement.prototype)) dialog.addEventListener('click', event => {
+  dialog.addEventListener('click', event => {
     if (event.target !== dialog) return;
     const rect = dialog.getBoundingClientRect();
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();

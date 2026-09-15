@@ -225,7 +225,7 @@ function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastSte
 function bossAura(kind,x,y,size,t){
  ctx.save();ctx.translate(x,y);ctx.scale(size,size);ctx.fillStyle=kind.color;ctx.strokeStyle=kind.color;ctx.lineWidth=.025;
  if((kind.effect||kind.id)==='dusk'){
-  for(const dir of [-1,1]){ctx.save();ctx.scale(dir,1);ctx.beginPath();ctx.moveTo(.18,-.65);ctx.quadraticCurveTo(.5,-1.05-Math.sin(t*4)*.1,.78,-.55);ctx.lineTo(.6,-.61);ctx.lineTo(.53,-.35);ctx.lineTo(.37,-.46);ctx.lineTo(.18,-.26);ctx.closePath();ctx.globalAlpha=.8;ctx.fillStyle='#8661b7';ctx.fill();ctx.stroke();ctx.restore();}
+  for(const dir of [-1,1]){ctx.save();ctx.scale(dir,1);ctx.beginPath();ctx.moveTo(.18,-.65);ctx.quadraticCurveTo(.5,-1.05-Math.sin(t*4)*.1,.78,-.55);ctx.lineTo(.6,-.61);ctx.lineTo(.53,-.35);ctx.lineTo(.37,-.46);ctx.lineTo(.18,-.26);ctx.closePath();ctx.globalAlpha*=.8;ctx.fillStyle='#8661b7';ctx.fill();ctx.stroke();ctx.restore();}
  }else if((kind.effect||kind.id)==='moss'){
   ctx.beginPath();ctx.ellipse(0,-.03,.55,.12,0,0,7);ctx.stroke();for(let i=0;i<5;i++){const a=-Math.PI+(i+1)*Math.PI/6;ctx.save();ctx.translate(Math.cos(a)*.35,-.84+Math.sin(a)*.2);ctx.rotate(a+.6);ctx.beginPath();ctx.ellipse(0,0,.09,.035,0,0,7);ctx.fill();ctx.restore();}
  }else if((kind.effect||kind.id)==='frost'){
@@ -266,6 +266,8 @@ function bar(x,y,value,max,color){ctx.fillStyle='#142726';ctx.fillRect(x,y,130,8
 function crescent(x,y,p){if(p<0||p>1)return;ctx.save();ctx.globalAlpha=1-p;ctx.translate(x,y-30);ctx.rotate(-.65);ctx.shadowColor='#d997ff';ctx.shadowBlur=14;ctx.fillStyle='#c48bee';ctx.beginPath();ctx.moveTo(-65,-20);ctx.quadraticCurveTo(0,55,65,-20);ctx.quadraticCurveTo(0,100,-65,-20);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#fff0c2';ctx.beginPath();ctx.moveTo(-65,-20);ctx.quadraticCurveTo(0,68,65,-20);ctx.quadraticCurveTo(0,86,-65,-20);ctx.fill();ctx.strokeStyle='#e6bbff';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(0,25,20+p*65,8+p*28,.25,0,7);ctx.stroke();for(let i=0;i<14;i++){const a=i*Math.PI/7,r=18+p*85;star(Math.cos(a)*r,25+Math.sin(a)*r*.6,3*(1-p),'#fff3c9');}ctx.restore();}
 const finisherDuration=2.1;
 const finishDuration=legendary=>legendary?3:finisherDuration;
+const defeatDelay=legendary=>legendary?.75:finisherDuration;
+const legendaryBladeAmount=age=>{const p=Math.max(0,Math.min(1,(age-1.6)/1.2));return 1-p*p*(3-2*p);};
 // Finishers draw over the arena frame, with room for their arc, glow and particles.
 function foregroundFinish(x,y,p,wanted=1.3,element=null){
  if(p<0||p>1)return;
@@ -443,7 +445,7 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
 
  const unit=96/Math.max(b.size,b.monsterSize),as=b.size*unit,ms=b.monsterSize*unit,hit=Math.max(0,1-Math.max(0,age)/(b.done&&b.won?1.2:.5)),counter=Math.max(0,1-(now-(b.playerHitAt||-1e8))/(b.receivedSpecial?1250:700));
  const motion=battleMotion(b,now,as,ms),{px,mx}=motion,preCounter=motion.bossApproach,windup=motion.approach,playerY=87-motion.playerHop;
- const legendAmount=b.legendary?(charge||chargedMove&&b.finishing?Math.min(1,mood*1.35):b.done&&b.won?Math.max(0,1-Math.max(0,age-1.5)/1.4):0):0;
+ const legendAmount=b.legendary?(charge||chargedMove&&b.finishing?Math.min(1,mood*1.35):b.done&&b.won?legendaryBladeAmount(age):0):0;
  if(specialCharge){ctx.save();ctx.beginPath();ctx.rect(-arenaWidth/2+14,-60,arenaWidth-28,171);ctx.clip();chargeAura(mx,87,ms,specialCharge,t,bossElement);ctx.restore();}
  if(charge){ctx.save();ctx.beginPath();ctx.rect(-arenaWidth/2+14,-60,arenaWidth-28,171);ctx.clip();chargeAura(px,87,as,mood,t,b.element,b.legendary);ctx.restore();}
  if(skillCharge)chargeAura(px,playerY,as,cast,t,b.nextHit.element,false);
@@ -453,7 +455,7 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  ctx.save();applyBattlePose(ctx,px,playerY,bodyPose);drawTile(ctx,'dungeon',b.a.idx,px-as/2,playerY-as,as/16);ctx.restore();
  drawOutfit(ctx,b.a,px,playerY,as,t,false,undefined,1,arenaWidth/2-20,bodyPose);
  const finishAge=b.done&&b.won?(now-b.ended)/1000:-1;
- const monsterFall=finishAge>=0?Math.max(0,Math.min(1,(finishAge-finishDuration(b.legendary))/.8)):0,monsterEase=monsterFall*monsterFall*(3-2*monsterFall);
+ const monsterFall=finishAge>=0?Math.max(0,Math.min(1,(finishAge-defeatDelay(b.legendary))/.8)):0,monsterEase=monsterFall*monsterFall*(3-2*monsterFall);
  const monsterY=87-motion.bossHop-motion.bossPush*3;
  ctx.save();applyBattlePose(ctx,mx,monsterY,{angle:monsterFall>0?.9*monsterEase:motion.bossAngle,squash:1-.45*monsterEase,alpha:1-monsterFall});monster(b.m,mx,monsterY,ms,t,motion.bossMoving);ctx.restore();
  const swing=motion.swing;
@@ -620,7 +622,7 @@ shopDialog.onclick=event=>{
  if(event.target===shopDialog){const r=shopDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)shopDialog.close();}
 };
 panel.querySelector('button').onclick=()=>{enabled=!enabled;save('codextown.adventureEnabled',enabled);if(!enabled){window.townEvents?.cancel();cancel();monsters.length=0;}else nextSpawn=performance.now()+4000;renderLog();};renderLog();
-window.townAdventure={monsterAttackAngle,legendaryChance,skillDuration,rollPlayerHit,battleMotion,chronicle,journal,catalog,autoEquip,autoMode:key=>chronicle?.autoMode(key)||'off',setAutoMode:(key,mode)=>{if(!avatars[key]||!chronicle?.setAuto(key,mode))return false;autoEquip(avatars[key]);return true;},get enabled(){return enabled;},eligible,monster,chamber,impact,defeat,applyBattlePose,foregroundFinish,chargeAura,finishDuration,gradeFor,duelPlayback,rewardDuel,finisherDuration,finishFade,elementFor,atmosphere,legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a||Boolean(window.townEvents?.busy(a)),resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const playback=duelPlayback(d);if(playback){d.playback=playback;return playback.t;}const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
+window.townAdventure={defeatDelay,legendaryBladeAmount,monsterAttackAngle,legendaryChance,skillDuration,rollPlayerHit,battleMotion,chronicle,journal,catalog,autoEquip,autoMode:key=>chronicle?.autoMode(key)||'off',setAutoMode:(key,mode)=>{if(!avatars[key]||!chronicle?.setAuto(key,mode))return false;autoEquip(avatars[key]);return true;},get enabled(){return enabled;},eligible,monster,chamber,impact,defeat,applyBattlePose,foregroundFinish,chargeAura,finishDuration,gradeFor,duelPlayback,rewardDuel,finisherDuration,finishFade,elementFor,atmosphere,legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a||Boolean(window.townEvents?.busy(a)),resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const playback=duelPlayback(d);if(playback){d.playback=playback;return playback.t;}const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
 function sword(x,y,length,angle,rank,t,paint=ctx,breadth=1){
 paint.save();paint.translate(x,y);paint.rotate(angle);paint.scale(breadth,breadth);
 const L=length/breadth;

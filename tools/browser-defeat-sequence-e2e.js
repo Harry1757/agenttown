@@ -17,8 +17,8 @@ async page=>{
     try{
      for(const legendary of [false,true]){
       const m=g.spawn('waiting',true);check(g.begin(a,m),'PvE starts');const b=g.active;b.legendary=legendary;b.hp=b.maxHp=10000;b.monsterHp=legendary?500:b.nextHit.damage;b.maxMonsterHp=b.monsterHp;
-      for(let i=0;i<30&&!b.done;i++){now=b.counterAt||b.next;g.step(now);}check(b.won,'actual finishing strike wins');const duration=g.finishDuration(legendary)*1000;
-      for(const offset of [40,500,1500,duration-1]){const target=frame(g.drawBattle,m.idx,b.ended+offset);opaque(target);upright(target);}
+      for(let i=0;i<30&&!b.done;i++){now=b.counterAt||b.next;g.step(now);}check(b.won,'actual finishing strike wins');const duration=(legendary?.75:2.1)*1000;
+      for(const offset of [40,duration*.25,duration*.6,duration-1]){const target=frame(g.drawBattle,m.idx,b.ended+offset);opaque(target);upright(target);}
       const collapsing=frame(g.drawBattle,m.idx,b.ended+duration+400);fallen(collapsing);check(collapsing.alpha>0&&collapsing.alpha<.8,'monster fades only after skill');check(frame(g.drawBattle,m.idx,b.ended+duration+810).alpha===0,'monster finishes disappearing');g.cancel();g.monsters.length=0;now+=70000;
      }
      for(const special of [false,true]){
@@ -35,6 +35,9 @@ async page=>{
       // Advance the next turn: the previous member must stay fallen when r.hit changes.
       const deathAt=target.defeatedAt;advance('playerImpact');fallen(frame(e.drawBattle,target.a.idx,Math.max(now,deathAt+delay+900)));e.cancel();now+=70000;
      }
+     ctx.save();ctx.resetTransform();ctx.clearRect(0,0,cv.width,cv.height);ctx.globalAlpha=0;
+     g.monster({idx:122,boss:true,kind:{effect:'dusk',color:'#8661b7'}},100,150,80,0,false);ctx.restore();
+     const faded=ctx.getImageData(0,0,cv.width,cv.height).data;check(!faded.some((v,i)=>i%4===3&&v>0),'defeated boss wings fade with the body');
      return {width,frames,scenarios:7};
     }finally{drawTile=tile;e.cancel();g.cancel();performance.now=clock;Math.random=random;}
    },width));
