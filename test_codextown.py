@@ -36,6 +36,38 @@ class CodexTests(unittest.TestCase):
         self.add('event_msg', {'type':'task_complete'})
         self.t.scan(); self.assertEqual(self.row()['state'], 'waiting')
 
+    def test_forked_history_cannot_replace_child_identity(self):
+        self.meta('parent')
+        self.add('event_msg', {'type': 'task_started'})
+        parent_file = self.file
+        self.file = parent_file.with_name('child.jsonl')
+        self.add('session_meta', {'id': 'child', 'cwd': '/work/child',
+            'source': {'subagent': {'thread_spawn': {'parent_thread_id': 'parent'}}}})
+        # Fork history includes the parent's session_meta after the child's own header.
+        self.meta('parent')
+        self.add('response_item', {'type': 'function_call', 'name': 'exec_command', 'arguments': '{}'})
+        self.add('event_msg', {'type': 'task_complete'})
+        events = self.t.scan()
+        rows = [r for group in self.t.sessions().values() for r in group]
+        self.assertEqual(sorted(r['sid'] for r in rows), ['child', 'parent'])
+        parent = next(r for r in rows if r['sid'] == 'parent')
+        child = next(r for r in rows if r['sid'] == 'child')
+        self.assertEqual(parent['state'], 'working')
+        self.assertEqual(child['state'], 'waiting')
+        self.assertTrue(child['sub'])
+        self.assertEqual(child['cwd'], '/work/child')
+        self.assertEqual(events[-1]['sid'], 'child')
+        self.assertTrue(events[-1]['sub'])
+        # A completed child becoming old must not mark the live parent done.
+        self.file = parent_file
+        self.ts = datetime.fromtimestamp(datetime.now(timezone.utc).timestamp() + 1900, timezone.utc).isoformat()
+        self.add('response_item', {'type': 'function_call', 'name': 'exec_command', 'arguments': '{}'})
+        self.t.scan()
+        with patch('codextown.time.time', return_value=datetime.fromisoformat(self.ts).timestamp()):
+            rows = {r['sid']: r for group in self.t.sessions().values() for r in group}
+            self.assertEqual(rows['parent']['state'], 'working')
+            self.assertEqual(rows['child']['state'], 'done')
+
     def test_cumulative_usage_not_double_counted(self):
         self.meta()
         for n in [100,100,180]:

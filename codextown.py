@@ -136,6 +136,10 @@ class Tailer(town.Tailer):
             sid = p.get('id')
             if not isinstance(sid, str):
                 return []
+            # Fork history may replay parent metadata after the child's own header.
+            # Keep file identity so a child's completion cannot overwrite its parent.
+            if path in self._meta and self._meta[path]['sid'] != sid:
+                return []
             source = p.get('source', '')
             sub = isinstance(source, dict) and 'subagent' in source
             self._meta[path] = {'sid': sid, 'entry': 'codex-desktop' if 'Desktop' in str(p.get('originator')) else 'codex-cli', 'sub': sub, 'source': source if isinstance(source, str) else 'subagent'}
