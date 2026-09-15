@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {createTownEvents,raidFormation}=require('./town-events.js');
 function fixture(){
  let time=1000,enabled=true;const list=[],log=[],payouts=[],lost=[],released=[],people=['a','b','c','d'].map((key,i)=>({key,role:'waiting',x:3+i*.1,y:4,present:true,stats:{hp:120,attack:45+i*5,defense:8,crit:.1}}));
- const g={active:null,monsters:list},room={gx:0,gy:0},h={now:()=>time,random:()=>.5,game:()=>g,duels:()=>false,enabled:()=>enabled,residents:()=>people,present:a=>a.present,eligible:a=>a.present&&a.role!=='done',stats:a=>({...a.stats}),damage:(a,d)=>({damage:Math.max(1,Math.round(a-d)),critical:false}),reward:(a,b,s)=>payouts.push({key:a.key,stars:s}),defeat:a=>lost.push(a.key),freeze:a=>a.frozen=true,release:a=>{released.push(a.key);a.frozen=false;},room:()=>room,roomValid:()=>true,event:(...e)=>log.push(e),cooperate:a=>log.push(['friends',a.map(a=>a.key)]),see:m=>log.push(['see',m.name]),hit:(m,n)=>log.push(['hit',n]),result:(m,w)=>log.push(['result',w])};
+ const g={active:null,monsters:list},room={gx:0,gy:0},h={now:()=>time,random:()=>.99,game:()=>g,duels:()=>false,enabled:()=>enabled,residents:()=>people,present:a=>a.present,eligible:a=>a.present&&a.role!=='done',stats:a=>({...a.stats}),damage:(a,d)=>({damage:Math.max(1,Math.round(a-d)),critical:false}),reward:(a,b,s)=>payouts.push({key:a.key,stars:s}),defeat:a=>lost.push(a.key),freeze:a=>a.frozen=true,release:a=>{released.push(a.key);a.frozen=false;},room:()=>room,roomValid:()=>true,event:(...e)=>log.push(e),cooperate:a=>log.push(['friends',a.map(a=>a.key)]),see:m=>log.push(['see',m.name]),hit:(m,n)=>log.push(['hit',n]),result:(m,w)=>log.push(['result',w])};
  const e=createTownEvents(h);return {e,h,g,people,log,payouts,lost,released,time:t=>{time=t;return time;},step:t=>{time=t;e.step(t);},disable:()=>enabled=false,next:()=>{time=e.active.next;e.step(time);}};
 }
 function advanceTo(f,phase){for(let i=0;i<30&&f.e.active?.phase!==phase;i++)f.next();assert.equal(f.e.active?.phase,phase);}
@@ -31,7 +31,7 @@ function advanceTo(f,phase){for(let i=0;i<30&&f.e.active?.phase!==phase;i++)f.ne
  for(let i=0;i<30&&!r.done;i++)f.next();assert.equal(r.done,true);assert.equal(r.won,false);assert.equal(f.lost.length,2);assert.equal(new Set(f.lost).size,2);assert.equal(f.payouts.length,0);assert.equal(f.log.filter(e=>e[0]==='raids'&&e[1]==='lost').length,1);
 }
 {
- const f=fixture();f.h.random=()=>.01;f.e.startRaid();const r=f.e.active;advanceTo(f,'bossWindup');assert.equal(r.special,true);assert.equal(r.next-r.phaseAt,1600);const hp=r.target.hp;f.step(r.next-1);assert.equal(r.target.hp,hp);f.next();assert.equal(r.hit.special,true);assert.equal(r.hit.damage,Math.round(r.attack*2.6-r.target.stats.defense));
+ const f=fixture();f.h.random=()=>.01;f.e.startRaid();const r=f.e.active;advanceTo(f,'bossWindup');assert.equal(r.special,true);assert.equal(r.next-r.phaseAt,1600);const hp=r.target.hp;f.step(r.next-1);assert.equal(r.target.hp,hp);f.next();assert.equal(r.hit.special,true);assert.equal(r.hit.damage,Math.round(r.attack*({wave:.65,focus:.72,scatter:.85,single:1}[r.bossPlan.kind])*2.6-r.target.stats.defense));
 }
 {
  const f=fixture();f.e.startRaid();f.disable();f.step(5000);assert.equal(f.e.active,null);assert.equal(f.payouts.length,0);assert.equal(f.released.length,4);assert.equal(f.e.spawnTreasure(),false);
@@ -73,3 +73,17 @@ console.log('events: raid-only eligibility includes cooldown/completed residents
 
 for(const skill of [false,true]){const f=fixture();f.h.random=()=>skill?.01:.99;f.e.startRaid();const r=f.e.active;if(!skill)r.hp=1;f.next();assert.equal(r.phase,'playerCharge');const hp=r.hp;assert.equal(r.next-r.phaseAt,skill?1300:2600);f.step(r.next-1);assert.equal(r.hp,hp);f.next();assert.equal(r.phase,'playerApproach');assert.equal(r.next-r.phaseAt,260);f.next();assert.equal(r.phase,'playerWindup');assert.equal(r.next-r.phaseAt,120);assert.equal(r.hp,hp);f.next();assert.equal(r.phase,'playerImpact');assert.ok(r.hp<hp);}
 console.log('Raid finisher/skill: charge, travel, plant feet, then damage');
+
+for(const [roll,kind,count] of [[.1,'wave',1],[.4,'focus',2],[.7,'scatter',2],[.95,'single',1]]){
+ const f=fixture();f.e.startRaid();const r=f.e.active;r.hp=100000;r.members.forEach(m=>m.hp=m.maxHp=10000);advanceTo(f,'playerReturn');
+ let calls=0;f.h.random=()=>calls++===0?roll:.99;f.next();assert.equal(r.bossPlan.kind,kind);assert.equal(r.bossPlan.total,count);
+ const hits=[];while(r.phase!=='bossReturn'){if(r.phase==='bossWindup'){const hp=r.members.map(m=>m.hp);f.step(r.next-1);assert.deepEqual(r.members.map(m=>m.hp),hp);f.next();assert.equal(r.phase,'bossImpact');hits.push(r.hit);for(const hit of r.hit.victims){const i=r.members.indexOf(hit.target);assert.equal(hp[i]-hit.target.hp,Math.min(hp[i],hit.damage));}const after=r.members.map(m=>m.hp);f.step(r.next-1);assert.deepEqual(r.members.map(m=>m.hp),after,'hit applies once');}else f.next();}
+ assert.equal(hits.length,count);if(kind==='wave')assert.equal(hits[0].victims.length,4);if(kind==='focus')assert.equal(hits[0].target,hits[1].target);if(kind==='scatter')assert.notEqual(hits[0].target,hits[1].target);
+}
+{
+ const f=fixture();f.e.startRaid();const r=f.e.active;r.hp=100000;r.attack=10000;advanceTo(f,'playerReturn');let calls=0;f.h.random=()=>calls++===0?.4:.99;f.next();advanceTo(f,'bossImpact');const first=r.target;assert.equal(first.hp,0);f.next();assert.notEqual(r.target,first,'focus retargets after death');assert.equal(r.phase,'bossApproach');const hp=r.target.hp;f.step(r.next-1);assert.equal(r.target.hp,hp,'replacement target is not hit during travel');advanceTo(f,'bossImpact');assert.equal(f.lost.length,2);assert.equal(new Set(f.lost).size,2,'each defeat recorded once');
+}
+{
+ const f=fixture();f.e.startRaid();const r=f.e.active;r.hp=100000;r.attack=10000;advanceTo(f,'playerReturn');let calls=0;f.h.random=()=>calls++===0?.1:.99;f.next();advanceTo(f,'bossWindup');r.members[0].a.present=false;f.next();advanceTo(f,'bossImpact');assert.equal(r.hit.victims.length,3,'departed resident omitted from wave');assert.equal(r.won,false);assert.equal(f.lost.length,3);assert.ok(r.hit.victims.every(v=>v.target.defeatEffectDuration===1250));assert.equal(f.payouts.length,0,'party defeat gives no reward');
+}
+console.log('Boss patterns: repeat/distributed strikes, all-party wave, once-only armor damage, retargeting and party defeat pass');
