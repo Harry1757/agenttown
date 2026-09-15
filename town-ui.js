@@ -10,7 +10,25 @@
   const saveDismissed = () => save('codextown.dismissed',Object.fromEntries(dismissed));
   const savedWins=read('codextown.duelWins',{});
   const duelWins=new Map(Object.entries(savedWins&&typeof savedWins==='object'?savedWins:{}).filter(([,n])=>Number.isSafeInteger(n)&&n>0));
+  // Browsing pauses new encounters, never a fight already in progress.
+  let combatResumeAt = 0, rosterHovered = false;
+  function combatPaused() {
+    const roster = $('roster');
+    const browsing = Boolean(document.querySelector('dialog[open]')) ||
+      $('workspace').classList.contains('roster-open') ||
+      (window.innerWidth > 1100 && (roster.classList.contains('show-detail') || rosterHovered || roster.contains(document.activeElement)));
+    if (browsing) combatResumeAt = performance.now() + 3000;
+    return browsing || performance.now() < combatResumeAt;
+  }
+  $('roster').addEventListener('pointerenter', () => { rosterHovered = true; combatPaused(); });
+  $('roster').addEventListener('pointerleave', () => { combatPaused(); rosterHovered = false; });
+  document.addEventListener('focusin', combatPaused);
+  const browsingObserver = new MutationObserver(combatPaused);
+  browsingObserver.observe(document.body, {subtree: true, attributes: true, attributeFilter: ['open']});
+  for (const node of [$('workspace'), $('roster')])
+    browsingObserver.observe(node, {attributes: true, attributeFilter: ['class']});
   const ui = window.townUI = {
+    combatPaused,
     winCount(a) {return duelWins.get(`${a.proj}|${a.sid}`)||0;},
     recordWin(a) {
       const key=`${a.proj}|${a.sid}`;

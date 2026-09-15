@@ -14,7 +14,7 @@ async page=>{
     townAdventure.foregroundFinish(x,feet,.45,2,element,size);
     if(!sample)throw Error('missing effect');const expectedX=cv.width/2+x*dpr*zoom,expectedY=cv.height/2+targetY*dpr*zoom;
     if(Math.abs(sample.e-expectedX)>.01||Math.abs(sample.f+sample.d*anchor-expectedY)>.01)throw Error('skill detached from target: '+JSON.stringify({width:innerWidth,element,size,expectedY,actualY:sample.f+sample.d*anchor}));
-    if(sample.a/(dpr*zoom)>Math.max(1.05,size/60)*(element===null?1.35:1)+.001)throw Error('fullscreen effect grows beyond target proportions');
+    if(sample.a/(dpr*zoom)>Math.max(1.05,size/60)*1.25*(element===null?1.35:1)+.001)throw Error('fullscreen effect grows beyond target proportions');
     ctx.restore();checks++;
    }return {width:innerWidth,height:innerHeight,anchors:checks};}finally{ctx.scale=original;}
   }));

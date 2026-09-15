@@ -192,7 +192,7 @@ function wander(m,now,dt){
  if(d<=step+.02){m.x=m.tx;m.y=m.ty;m.tx=undefined;m.pauseUntil=now+700+Math.random()*2200;}
  else{m.x+=dx/d*step;m.y+=dy/d*step;if(Math.abs(dx)>.02)m.face=dx>0?1:-1;}
 }
-function begin(a,m){if(battle||window.townEvents?.active||!eligible(a)||!monsters.includes(m)||a.role!==m.role||roomDuels.size)return false;
+function begin(a,m){if(window.townUI?.combatPaused?.()||battle||window.townEvents?.active||!eligible(a)||!monsters.includes(m)||a.role!==m.role||roomDuels.size)return false;
  const size=spriteScaleFor(a,layout.scale)/layout.scale,monsterSize=m.power.size;
  const stats=statsFor(a),maxHp=stats.hp,damage=stats.attack,monsterHp=m.power.hp,mercy=size<1.6&&(record(a).lossStreak||0)>=4;
  battle={a,m,size,monsterSize,stats,mercy,reward:m.reward??m.level,monsterAttack:m.power.attack,monsterDefense:m.power.defense,monsterCrit:m.power.crit,maxHp,hp:maxHp,monsterHp,maxMonsterHp:monsterHp,damage,start:performance.now(),next:performance.now()+1800,round:0,legendary:mercy||size<monsterSize&&Math.random()<legendaryChance(a),done:false};
@@ -279,8 +279,8 @@ function foregroundFinish(x,y,p,wanted=1.3,element=null,targetSize=0){
  const targetY=targetSize?y-(grounded?0:element===1?targetSize*.2:targetSize*.45):y;
  const px=Math.max(left,Math.min(right,x)),py=Math.max(top,Math.min(bottom,targetY));
  // Keep the silhouette proportional to the target, even when fullscreen leaves more room.
- const bodyLimit=targetSize?Math.max(1.05,targetSize/60)*(element===null?1.35:1):Infinity;
- const scale=Math.min(1.44*wanted,bodyLimit,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/(bounds[2]+anchor),(bottom-py)/(bounds[3]-anchor));
+ const bodyLimit=targetSize?Math.max(1.05,targetSize/60)*1.25*(element===null?1.35:1):Infinity;
+ const scale=Math.min(1.8*wanted,bodyLimit,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/(bounds[2]+anchor),(bottom-py)/(bounds[3]-anchor));
  if(scale<=0)return;
  ctx.save();ctx.translate(px,py-anchor*scale);ctx.scale(scale,scale);if(element===null)crescent(0,0,p);else finisher(0,0,p,element);ctx.restore();
 }
@@ -330,6 +330,20 @@ function finisher(x,y,p,key){
  const clamp=n=>Math.max(0,Math.min(1,n)),phase=(start,length)=>clamp((p-start)/length),fade=Math.min(1,(1-p)/.22);
  ctx.save();ctx.translate(x,y);ctx.globalAlpha*=fade;const opacity=ctx.globalAlpha;
  ctx.shadowColor=colors[kind];ctx.shadowBlur=5;ctx.lineCap='round';ctx.lineJoin='round';
+ // A wider, element-specific wake surrounds the hit without filling the face.
+ ctx.save();ctx.shadowBlur=8;const burst=phase(.08,.7),wakeAlpha=opacity*Math.sin(Math.PI*burst)*.8;
+ ctx.globalAlpha=wakeAlpha;ctx.strokeStyle=colors[kind];ctx.fillStyle=colors[kind];
+ for(let i=0;i<16;i++){
+  const a=i*Math.PI/8+burst*(kind===3?1.8:.3),r=38+burst*31,xx=Math.cos(a)*r,yy=Math.sin(a)*48*burst;
+  ctx.lineWidth=i%3===0?2:1;
+  if(kind===0){star(xx,yy,2+i%3, i%2?'#ffe9a3':'#ff764c');}
+  else if(kind===1){ctx.beginPath();ctx.moveTo(xx*.6,yy*.6);ctx.lineTo(xx*.85+5,yy*.72-5);ctx.lineTo(xx*.78-3,yy*.9);ctx.lineTo(xx,yy);ctx.stroke();}
+  else if(kind===2){ctx.beginPath();ctx.ellipse(xx,yy,2,4,a,0,7);ctx.fill();}
+  else if(kind===3){ctx.beginPath();ctx.ellipse(0,-12,r,32+burst*15,-.25,a,a+.25);ctx.stroke();}
+  else{ctx.beginPath();ctx.moveTo(xx-5,yy+3);ctx.lineTo(xx+5,yy-3);ctx.stroke();}
+ }
+ ctx.restore();
+
  const stroke=(points,color,width,alpha=1)=>{ctx.globalAlpha=opacity*alpha;ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();points.forEach(([xx,yy],i)=>i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy));ctx.stroke();};
  if(kind===0){
   // The ground splits first; a tall flame column erupts through the target and sheds embers.
@@ -417,6 +431,11 @@ function monsterAttackAngle(windup,age){
  if(windup>=0)return windup<.6?.12*ease(windup/.6):.12-.44*ease((windup-.6)/.4);
  return 0;
 }
+function swordSwing(age,windup=0,rest=.48){
+ const ease=p=>{p=Math.max(0,Math.min(1,p));return p*p*(3-2*p);};
+ if(age>=0&&age<.24)return age<.05?1.3+.65*ease(age/.05):1.95-(1.95-rest)*ease((age-.05)/.19);
+ return rest+(1.3-rest)*windup;
+}
 function battleMotion(b,now,as,ms){
  const smooth=value=>{const p=Math.max(0,Math.min(1,value));return p*p*(3-2*p);};
  const age=(now-(b.hitAt??-1e8))/1000,received=(now-(b.playerHitAt??-1e8))/1000;
@@ -429,7 +448,7 @@ function battleMotion(b,now,as,ms){
  const bossHold=b.receivedSpecial?1.25:.5,bossReturn=received>=0&&received<bossHold+.26?1-smooth((received-bossHold)/.26):0;
  const playerPush=impulse(received),bossPush=impulse(age),playerContact=85-(ms*.4+as*.35+22),bossContact=-83+(as+ms)*.46+6;
  const preSwing=!b.done&&approach===1?smooth(1-(b.next-now)/(chargedAttack?80:120)):0;
- const swing=age>=0&&age<.5?age<.08?1.45+.5*smooth(age/.08):1.95-1.47*smooth((age-.08)/.42):.48+.97*preSwing;
+ const swing=swordSwing(age,preSwing);
  return {px:-83+(playerContact+83)*Math.max(approach,returning)-playerPush*(b.receivedSpecial?28:18),mx:85+(bossContact-85)*Math.max(bossApproach,bossReturn)+bossPush*9,swing,approach,bossApproach,playerPush,bossPush,bossAngle,bossMoving:bossApproach>0&&bossApproach<1||bossReturn>0&&bossReturn<1,playerHop:Math.sin(approach*Math.PI)*Math.abs(Math.sin(approach*Math.PI*2))*Math.min(3,as*.04),bossHop:Math.sin(bossApproach*Math.PI)*Math.min(4,ms*.04)};
 }
 function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(now-b.start)/1000,age=(now-(b.hitAt||-1e8))/1000,charge=!b.done&&!b.counterAt&&b.finishing&&now>=b.next-280-(b.windup||3000)&&now<b.next-280,chargedMove=!b.done&&!b.counterAt&&(b.finishing||b.nextHit?.skill)&&now>=b.next-280&&now<b.next;
@@ -627,7 +646,7 @@ shopDialog.onclick=event=>{
  if(event.target===shopDialog){const r=shopDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)shopDialog.close();}
 };
 panel.querySelector('button').onclick=()=>{enabled=!enabled;save('codextown.adventureEnabled',enabled);if(!enabled){window.townEvents?.cancel();cancel();monsters.length=0;}else nextSpawn=performance.now()+4000;renderLog();};renderLog();
-window.townAdventure={defeatDelay,legendaryBladeAmount,monsterAttackAngle,legendaryChance,skillDuration,rollPlayerHit,battleMotion,chronicle,journal,catalog,autoEquip,autoMode:key=>chronicle?.autoMode(key)||'off',setAutoMode:(key,mode)=>{if(!avatars[key]||!chronicle?.setAuto(key,mode))return false;autoEquip(avatars[key]);return true;},get enabled(){return enabled;},eligible,monster,chamber,impact,defeat,applyBattlePose,foregroundFinish,chargeAura,finishDuration,gradeFor,duelPlayback,rewardDuel,finisherDuration,finishFade,elementFor,atmosphere,legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a||Boolean(window.townEvents?.busy(a)),resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const playback=duelPlayback(d);if(playback){d.playback=playback;return playback.t;}const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
+window.townAdventure={swordSwing,defeatDelay,legendaryBladeAmount,monsterAttackAngle,legendaryChance,skillDuration,rollPlayerHit,battleMotion,chronicle,journal,catalog,autoEquip,autoMode:key=>chronicle?.autoMode(key)||'off',setAutoMode:(key,mode)=>{if(!avatars[key]||!chronicle?.setAuto(key,mode))return false;autoEquip(avatars[key]);return true;},get enabled(){return enabled;},eligible,monster,chamber,impact,defeat,applyBattlePose,foregroundFinish,chargeAura,finishDuration,gradeFor,duelPlayback,rewardDuel,finisherDuration,finishFade,elementFor,atmosphere,legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a||Boolean(window.townEvents?.busy(a)),resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const playback=duelPlayback(d);if(playback){d.playback=playback;return playback.t;}const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
 function sword(x,y,length,angle,rank,t,paint=ctx,breadth=1){
 paint.save();paint.translate(x,y);paint.rotate(angle);paint.scale(breadth,breadth);
 const L=length/breadth;

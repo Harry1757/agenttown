@@ -29,7 +29,7 @@ function createTownEvents(host) {
  function close(time){const old=raid;raid=null;raidPending=false;nextRaid=time+180000+random()*180000;if(old)for(const m of old.members)if(!m.left)release(m.a);}
  function cancel(){raidPending=false;if(raid){finish(false,now(),true);close(now());}if(treasure)removeTreasure(false);greetings.length=0;nextTreasure=now()+90000;}
  function startRaid(actors=raidCandidates()){
-  if(raid||game().active||host.duels()||!host.enabled())return false;
+  if(host.combatPaused?.()||raid||game().active||host.duels()||!host.enabled())return false;
   const unique=[...new Map(actors.filter(raidEligible).map(a=>[a.key,a])).values()];if(unique.length<2||unique.some(a=>host.raidReady&&!host.raidReady(a)))return false;
   const members=unique.map(a=>{const stats=host.stats(a);return {a,stats,grade:host.grade?.(stats)??10,hp:stats.hp,maxHp:stats.hp,damage:0,reward:0,left:false};});
   const hp=220+members.reduce((s,m)=>s+m.maxHp*.9,0),attack=28+members.length*2+members.reduce((s,m)=>s+m.stats.attack,0)/members.length*.22;
@@ -73,7 +73,7 @@ function createTownEvents(host) {
   }
   if(r.phase==='playerApproach'){
    if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
-   r.phase='playerWindup';r.phaseAt=time;r.next=time+(r.finishing||r.pending.skill?120:500);return;
+   r.phase='playerWindup';r.phaseAt=time;r.next=time+120;return;
   }
   if(r.phase==='playerWindup'){
    if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
@@ -143,7 +143,7 @@ root.createTownEvents=createTownEvents;
 root.raidFormation=raidFormation;
 if(!root.townAdventure||typeof avatars==='undefined')return;
 const g=root.townAdventure,clock=()=>performance.now(),journal=()=>g.chronicle;
-const host={now:clock,random:()=>Math.random(),game:()=>g,duels:()=>roomDuels.size,enabled:()=>g.enabled!==false&&!root.townUI?.motionReduced,
+const host={combatPaused:()=>root.townUI?.combatPaused?.(),now:clock,random:()=>Math.random(),game:()=>g,duels:()=>roomDuels.size,enabled:()=>g.enabled!==false&&!root.townUI?.motionReduced,
  residents:()=>Object.values(avatars),present:a=>avatars[a.key]===a&&!state.sessionInfo[a.key]?.needsInput,
  raidEligible:a=>avatars[a.key]===a&&a.role!=='done'&&!state.sessionInfo[a.key]?.needsInput,
  raidReady:a=>!a.travelFrom&&!a.portal&&!a.route?.length&&!a.duel,
@@ -200,7 +200,7 @@ function drawBattle(){
   const moving=!r.done&&r.actor===m&&['playerApproach','playerReturn'].includes(r.phase),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0;
   const contactGap=bossSize*.43+size*.4+20,px=x+(bossX-face*contactGap-x)*travel-face*recoil*8,py=y+(bossY-y)*travel+bob,pose={face,angle:fall>0?-.9*fallEase:received?-.18*recoil:0,alpha:m.left?.2:!m.hp?1:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y:py,size});
   ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,face,edge-15,pose);
-  const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=attacking?(age<.14?1.3+age/.14*.65:1.95-Math.min(1,(age-.14)/.21)*1.43):.52+winding*.75;
+  const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=g.swordSwing(attacking?age:-1,winding,.52);
   if(!m.left)g.equipment(m.a,px,py,size,{sword:swing,trail:attacking},face,false,false,1,pose);
   const barWidth=Math.min(50,formation.size+8);ctx.fillStyle='#142726';ctx.fillRect(px-barWidth/2,py+4,barWidth,3);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(px-barWidth/2,py+4,barWidth*m.hp/m.maxHp,3);
   ctx.font='8px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'비움':m.hp?r.members.length>9?Math.round(m.hp/m.maxHp*100)+'%':m.hp+' / '+m.maxHp:'기절',px,py+16);

@@ -24,6 +24,12 @@ if not errorlevel 1 (
   pause
   exit /b 1
 )
+tasklist /FI "IMAGENAME eq CodexTown.exe" /NH 2>nul | find /I "CodexTown.exe" >nul
+if not errorlevel 1 (
+  echo Please quit the previous CodexTown app from its tray menu before installing AgentTown.
+  pause
+  exit /b 1
+)
 if not exist "%~dp0app\AgentTown.exe" (
   echo Extract the entire ZIP first. Do not run this file inside the ZIP.
   pause
