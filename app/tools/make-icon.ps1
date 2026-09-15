@@ -1,6 +1,6 @@
 ﻿#requires -version 5
 <#
-  assets/icon-src/claudetown-<N>.png (tools/draw-icon.py 가 그린 것) 를
+  assets/icon-src/claudetown-<N>.png (npm run icons 로 변환한 것) 를
   assets/claudetown.ico 하나로 묶는다. clock-reminder/tools/pack-ico.js 와
   같은 방식(Vista+ 의 PNG-in-ICO 포맷)을 PowerShell로 옮긴 것 - 각 PNG를
   그대로 담으므로 System.Drawing.Icon 경유 변환에서 생기는 화질 손실이 없다.
@@ -8,7 +8,7 @@
   먼저 PNG 를 그린다:
       python3 tools/draw-icon.py
   그다음 이 스크립트로 묶는다:
-      npm run icon
+      powershell -File tools/make-icon.ps1
 #>
 param(
   [string]$SrcDir = (Join-Path $PSScriptRoot '..\assets\icon-src'),
@@ -21,7 +21,7 @@ $images = Get-ChildItem -Path $SrcDir -Filter 'claudetown-*.png' | ForEach-Objec
   if ($_.BaseName -match 'claudetown-(\d+)$') {
     [pscustomobject]@{ Size = [int]$Matches[1]; Bytes = [System.IO.File]::ReadAllBytes($_.FullName) }
   }
-} | Sort-Object Size
+} | Where-Object { $_.Size -le 256 } | Sort-Object Size
 
 if (-not $images -or $images.Count -eq 0) {
   Write-Error "$SrcDir 에 claudetown-<size>.png 가 없다. 먼저 'python3 tools/draw-icon.py' 를 돌려야 한다."
