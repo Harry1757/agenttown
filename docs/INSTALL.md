@@ -1,6 +1,6 @@
 # 설치 · 실행 · 데이터 안내
 
-[← CodexTown 소개로 돌아가기](../README.md)
+[← AgentTown 소개로 돌아가기](../README.md)
 
 아래 명령은 별도 안내가 없으면 저장소 루트에서 실행합니다.
 
@@ -8,7 +8,7 @@ ClaudeTown의 도트 마을을 유지하면서 **Codex 데스크톱·명령줄 �
 
 ## 실행
 
-맥에서는 `/Applications/CodexTown.app`을 열거나 저장소의 `CodexTown.command`를 더블클릭합니다.
+맥에서는 `/Applications/AgentTown.app`을 열거나 저장소의 `AgentTown.command`를 더블클릭합니다.
 창을 닫으면 메뉴 막대에 남습니다. 메뉴의 **종료**로 앱과 앱이 시작한 서버를 종료합니다.
 
 브라우저만으로 실행하려면:
@@ -83,11 +83,11 @@ node --test app/test-notifications.js
 
 ## Windows ZIP 설치 (GitHub 없이 전달)
 
-`downloads/CodexTown-Windows-x64.zip`을 그대로 전달합니다. 받는 사람은 전체 압축을 풀고
+`downloads/AgentTown-Windows-x64.zip`을 그대로 전달합니다. 받는 사람은 전체 압축을 풀고
 `설치.cmd`를 더블클릭하면 됩니다. 현재 사용자 폴더에 설치되고 바탕화면·시작 메뉴에
 바로가기가 생깁니다. Node.js와 Python은 별도로 설치하지 않습니다.
 
-2026-09-15 Windows 11 Pro x64에서 WSL 없이 다음을 검증했습니다.
+2026-09-15 Windows 11 Pro x64에서 WSL 없이 다음을 검증했습니다. 아래 실기기 검증은 이름 변경 전 CodexTown 빌드 기준입니다. AgentTown 패키지는 다시 생성하고 파일 구성을 확인했으며, 새 이름으로 Windows에 재설치하는 검증은 아직 진행하지 않았습니다.
 
 - ZIP 설치, 바탕화면·시작 메뉴 바로가기, 내장 Python과 Electron 앱 실행
 - 한글 경로의 테스트 세션 인식, 토큰 표시, 작업 중 → 응답 요청 상태의 실시간 변경
@@ -111,7 +111,7 @@ python3 tools/package-windows-zip.py /path/to/electron-v43.4.0-win32-x64.zip
 
 ## Windows EXE 설치 파일 (추가 빌드 방법)
 
-Windows x64용 `CodexTown-1.0.0-Windows-x64-Setup.exe`를 만드는 구성이 포함되어 있습니다.
+Windows x64용 `AgentTown-1.0.0-Windows-x64-Setup.exe`를 만드는 구성이 포함되어 있습니다.
 설치 파일에는 Python 실행 엔진이 들어가므로, 받는 사람은 Python이나 Node.js를 따로 설치할 필요가 없습니다.
 받는 사람의 PC에 Codex 사용 기록이 있어야 캐릭터가 표시됩니다. 기본 위치는 `%USERPROFILE%\.codex`입니다.
 Windows에서 직접 생성된 기록을 대상으로 하며 WSL 내부의 기록은 자동으로 찾지 않습니다.
@@ -133,14 +133,14 @@ npm --prefix app run dist:win
 python tools/check-packaged-server.py app/dist/win-unpacked/resources/backend/codextown-server.exe
 ```
 
-결과는 `app/dist/` 아래의 `CodexTown-*-Setup.exe`입니다.
+결과는 `app/dist/` 아래의 `AgentTown-*-Setup.exe`입니다.
 동봉 실행 엔진은 Windows에서 빌드해야 합니다. macOS의 Python 실행 파일을 넣어 배포하지 않습니다.
 
 ### GitHub에서 빌드
 
 저장소의 Actions → **Windows installer** → **Run workflow**를 실행하면
 Windows에서 테스트와 빌드를 수행하고 실행 엔진의 서버·화면·이미지를 확인합니다.
-성공한 실행의 `CodexTown-Windows-x64` 파일 묶음에는 설치 파일과 SHA-256 체크섬이 들어 있습니다.
+성공한 실행의 `AgentTown-Windows-x64` 파일 묶음에는 설치 파일과 SHA-256 체크섬이 들어 있습니다.
 이 묶음은 30일 보관되며 GitHub 로그인이 필요합니다. 누구나 내려받는 링크는 검증한 설치 파일을
 공개 Releases 또는 별도 다운로드 페이지에 올려 제공해야 합니다. 이 작업은 자동 공개하지 않습니다.
 현재 빌드는 서명 없는 테스트 배포용입니다. 일반 공개용 배포 전에는 Windows에서 설치·삭제,

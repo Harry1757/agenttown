@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CodexTown: read-only Codex session viewer, using ClaudeTown's map renderer."""
+"""AgentTown: read-only Codex session viewer, using ClaudeTown's map renderer."""
 import hashlib
 import json
 import math
@@ -430,7 +430,7 @@ def main():
     threading.Thread(target=town.poll_loop, args=(tailer,), daemon=True).start()
     threading.Thread(target=usage.loop, daemon=True).start()
     url = f'http://127.0.0.1:{PORT}/'
-    print(f'CodexTown → {url}', flush=True)
+    print(f'AgentTown → {url}', flush=True)
     if '--no-browser' not in sys.argv:
         town.open_browser(url)
     try:

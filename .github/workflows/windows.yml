@@ -32,15 +32,15 @@ jobs:
       - name: Checksums
         shell: pwsh
         run: |
-          Get-ChildItem app/dist/CodexTown-*-Setup.exe | ForEach-Object {
+          Get-ChildItem app/dist/AgentTown-*-Setup.exe | ForEach-Object {
             $digest = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$digest  $($_.Name)" | Set-Content -Encoding ascii ($_.FullName + '.sha256')
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: CodexTown-Windows-x64
+          name: AgentTown-Windows-x64
           path: |
-            app/dist/CodexTown-*-Setup.exe
-            app/dist/CodexTown-*-Setup.exe.sha256
+            app/dist/AgentTown-*-Setup.exe
+            app/dist/AgentTown-*-Setup.exe.sha256
           if-no-files-found: error
           retention-days: 30

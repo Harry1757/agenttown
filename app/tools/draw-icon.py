@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility entry point: package the approved CodexTown icon artwork.
+"""Compatibility entry point: package the approved AgentTown icon artwork.
 
 Requires the app's existing npm dependencies (Electron); no Python packages.
 The original is app/design/icon-source.png. Run `npm --prefix app run icons`

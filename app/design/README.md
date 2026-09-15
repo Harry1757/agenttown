@@ -1,4 +1,4 @@
-# CodexTown app icon
+# AgentTown app icon
 
 `icon-source.png` is the approved generated artwork: a pixel stone gateway,
 mint portal and gold star on a dark green tile, with transparent corners.

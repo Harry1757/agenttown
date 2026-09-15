@@ -1,7 +1,7 @@
 {
   "name": "codextown-app",
   "version": "1.0.0",
-  "description": "Codex 세션과 사용량을 도트 마을로 보는 로컬 데스크톱 앱",
+  "description": "AI 에이전트의 작업을 도트 마을로 보는 로컬 데스크톱 앱",
   "main": "src/main.js",
   "scripts": {
     "icons": "electron tools/build-icons.js",
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.codextown.app",
-    "productName": "CodexTown",
+    "productName": "AgentTown",
     "directories": {
       "output": "dist"
     },
@@ -46,8 +46,8 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CodexTown",
-      "artifactName": "CodexTown-${version}-Windows-${arch}-Setup.${ext}"
+      "shortcutName": "AgentTown",
+      "artifactName": "AgentTown-${version}-Windows-${arch}-Setup.${ext}"
     },
     "mac": {
       "target": [

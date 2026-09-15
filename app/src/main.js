@@ -10,7 +10,9 @@ const URL = `http://127.0.0.1:${PORT}`;
 const ASSETS = path.join(__dirname, '..', 'assets');
 let win, tray, server, quitting = false;
 let notificationsEnabled = true;
-app.setName('CodexTown');
+// Preserve the existing Chromium profile, inventory and notification preferences.
+app.setPath('userData', path.join(app.getPath('appData'), 'CodexTown'));
+app.setName('AgentTown');
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', (_event, argv) => {
@@ -19,7 +21,7 @@ else {
     else show();
   });
   app.whenReady().then(start).catch(err => {
-    dialog.showErrorBox('CodexTown 실행 실패', err.message);
+    dialog.showErrorBox('AgentTown 실행 실패', err.message);
     app.quit();
   });
 }
@@ -55,7 +57,7 @@ async function startServer() {
       if (failed || child.exitCode !== null) break;
       if (await health()) {
         child.on('exit', () => {
-          if (!quitting && server === child) dialog.showErrorBox('CodexTown 연결 종료', '세션 서버가 종료되었습니다. 앱을 다시 열어 주세요.');
+          if (!quitting && server === child) dialog.showErrorBox('AgentTown 연결 종료', '세션 서버가 종료되었습니다. 앱을 다시 열어 주세요.');
         });
         return;
       }
@@ -74,7 +76,7 @@ async function start() {
   if (process.platform === 'win32') app.setAppUserModelId('com.codextown.app');
   try { notificationsEnabled = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'preferences.json'), 'utf8')).notifications !== false; } catch {}
   await startServer();
-  win = new BrowserWindow({ width: 1440, height: 920, minWidth: 380, minHeight: 460, title: 'CodexTown',
+  win = new BrowserWindow({ width: 1440, height: 920, minWidth: 380, minHeight: 460, title: 'AgentTown',
     backgroundColor: '#122623', icon: path.join(ASSETS, 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false },
   });
@@ -86,10 +88,10 @@ async function start() {
   await win.loadURL(URL);
   let icon = nativeImage.createFromPath(path.join(ASSETS, 'icon.png')).resize({ width: 18, height: 18 });
   tray = new Tray(icon);
-  tray.setToolTip('CodexTown');
+  tray.setToolTip('AgentTown');
   tray.on('click', show);
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'CodexTown 열기', click: show },
+    { label: 'AgentTown 열기', click: show },
     { label: '알림 테스트', click: () => notifyWaiting({ title: '소리 없는 배너 알림입니다.', kind: 'ask' }) },
     { label: '항상 위에 표시', type: 'checkbox', click: item => win.setAlwaysOnTop(item.checked) },
     { type: 'separator' }, { label: '종료', click: () => app.quit() },
@@ -106,7 +108,7 @@ function notifyWaiting({ title, label, sid, kind }) {
   if (recentNotifications.has(key)) return;
   recentNotifications.set(key, now);
   const notification = new Notification({
-    title: kind === 'ask' ? 'CodexTown — 응답 요청' : 'CodexTown — 응답 완료',
+    title: kind === 'ask' ? 'AgentTown — 응답 요청' : 'AgentTown — 응답 완료',
     body: String(title || label || '작업을 확인해 주세요').slice(0, 180),
     silent: true,
   });
@@ -125,7 +127,7 @@ ipcMain.handle('notifications:set', (_event, enabled) => {
 ipcMain.handle('notifications:test', () => notifyWaiting({ title: '소리 없는 배너 알림입니다.', kind: 'ask' }));
 ipcMain.handle('notify-waiting', (_event, message) => notifyWaiting(message));
 ipcMain.on('waiting-count', (_event, count) => {
-  if (tray) tray.setToolTip(`CodexTown — 응답 대기 ${Math.max(0, Number(count) || 0)}개`);
+  if (tray) tray.setToolTip(`AgentTown — 응답 대기 ${Math.max(0, Number(count) || 0)}개`);
 });
 app.on('activate', show);
 app.on('window-all-closed', () => {});

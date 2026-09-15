@@ -1,10 +1,10 @@
 <div align="center">
 
-# CodexTown
+# AgentTown
 
 ### 코딩하는 동안, 작은 마을에서는 모험이 시작됩니다.
 
-**Codex 세션을 도트 캐릭터로 만나는 로컬 작업실.**<br>
+**AI 에이전트의 작업을 도트 캐릭터로 만나는 로컬 작업실.**<br>
 문을 열고 출근하고, 몬스터와 싸우고, 가끔은 작은 주민이 전설의 검을 뽑습니다.
 
 **실시간 세션 · 무음 알림 · 던전 전투 · 장비와 펫 · 공동 토벌**
@@ -13,7 +13,7 @@
 
 </div>
 
-![12개 방과 작업 목록이 있는 CodexTown의 실제 실행 화면](docs/images/town.png)
+![12개 방과 작업 목록이 있는 AgentTown의 실제 실행 화면](docs/images/town.png)
 
 > 이 페이지의 이미지는 **실제 앱에서 캡처**했습니다. 공개 촬영을 위해 세션 제목·토큰·사용량·장비와 전투 상황은 데모 데이터로 구성했습니다. 화면과 기술 효과는 현재 구현된 렌더러를 그대로 사용합니다.
 
@@ -94,21 +94,35 @@
 
 ## 시작하기
 
-**Codex의 로컬 작업 기록이 있는 PC**에서 사용합니다. 일반 ChatGPT 웹 대화를 읽는 앱은 아닙니다.
+**기본 데스크톱 앱은 Codex의 로컬 작업 기록이 있는 PC**에서 사용합니다. Claude Code 기록용 모듈도 포함되어 있으며, 별도 실행 방법은 아래 안내를 참고하세요. 일반 ChatGPT 웹 대화를 읽는 앱은 아닙니다.
 
 | 환경 | 실행 방법 |
 | --- | --- |
-| macOS 앱 | 전달받거나 직접 빌드한 `CodexTown.app` 실행. 창을 닫으면 메뉴 막대에 남습니다. |
-| Windows ZIP | `CodexTown-Windows-x64.zip` 전체 압축 해제 → `설치.cmd` 실행. Python·Node.js 별도 설치 없이 사용합니다. |
+| macOS 앱 | 전달받거나 직접 빌드한 `AgentTown.app` 실행. 창을 닫으면 메뉴 막대에 남습니다. |
+| Windows ZIP | `AgentTown-Windows-x64.zip` 전체 압축 해제 → `설치.cmd` 실행. Python·Node.js 별도 설치 없이 사용합니다. |
 | 소스에서 실행 | Python 3 환경에서 저장소 루트의 `./launch.sh` 실행 → `http://127.0.0.1:8766` 접속. |
 
 **설치 파일은 소스 저장소에 포함되어 있지 않습니다.** 패키지 생성, Windows EXE 빌드, 환경 변수와 플랫폼별 검증 범위는 [설치·실행 안내](docs/INSTALL.md)에 정리했습니다.
 
 ```sh
-git clone https://github.com/Harry1757/codextown.git
-cd codextown
+git clone https://github.com/Harry1757/agenttown.git
+cd agenttown
 ./launch.sh
 ```
+
+### Claude Code로 실행하기
+
+Claude Code의 로컬 기록은 별도 진입점으로 읽을 수 있습니다.
+
+```sh
+python3 claudetown.py
+```
+
+기본 접속 주소는 `http://127.0.0.1:8765`입니다. 현재 데스크톱 앱의 기본 서버와 계정 한도 조회·작업 바로 열기는 Codex용입니다. 두 제공자의 기록을 한 목록으로 합치는 기능은 아직 제공하지 않습니다.
+
+### 기존 CodexTown 사용자
+
+앱 이름을 AgentTown으로 바꿨습니다. 기존 장비·별가루·도감·알림 설정을 이어 쓰도록 저장 폴더와 내부 식별자는 유지합니다. `CODEXTOWN_*` 환경 변수도 그대로 사용할 수 있습니다.
 
 ### 내 작업 기록은 어디로 가나요?
 
@@ -127,6 +141,6 @@ ClaudeTown의 도트 마을에서 시작해 Codex 작업실과 작은 던전 모
 <div align="center">
 
 **작업은 차근차근. 모험은 틈틈이.**<br>
-CodexTown · 나의 작은 작업실
+AgentTown · 나의 작은 작업실
 
 </div>

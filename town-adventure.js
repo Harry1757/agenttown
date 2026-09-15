@@ -441,7 +441,7 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
  const arenaWidth=Math.min(520,Math.max(380,width/height*270)),scale=Math.min(1.8,width/arenaWidth,height/270);
  const mood=chargedMove?1:charge?Math.min(1,Math.max(0,1-(b.next-280-now)/(b.windup||3000))):b.done&&b.won?finishFade(age,b.legendary):skillCharge?cast*.65:skillImpact?(1-age/skillDuration)*.6:0;
- ctx.save();ctx.fillStyle=`rgba(4,8,16,${.55+Math.max(mood,bossMood)*.25})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
+ drawBattleBackdrop(`rgba(4,8,16,${.55+Math.max(mood,bossMood)*.25})`);ctx.save();ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
  chamber(b.m.kind,arenaWidth);
  ctx.fillStyle=`rgba(2,4,12,${mood*.42})`;ctx.fillRect(-arenaWidth/2+14,-60,arenaWidth-28,181);
  atmosphere(bossMood?bossElement:skillCharge||chargedMove&&!b.finishing?b.nextHit.element:skillImpact?b.attackElement:b.element,Math.max(mood,bossMood),t,arenaWidth,99,b.legendary&&!bossMood&&!skillCharge&&!skillImpact&&(!chargedMove||b.finishing));ctx.textAlign='center';ctx.font='600 14px sans-serif';ctx.fillStyle='#e7edda';ctx.fillText(`${b.m.name} · ${b.m.level}단계`+(b.m.elite?' 정예 보스':b.m.boss?' 보스':''),0,-111);

@@ -13,44 +13,44 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / 'downloads' / 'CodexTown-Windows-x64.zip'
+OUTPUT = ROOT / 'downloads' / 'AgentTown-Windows-x64.zip'
 PYTHON_URL = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip'
 INSTALL = r'''@echo off
 setlocal
-set "CODEXTOWN_INSTALL=%LOCALAPPDATA%\Programs\CodexTown"
-tasklist /FI "IMAGENAME eq CodexTown.exe" /NH 2>nul | find /I "CodexTown.exe" >nul
+set "CODEXTOWN_INSTALL=%LOCALAPPDATA%\Programs\AgentTown"
+tasklist /FI "IMAGENAME eq AgentTown.exe" /NH 2>nul | find /I "AgentTown.exe" >nul
 if not errorlevel 1 (
-  echo Please quit CodexTown from its tray menu, then run this installer again.
+  echo Please quit AgentTown from its tray menu, then run this installer again.
   pause
   exit /b 1
 )
-if not exist "%~dp0app\CodexTown.exe" (
+if not exist "%~dp0app\AgentTown.exe" (
   echo Extract the entire ZIP first. Do not run this file inside the ZIP.
   pause
   exit /b 1
 )
-echo Installing CodexTown for the current user...
+echo Installing AgentTown for the current user...
 robocopy "%~dp0app" "%CODEXTOWN_INSTALL%" /E /R:2 /W:1 /NFL /NDL /NJH /NJS >nul
 if errorlevel 8 goto failed
-powershell.exe -NoProfile -NonInteractive -Command "$w=New-Object -ComObject WScript.Shell; foreach($folder in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('Programs'))){$s=$w.CreateShortcut((Join-Path $folder 'CodexTown.lnk'));$s.TargetPath=Join-Path $env:CODEXTOWN_INSTALL 'CodexTown.exe';$s.WorkingDirectory=$env:CODEXTOWN_INSTALL;$s.IconLocation=Join-Path $env:CODEXTOWN_INSTALL 'resources\app\assets\claudetown.ico';$s.Save()}"
+powershell.exe -NoProfile -NonInteractive -Command "$w=New-Object -ComObject WScript.Shell; foreach($folder in @([Environment]::GetFolderPath('Desktop'),[Environment]::GetFolderPath('Programs'))){$s=$w.CreateShortcut((Join-Path $folder 'AgentTown.lnk'));$s.TargetPath=Join-Path $env:CODEXTOWN_INSTALL 'AgentTown.exe';$s.WorkingDirectory=$env:CODEXTOWN_INSTALL;$s.IconLocation=Join-Path $env:CODEXTOWN_INSTALL 'resources\app\assets\claudetown.ico';$s.Save()}"
 if errorlevel 1 goto failed
-echo Installation complete. Opening CodexTown...
-start "" "%CODEXTOWN_INSTALL%\CodexTown.exe"
+echo Installation complete. Opening AgentTown...
+start "" "%CODEXTOWN_INSTALL%\AgentTown.exe"
 exit /b 0
 :failed
 echo Installation failed. Please keep this window open and share the error.
 pause
 exit /b 1
 '''
-GUIDE = '''CodexTown Windows 설치
+GUIDE = '''AgentTown Windows 설치
 
 1. ZIP을 전부 압축 해제합니다. 압축 파일 안에서 바로 실행하지 마세요.
 2. 설치.cmd를 더블클릭합니다. 현재 사용자 폴더에 설치하고 바탕화면과 시작 메뉴에 바로가기를 만듭니다.
-3. 다음부터는 CodexTown 바로가기로 실행합니다.
+3. 다음부터는 AgentTown 바로가기로 실행합니다.
 
 관리자 권한, Python, Node.js 별도 설치가 필요 없는 Windows x64 패키지입니다.
-설치 위치: %LOCALAPPDATA%\\Programs\\CodexTown
-설치하지 않고 쓰려면 app 폴더의 CodexTown.exe를 실행해도 됩니다.
+설치 위치: %LOCALAPPDATA%\\Programs\\AgentTown
+설치하지 않고 쓰려면 app 폴더의 AgentTown.exe를 실행해도 됩니다.
 업데이트할 때는 트레이 메뉴의 종료로 앱을 완전히 종료한 뒤 새 ZIP의 설치.cmd를 실행합니다.
 
 본인 PC에서 Codex를 사용한 기록이 있어야 캐릭터가 나옵니다.
@@ -73,11 +73,11 @@ def package(electron_zip):
     OUTPUT.parent.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='codextown-windows-') as temporary:
         stage = Path(temporary)
-        bundle = stage / 'CodexTown-Windows'
+        bundle = stage / 'AgentTown-Windows'
         app = bundle / 'app'
         with zipfile.ZipFile(electron_zip) as archive:
             archive.extractall(app)
-        (app / 'electron.exe').rename(app / 'CodexTown.exe')
+        (app / 'electron.exe').rename(app / 'AgentTown.exe')
         (app / 'resources/default_app.asar').unlink(missing_ok=True)
         resources = app / 'resources'
         payload = resources / 'app'
@@ -91,7 +91,7 @@ def package(electron_zip):
             shutil.copy2(ROOT / name, server / name)
         shutil.copytree(ROOT / 'assets', server / 'assets')
         (payload / 'package.json').write_text(json.dumps({
-            'name': 'codextown-app', 'productName': 'CodexTown', 'version': '1.0.0', 'main': 'src/main.js'
+            'name': 'codextown-app', 'productName': 'AgentTown', 'version': '1.0.0', 'main': 'src/main.js'
         }), encoding='utf-8')
         python_zip = stage / 'python.zip'
         with urllib.request.urlopen(PYTHON_URL, timeout=60) as response:
