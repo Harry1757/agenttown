@@ -5,12 +5,13 @@ async page=>{
   for(const width of [960,390]){
    await page.setViewportSize({width,height:580});await page.reload();await page.waitForFunction(()=>window.townEvents&&SHEETS.dungeon.img&&SHEETS.equipment.img);
    output.push(await page.evaluate(width=>{
-    cancelAnimationFrame(frameRequest);townUI.motionReduced=false;townUI.roomView='all';updateRoomView();fitCanvas();const g=townAdventure,e=townEvents,clock=performance.now,random=Math.random,equipment=g.equipment,monster=g.monster;
-    let now=100000,frames=0,units={},boss=null;performance.now=()=>now;Math.random=()=>.99;for(const key of Object.keys(avatars))delete avatars[key];e.cancel();g.cancel();g.monsters.length=0;
+    cancelAnimationFrame(frameRequest);townUI.motionReduced=false;townUI.roomView='all';updateRoomView();fitCanvas();const g=townAdventure,e=townEvents,clock=performance.now,random=Math.random,equipment=g.equipment,monster=g.monster,fillRect=ctx.fillRect,fillText=ctx.fillText;
+    let now=100000,frames=0,units={},boss=null,healthOwner=null,healthChecks=0;performance.now=()=>now;Math.random=()=>.99;for(const key of Object.keys(avatars))delete avatars[key];e.cancel();g.cancel();g.monsters.length=0;
     const check=(ok,msg)=>{if(!ok)throw Error(msg);},room=ROOM_BY_ROLE.waiting,people=[0,1,2,3].map(i=>{const key='Motion|'+i,a=avatars[key]={key,proj:'Motion',sid:''+i,idx:84+i,role:'waiting',x:room.gx+3,y:room.gy+4,tx:room.gx+3,ty:room.gy+4};state.sessionInfo[key]={title:'움직임 검증 '+i,state:'working',tokens:i===1?1e10:10**(i+3)};return a;});
     const sheet=document.createElement('canvas');sheet.width=1280;sheet.height=900;const c=sheet.getContext('2d');c.fillStyle='#101d28';c.fillRect(0,0,1280,900);let shots=0;
-    g.equipment=function(a,x,y,size,pose,...args){units[a.key]={x,y,size,sword:pose.sword};return equipment.call(this,a,x,y,size,pose,...args);};g.monster=function(m,x,y,...args){boss={x,y,size:args[0],angle:Math.atan2(-ctx.getTransform().c,ctx.getTransform().d)};return monster.call(this,m,x,y,...args);};
-    const frame=(label)=>{units={};boss=null;ctx.resetTransform();ctx.clearRect(0,0,cv.width,cv.height);e.drawBattle();frames++;if(label&&shots<12){const x=shots%4*320,y=Math.floor(shots/4)*300,ratio=Math.min(320/cv.width,265/cv.height);c.drawImage(cv,x+(320-cv.width*ratio)/2,y+25+(265-cv.height*ratio)/2,cv.width*ratio,cv.height*ratio);c.font='bold 12px sans-serif';c.textAlign='center';c.fillStyle='#e6eadf';c.fillText(label,x+160,y+17);shots++;}return {units:JSON.parse(JSON.stringify(units)),boss:{...boss}};};
+    g.equipment=function(a,x,y,size,pose,...args){units[a.key]={x,y,size,sword:pose.sword};healthOwner={x,y};return equipment.call(this,a,x,y,size,pose,...args);};g.monster=function(m,x,y,...args){boss={x,y,size:args[0],angle:Math.atan2(-ctx.getTransform().c,ctx.getTransform().d)};return monster.call(this,m,x,y,...args);};
+    ctx.fillRect=function(x,y,w,h){if(healthOwner&&h===3&&ctx.fillStyle==='#142726'){check(Math.abs(x+w/2-healthOwner.x)<.01&&Math.abs(y-healthOwner.y-4)<.01,'health bar follows moving feet');healthChecks++;}return fillRect.call(this,x,y,w,h);};ctx.fillText=function(text,x,y,...args){if(healthOwner&&ctx.font==='8px sans-serif'){check(Math.abs(x-healthOwner.x)<.01&&Math.abs(y-healthOwner.y-16)<.01,'health text follows moving feet');healthChecks++;healthOwner=null;}return fillText.call(this,text,x,y,...args);};
+    const frame=(label)=>{units={};boss=null;healthOwner=null;ctx.resetTransform();ctx.clearRect(0,0,cv.width,cv.height);e.drawBattle();frames++;if(label&&shots<12){const x=shots%4*320,y=Math.floor(shots/4)*300,ratio=Math.min(320/cv.width,265/cv.height);c.drawImage(cv,x+(320-cv.width*ratio)/2,y+25+(265-cv.height*ratio)/2,cv.width*ratio,cv.height*ratio);c.font='bold 12px sans-serif';c.textAlign='center';c.fillStyle='#e6eadf';c.fillText(label,x+160,y+17);shots++;}return {units:JSON.parse(JSON.stringify(units)),boss:{...boss}};};
     const advance=phase=>{for(let i=0;i<30&&e.active.phase!==phase;i++){now=e.active.next;g.step(now);}check(e.active.phase===phase,'phase '+phase);};
     const at=(fraction,label)=>{now=e.active.phaseAt+(e.active.next-e.active.phaseAt)*fraction;return frame(label);};
     const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -28,8 +29,8 @@ async page=>{
       advance('bossImpact');check(r.target.hp<targetHP,'boss hit applies after windup');const struck1=at(.01,i===0?'보스 명중 · 맞은 친구만 밀림':null),struck2=at(.25);check(same(struck1.boss,struck2.boss),'boss holds contact position');check(struck1.boss.angle*direction>0,'raid damage matches forward attack pose');check(struck1.units[r.target.a.key].x!==struck2.units[r.target.a.key].x,'victim visibly reacts after contact');
       advance('bossReturn');const back=at(.5,i===0?'보스도 공격 후 돌아가기':null);check(distance(back.boss,bstart.boss)<distance(w2.boss,bstart.boss)&&distance(back.boss,bstart.boss)>0,'boss returns after attack');
      }
-     return {width,frames,actors:4,contactSheet:sheet.toDataURL()};
-    }finally{g.equipment=equipment;g.monster=monster;e.cancel();g.cancel();performance.now=clock;Math.random=random;sheet.width=sheet.height=0;}
+     return {width,frames,healthChecks,actors:4,contactSheet:sheet.toDataURL()};
+    }finally{g.equipment=equipment;g.monster=monster;ctx.fillRect=fillRect;ctx.fillText=fillText;e.cancel();g.cancel();performance.now=clock;Math.random=random;sheet.width=sheet.height=0;}
    },width));
   }
   return output;

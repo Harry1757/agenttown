@@ -202,8 +202,8 @@ function drawBattle(){
   ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,face,edge-15,pose);
   const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=attacking?(age<.14?1.3+age/.14*.65:1.95-Math.min(1,(age-.14)/.21)*1.43):.52+winding*.75;
   if(!m.left)g.equipment(m.a,px,py,size,{sword:swing,trail:attacking},face,false,false,1,pose);
-  const barWidth=Math.min(50,formation.size+8);ctx.fillStyle='#142726';ctx.fillRect(x-barWidth/2,y+4,barWidth,3);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(x-barWidth/2,y+4,barWidth*m.hp/m.maxHp,3);
-  ctx.font='8px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'비움':m.hp?r.members.length>9?Math.round(m.hp/m.maxHp*100)+'%':m.hp+' / '+m.maxHp:'기절',x,y+16);
+  const barWidth=Math.min(50,formation.size+8);ctx.fillStyle='#142726';ctx.fillRect(px-barWidth/2,py+4,barWidth,3);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(px-barWidth/2,py+4,barWidth*m.hp/m.maxHp,3);
+  ctx.font='8px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'비움':m.hp?r.members.length>9?Math.round(m.hp/m.maxHp*100)+'%':m.hp+' / '+m.maxHp:'기절',px,py+16);
   if(received){g.impact?.(px,py-size*.5,age/receivedDuration,victim.damage,'#d4a5ff');ctx.fillStyle='#ffc4c3';ctx.font='bold 13px sans-serif';ctx.fillText('−'+victim.damage,px,py-size-12-age*12);}
  });
  if(playerCharge||chargedMove){const p=positions.get(r.actor);if(p)g.chargeAura?.(p.x,p.y,p.size,charge,t,element);}
