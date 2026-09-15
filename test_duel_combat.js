@@ -14,6 +14,14 @@ for(const hit of d.combat.strikes){
  now+=2;env.stepDuels(now);assert.deepEqual([...d.playback.hp],[...hit.hp]);
  assert.equal(hit.hp[hit.attacker],prior[hit.attacker]);assert.equal(prior[1-hit.attacker]-hit.hp[1-hit.attacker],hit.damage);prior=hit.hp;
  assert.equal(g.balance(d.winner.key),0,'no reward before result');
+ now=d.start+hit.at*1000+100;env.stepDuels(now);
+ const striker=hit.attacker===0?a:b,target=hit.attacker===0?b:a;
+ assert.equal(striker.duelPose.back,0,'attacker must not recoil from their own strike');
+ assert.ok(target.duelPose.back>0,'only the hit resident is pushed back');
+ assert.equal(striker.duelPose.hop,0,'attacker does not play the victim hop');
+ const strikerDir=hit.attacker===0?-1:1,targetDir=-strikerDir;
+ assert.ok((striker.x-(hit.attacker===0?d.xA:d.xB))*strikerDir<=0,'attacker stays forward');
+ assert.ok((target.x-(hit.attacker===0?d.xB:d.xA))*targetDir>0,'victim moves away');
 }
 assert.ok(prior.includes(0));const last=d.combat.strikes.at(-1);assert.equal(last.at-last.chargeStart,3,'final attack has a full charge');
 now=d.start+d.combat.resultAt*1000+1;env.stepDuels(now);assert.equal(wins,1);assert.equal(g.balance(d.winner.key),d.combat.reward);assert.equal(g.record(d.winner).kills,0,'PvP never counts as a monster kill');

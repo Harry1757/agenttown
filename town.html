@@ -1434,9 +1434,12 @@ function stepDuels(now) {
     if(!pb&&t>=5.6){endDuel(d,true);continue;}
     const f=duelFrame(t);d.frame=f;
     for(const [a,from,x,back,dir] of [[d.a,d.fromA,d.xA,d.backA,-1],[d.b,d.fromB,d.xB,d.backB,1]]){
-      a.x=a.tx=from.x+(x-from.x)*f.approach+dir*back*f.back;a.y=a.ty=from.y+(d.y-from.y)*f.approach;
       const won=a===d.winner;
-      a.duelPose={...f,sword:pb&&pb.attacker!==(a===d.a?0:1)?.48:f.sword,flash:pb&&pb.attacker!==(a===d.a?0:1)?0:f.flash,hop:f.hop+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
+      const attacker=pb?(pb.attacker??d.combat.strikes[0].attacker):(t<2.5?0:d.winner===d.a?0:1);
+      const attacking=attacker===(a===d.a?0:1),struck=!attacking&&(pb?Boolean(pb.hit)&&!pb.charging:t>=1);
+      const lunge=attacking&&!f.result?(pb?.hit&&!pb.charging?Math.max(0,1-pb.hitAge/.4):f.flash*.25):0;
+      a.duelPose={...f,back:f.result?(won?0:1):struck?f.back:0,lunge,sword:attacking?f.sword:.48,flash:attacking?f.flash:0,angle:attacking?.1*lunge:struck?f.angle:0,hop:(struck?f.hop:0)+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
+      a.x=a.tx=from.x+(x-from.x)*f.approach+dir*(back*a.duelPose.back-.12*lunge);a.y=a.ty=from.y+(d.y-from.y)*f.approach;
     }
     if((pb?pb.result:t>=3.6)&&!d.awarded){
       d.awarded=true;
@@ -1551,16 +1554,17 @@ function drawDuelSpotlight() {
   ctx.textAlign='center';ctx.fillStyle='#e7edda';ctx.font='600 12px sans-serif';
   ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`+(pb?' · '+Math.min(d.combat.strikes.length,pb.index+2)+'번째 공격':'' ),0,-82);
   window.townAdventure?.drawDuelStats(d,t);
-  const intro=t<.65,spread=intro?100:48+f.back*32;
-  if(pb?.charging){ctx.save();ctx.beginPath();ctx.rect(-edge+5,-45,arenaWidth-10,123);ctx.clip();const charger=d.legendary||d.winner,dir=charger===d.a?-1:1;window.townAdventure.chargeAura(dir*spread,59,76*(charger===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.charge,now/1000,window.townAdventure.elementFor(charger)??hashSeed(charger.key)%5,!!d.legendary);ctx.restore();}
+  const intro=t<.65;
+  const actorX=a=>(a===d.a?-1:1)*(intro?100:48+(a.duelPose?.back||0)*32-(a.duelPose?.lunge||0)*12);
+  if(pb?.charging){ctx.save();ctx.beginPath();ctx.rect(-edge+5,-45,arenaWidth-10,123);ctx.clip();const charger=d.legendary||d.winner;window.townAdventure.chargeAura(actorX(charger),59,76*(charger===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.charge,now/1000,window.townAdventure.elementFor(charger)??hashSeed(charger.key)%5,!!d.legendary);ctx.restore();}
   for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
     const won=a===d.winner,size=76*h/Math.max(d.ha,d.hb);
     const pose=a.duelPose||{...f,squash:1,hop:0};
-    const x=dir*spread,y=59-pose.hop*70;
+    const x=actorX(a),y=59-pose.hop*70;
     ctx.fillStyle='#242c29';ctx.beginPath();ctx.ellipse(x,63,size*.48,6,0,0,Math.PI*2);ctx.fill();
     ctx.save();ctx.translate(x,y);ctx.rotate((pose.angle||0)*-dir);ctx.scale(-dir,1);
     drawTile(ctx,'dungeon',a.idx,-size/2,-size,size/TILE,pose.squash);ctx.restore();
-    window.townAdventure?.loot(a,x,y,size);
+    window.townAdventure?.loot(a,x,y,size,-dir,edge-8);
     if(f.result>0){
       ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.font='bold 16px sans-serif';ctx.fillText(won?'WIN':'LOSE',x,-35);
       ctx.font='18px sans-serif';ctx.fillText(won?'♛':'💧',x+size*.43,y-size+8);
@@ -1576,19 +1580,18 @@ function drawDuelSpotlight() {
   const frontActor=pb?(pb.charging||pb.finalHitAge>=0?d.legendary||d.winner:pb.attacker===0?d.a:d.b):d.legendary||d.winner;
   if(!intro)for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]].sort(([a],[b])=>Number(a===frontActor)-Number(b===frontActor))){
     const pose=a.duelPose||{...f,squash:1,hop:0};
-    drawDuelAccessory({...a,face:-dir,duelPose:pose},dir*spread,59-pose.hop*70,76*h/Math.max(d.ha,d.hb));
+    drawDuelAccessory({...a,face:-dir,duelPose:pose},actorX(a),59-pose.hop*70,76*h/Math.max(d.ha,d.hb));
   }
+  ctx.restore(); // Let the final crescent extend beyond the arena's inner clip.
   if(window.townAdventure&&finalAge>=0&&finalAge<window.townAdventure.finishDuration(!!d.legendary)){
-    const loser=d.winner===d.a?d.b:d.a,dir=loser===d.a?-1:1,p=finalAge/window.townAdventure.finishDuration(!!d.legendary);
-    ctx.save();ctx.beginPath();ctx.rect(-edge+5,-29,arenaWidth-10,109);ctx.clip();ctx.translate(dir*spread,20);ctx.scale(1.3,1.3);
-    if(d.legendary)window.townAdventure.crescent(0,0,p);
-    else window.townAdventure.finisher(0,0,p,window.townAdventure.elementFor?.(d.winner)??d.winner.key);
-    ctx.restore();
+    const loser=d.winner===d.a?d.b:d.a,p=finalAge/window.townAdventure.finishDuration(!!d.legendary);
+    if(d.legendary)window.townAdventure.legendaryFinish(actorX(loser),20,p,1.3);
+    else{ctx.save();ctx.beginPath();ctx.rect(-edge+5,-29,arenaWidth-10,109);ctx.clip();ctx.translate(actorX(loser),20);ctx.scale(1.3,1.3);window.townAdventure.finisher(0,0,p,window.townAdventure.elementFor?.(d.winner)??d.winner.key);ctx.restore();}
   }
   if(pb?pb.charging:d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText(d.legendary?'전설검 · 별빛을 모으는 중…':'마지막 일격 · 힘을 모으는 중…',0,-36);}
   if(pb?.hit?.fatigue&&!pb.result&&!pb.charging){ctx.fillStyle='#d5ccb8';ctx.font='10px sans-serif';ctx.fillText('장기전 · 방어가 약해져요',0,75);}
   if(pb?.result){ctx.fillStyle='#ffe3a3';ctx.font='12px sans-serif';ctx.fillText('승리! 별가루 +'+d.combat.reward,0,12);}
-  if(pb?.hit&&impactAge>=0&&impactAge<.65){const dir=pb.hit.attacker===0?1:-1;ctx.fillStyle=pb.hit.critical?'#ffe08b':'#ffe0c7';ctx.font='bold 14px sans-serif';ctx.fillText((pb.hit.critical?'치명타! ':'')+'−'+pb.hit.damage,dir*spread,-15-impactAge*12);}
+  if(pb?.hit&&impactAge>=0&&impactAge<.65){const target=pb.hit.attacker===0?d.b:d.a;ctx.fillStyle=pb.hit.critical?'#ffe08b':'#ffe0c7';ctx.font='bold 14px sans-serif';ctx.fillText((pb.hit.critical?'치명타! ':'')+'−'+pb.hit.damage,actorX(target),-15-impactAge*12);}
   if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
   else if(impact>0){
     ctx.save();ctx.globalAlpha*=impact;
@@ -1608,7 +1611,7 @@ function drawDuelSpotlight() {
     }
     ctx.fillStyle='#ffe19b';ctx.font='bold 17px sans-serif';ctx.fillText('챙!',0,-30-p*9);ctx.restore();
   }
-  ctx.restore();ctx.restore();
+  ctx.restore();
 }
 
 function randomRoomPose(a, now, scale, allowed) {
@@ -2534,7 +2537,7 @@ function drawWorker(a) {
   // 포탈/등장 투명도와 방향·기울임도 이 묶음 안에서 한 번만 적용한다.
   ctx.translate(feetX,feetY);ctx.scale(1,hScale);ctx.translate(-feetX,-feetY);
   drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale);
-  window.townAdventure?.loot(a,feetX,feetY,sSize);
+  window.townAdventure?.loot(a,feetX,feetY,sSize,a.duel?1:0);
   ctx.restore();
 
   if(a.portal)return;

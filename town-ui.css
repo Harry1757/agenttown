@@ -94,6 +94,41 @@ body{grid-template-rows:76px minmax(0,1fr) auto}
 @media(max-width:760px){body{grid-template-rows:66px minmax(0,1fr) auto}.statusbar{padding:14px 16px;grid-template-columns:90px minmax(0,1fr);gap:16px}#usage-bars{gap:18px}}
 @media(max-height:650px){body{grid-template-rows:56px minmax(0,1fr) auto}}
 @media(max-width:450px){.statusbar{padding-inline:12px;grid-template-columns:76px minmax(0,1fr);gap:12px}.today-label{font-size:10px}}
+/* A single usage row gives short windows their map space back. */
+#usage-toggle{display:none;white-space:nowrap;font-size:11px;padding:6px 8px;min-height:30px}
+@media(max-width:1100px),(max-height:700px){
+  .statusbar{grid-template-columns:auto minmax(0,1fr) auto;gap:20px;padding:6px 16px;min-height:44px}
+  #usage-toggle{display:block;grid-column:3;grid-row:1;align-self:start}
+  .statusbar .today-stats{display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .statusbar .today-label{font-size:0;margin:0;line-height:1}
+  .statusbar .today-label::after{content:'오늘';font-size:11px}
+  .statusbar .today-value{font-size:16px;letter-spacing:-.3px}
+  .statusbar .today-value span{display:none}
+  .statusbar .today-note,.statusbar .usage-heading{display:none}
+  #usage-bars{gap:22px;padding:0;align-items:center}
+  #usage .u-item{min-width:max-content;max-width:none;flex:0 0 auto;gap:5px}
+  #usage .u-top{column-gap:8px;row-gap:5px;font-size:11px;white-space:nowrap}
+  #usage .u-pct{font-size:12px;color:var(--sage)}
+  #usage .u-top:has(.warn) .u-pct{color:var(--sand)}
+  #usage .u-top:has(.hot) .u-pct{color:#d89480}
+  .statusbar:not(.usage-expanded) #usage .u-bar,
+  .statusbar:not(.usage-expanded) #usage .u-item:has(.u-top)>.u-sub{display:none}
+  .statusbar .usage-note{display:none}
+  .statusbar.usage-expanded{padding-block:10px;align-items:start;row-gap:8px}
+  .statusbar.usage-expanded #usage-bars{flex-wrap:wrap;gap:10px 22px;overflow:visible}
+  .statusbar.usage-expanded #usage .u-item{min-width:100px}
+  .statusbar.usage-expanded .usage-note{display:block;grid-column:2/4;border:0;padding:0}
+  .statusbar.usage-expanded .usage-note strong{display:inline;margin-right:10px}
+  .statusbar.usage-expanded .usage-note br{display:none}
+  .statusbar.usage-expanded .usage-note button{margin-left:10px}
+}
+@media(max-width:570px){
+  .statusbar{gap:10px;padding-inline:10px}
+  #usage-bars{gap:14px}
+  .statusbar .today-stats{gap:4px}
+  .statusbar .today-value{font-size:14px}
+  #usage-toggle{padding-inline:6px}
+}
 .duel-leaders{padding:8px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-shrink:0}
 .duel-leaders[hidden],.roster.show-detail .duel-leaders{display:none}
 .duel-leader-label{font-size:11px;color:var(--muted);white-space:nowrap}

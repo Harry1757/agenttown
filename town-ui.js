@@ -222,6 +222,20 @@
   $('motion-toggle').onclick=()=>{ui.motionReduced=!ui.motionReduced;setGesture(null);save('codextown.reducedMotion',ui.motionReduced);render();};
   $('mobile-roster').onclick=()=>setRoster(!$('workspace').classList.contains('roster-open'));
   $('close-roster').onclick=()=>setRoster(false);
+  const statusbar=document.querySelector('.statusbar');
+  const usageToggle=document.createElement('button');
+  usageToggle.id='usage-toggle';usageToggle.type='button';
+  usageToggle.setAttribute('aria-controls','usage usage-freshness');
+  const setUsageExpanded=expanded=>{
+    statusbar.classList.toggle('usage-expanded',expanded);
+    usageToggle.setAttribute('aria-expanded',String(expanded));
+    usageToggle.setAttribute('aria-label',expanded?'사용량 상세 접기':'사용량 상세 펼치기');
+    usageToggle.textContent=expanded?'접기 ▾':'상세 ▴';
+    refit();
+  };
+  usageToggle.onclick=()=>setUsageExpanded(!statusbar.classList.contains('usage-expanded'));
+  statusbar.append(usageToggle);setUsageExpanded(false);
+  window.matchMedia('(max-width:1100px), (max-height:700px)').addEventListener('change',()=>setUsageExpanded(false));
   document.addEventListener('keydown',e=>{
     if(document.querySelector('dialog[open]'))return;
     if ((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k') { e.preventDefault();setRoster(true);$('task-search').focus(); }
