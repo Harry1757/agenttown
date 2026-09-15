@@ -2530,10 +2530,13 @@ function drawWorker(a) {
     const appear=Math.min(1,summonAge/450),size=.65+.35*Math.sin(appear*Math.PI/2);
     ctx.translate(feetX,feetY);ctx.scale(size,size);ctx.translate(-feetX,-feetY);ctx.globalAlpha*=appear;
   }
-  drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale, hScale);
+  // 몸·착용물·펫이 같은 발 위치를 기준으로 함께 눌리고 늘어나야 한다.
+  // 포탈/등장 투명도와 방향·기울임도 이 묶음 안에서 한 번만 적용한다.
+  ctx.translate(feetX,feetY);ctx.scale(1,hScale);ctx.translate(-feetX,-feetY);
+  drawTile(ctx, 'dungeon', a.idx, sx, sy, sScale);
+  window.townAdventure?.loot(a,feetX,feetY,sSize);
   ctx.restore();
 
-  window.townAdventure?.loot(a,feetX,feetY,sSize);
   if(a.portal)return;
   if(duelPose){drawDuelAccessory(a,feetX,feetY,sSize);return;}
   if(!reduced&&now<a.fleeUntil){
