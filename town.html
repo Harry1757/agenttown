@@ -1463,9 +1463,9 @@ function stepDuels(now) {
   }
 }
 
-function drawDuelAccessory(a,feetX,feetY,size) {
-  const f=a.duelPose;if(!f)return;
-  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):Math.max(0,1-Math.max(0,pb.finalHitAge-1.5)/1.4)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount);return;}
+function drawDuelAccessory(a,feetX,feetY,size,bodyPose=null) {
+  const f=a.duelPose;if(!f)return;bodyPose??={angle:(f.angle||0)*a.face,squash:f.squash??1};
+  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):Math.max(0,1-Math.max(0,pb.finalHitAge-1.5)/1.4)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount,bodyPose);return;}
   ctx.save();ctx.translate(feetX,feetY);ctx.scale(a.face,1);
   if(f.sword!==null){ctx.translate(size*.28,-size*.48);ctx.rotate(f.sword);ctx.fillStyle='#927099';ctx.fillRect(-size*.05,0,size*.1,size*.2);ctx.fillStyle='#ffe3a0';ctx.fillRect(-size*.16,-size*.08,size*.32,size*.07);ctx.fillStyle='#b5e5df';ctx.fillRect(-size*.06,-size*.63,size*.12,size*.55);ctx.fillStyle='#edfff2';ctx.fillRect(-size*.025,-size*.63,size*.04,size*.5);}
   ctx.restore();
@@ -1562,9 +1562,10 @@ function drawDuelSpotlight() {
     const pose=a.duelPose||{...f,squash:1,hop:0};
     const x=actorX(a),y=59-pose.hop*70;
     ctx.fillStyle='#242c29';ctx.beginPath();ctx.ellipse(x,63,size*.48,6,0,0,Math.PI*2);ctx.fill();
-    ctx.save();ctx.translate(x,y);ctx.rotate((pose.angle||0)*-dir);ctx.scale(-dir,1);
-    drawTile(ctx,'dungeon',a.idx,-size/2,-size,size/TILE,pose.squash);ctx.restore();
-    window.townAdventure?.loot(a,x,y,size,-dir,edge-8);
+    const bodyPose={angle:(pose.angle||0)*-dir,face:-dir,squash:pose.squash??1};
+    ctx.save();window.townAdventure?.applyBattlePose(ctx,x,y,bodyPose);
+    drawTile(ctx,'dungeon',a.idx,x-size/2,y-size,size/TILE);ctx.restore();
+    window.townAdventure?.loot(a,x,y,size,-dir,edge-8,bodyPose);
     if(f.result>0){
       ctx.fillStyle=won?'#ffe19b':'#b2dbe9';ctx.font='bold 16px sans-serif';ctx.fillText(won?'WIN':'LOSE',x,-35);
       ctx.font='18px sans-serif';ctx.fillText(won?'♛':'💧',x+size*.43,y-size+8);
@@ -1585,12 +1586,12 @@ function drawDuelSpotlight() {
   ctx.restore(); // Let the final crescent extend beyond the arena's inner clip.
   if(window.townAdventure&&finalAge>=0&&finalAge<window.townAdventure.finishDuration(!!d.legendary)){
     const loser=d.winner===d.a?d.b:d.a,p=finalAge/window.townAdventure.finishDuration(!!d.legendary);
-    if(d.legendary)window.townAdventure.legendaryFinish(actorX(loser),20,p,1.3);
-    else{ctx.save();ctx.beginPath();ctx.rect(-edge+5,-29,arenaWidth-10,109);ctx.clip();ctx.translate(actorX(loser),20);ctx.scale(1.3,1.3);window.townAdventure.finisher(0,0,p,window.townAdventure.elementFor?.(d.winner)??d.winner.key);ctx.restore();}
+    if(d.legendary)window.townAdventure.foregroundFinish(actorX(loser),20,p,1.3);
+    else window.townAdventure.foregroundFinish(actorX(loser),20,p,1.3,window.townAdventure.elementFor?.(d.winner)??d.winner.key);
   }
   if(pb?pb.charging:d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText(d.legendary?'전설검 · 별빛을 모으는 중…':'마지막 일격 · 힘을 모으는 중…',0,-36);}
   if(pb?.hit?.fatigue&&!pb.result&&!pb.charging){ctx.fillStyle='#d5ccb8';ctx.font='10px sans-serif';ctx.fillText('장기전 · 방어가 약해져요',0,75);}
-  if(pb?.result){ctx.fillStyle='#ffe3a3';ctx.font='12px sans-serif';ctx.fillText('승리! 별가루 +'+d.combat.reward,0,12);}
+  if(pb?.result){const label='승리! 별가루 +'+d.combat.reward;ctx.font='12px sans-serif';const w=ctx.measureText(label).width;ctx.fillStyle='#192c28';ctx.fillRect(-w/2-8,-109,w+16,18);ctx.fillStyle='#ffe3a3';ctx.fillText(label,0,-96);}
   if(pb?.hit&&impactAge>=0&&impactAge<.65){const target=pb.hit.attacker===0?d.b:d.a;ctx.fillStyle=pb.hit.critical?'#ffe08b':'#ffe0c7';ctx.font='bold 14px sans-serif';ctx.fillText((pb.hit.critical?'치명타! ':'')+'−'+pb.hit.damage,actorX(target),-15-impactAge*12);}
   if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
   else if(impact>0){
@@ -2541,7 +2542,7 @@ function drawWorker(a) {
   ctx.restore();
 
   if(a.portal)return;
-  if(duelPose){drawDuelAccessory(a,feetX,feetY,sSize);return;}
+  if(duelPose){drawDuelAccessory(a,feetX,feetY,sSize,{angle:leanAngle,squash:hScale,alpha:window.townUI?.selectedKey===a.key||state.sessionInfo[a.key]?.needsInput?1:({working:1,waiting:1,done:.6}[st])});return;}
   if(!reduced&&now<a.fleeUntil){
     const x=feetX+sSize*.45,y=feetY-sSize*.75;
     ctx.save();ctx.fillStyle='#b2dbe9';ctx.beginPath();ctx.moveTo(x,y-3*scale);ctx.quadraticCurveTo(x-4*scale,y+4*scale,x,y+4*scale);ctx.quadraticCurveTo(x+4*scale,y+4*scale,x,y-3*scale);ctx.fill();ctx.restore();

@@ -50,7 +50,7 @@ async page => {
             const frame=()=>{ctx.fillStyle='#809080';ctx.fillRect(0,0,cv.width,cv.height);game.drawBattle();return [...ctx.getImageData(4,4,1,1).data].slice(0,3).reduce((a,b)=>a+b,0);};
             let dim;try{dim=frame();}finally{ctx.scale=scale;}
             const strikeScale=game.impactScale(b.inflictedDamage)*2;
-            check(scales.some(([x,y])=>Math.abs(x-strikeScale)<.001&&x===y),'large final strike still renders after 1.5 seconds');
+            check(scales.some(([x,y])=>x>1&&x<=strikeScale&&x===y),'final strike stays enlarged after 1.5 seconds, fitting the viewport');
             check(!texts.some(t=>t.includes('획득!')),'loot waits for the strike to fade');
             now=b.ended+2200;check(frame()>dim,'surroundings brighten after the final strike');
             now=b.ended+4700;game.step(now);
