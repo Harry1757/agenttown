@@ -45,7 +45,15 @@ async page => {
             check(b.rewardLabel.includes('별가루 +'+level),'loot announcement matches payout');
             now+=200;game.step(now);game.drawBattle();
             check(game.balance(key)===balance+level,'reward is only granted once');
-            now+=4500;game.step(now);
+            now=b.ended+1500;texts.length=0;
+            const scale=ctx.scale,scales=[];ctx.scale=function(x,y){scales.push([x,y]);return scale.call(this,x,y);};
+            const frame=()=>{ctx.fillStyle='#809080';ctx.fillRect(0,0,cv.width,cv.height);game.drawBattle();return [...ctx.getImageData(4,4,1,1).data].slice(0,3).reduce((a,b)=>a+b,0);};
+            let dim;try{dim=frame();}finally{ctx.scale=scale;}
+            const strikeScale=game.impactScale(b.inflictedDamage)*2;
+            check(scales.some(([x,y])=>Math.abs(x-strikeScale)<.001&&x===y),'large final strike still renders after 1.5 seconds');
+            check(!texts.some(t=>t.includes('획득!')),'loot waits for the strike to fade');
+            now=b.ended+2200;check(frame()>dim,'surroundings brighten after the final strike');
+            now=b.ended+4700;game.step(now);
             check(!game.active&&!game.monsters.includes(boss),'boss is removed after the reward');
             if(boss.boss)bosses.push(boss.name);levels.add(boss.level);delete avatars[key];game.monsters.length=0;
           }
