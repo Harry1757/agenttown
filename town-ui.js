@@ -61,7 +61,7 @@
   let lastLeaders='';
   function renderLeaders() {
     const leaders=rows().filter(r=>duelWins.has(r.key)).sort((a,b)=>duelWins.get(b.key)-duelWins.get(a.key)||a.key.localeCompare(b.key)).slice(0,3);
-    const el=$('duel-leaders'),mini=$('duel-mini-leaders');el.hidden=!leaders.length;mini.hidden=false;
+    const el=$('duel-leaders'),mini=$('duel-mini-leaders');el.hidden=false;mini.hidden=false;
     const signature=JSON.stringify(leaders.map(r=>[r.key,r.title,r.sub,duelWins.get(r.key)]));
     if(signature===lastLeaders)return;
     lastLeaders=signature;el.replaceChildren();mini.replaceChildren();
@@ -76,7 +76,7 @@
       button.append(canvas,count);list.append(button);drawPortrait(canvas,row.key,row.sub);
     });el.append(list);
     const miniLabel=document.createElement('span');miniLabel.className='duel-leader-label';miniLabel.textContent='♛';miniLabel.setAttribute('aria-hidden','true');mini.append(miniLabel);
-    if(!leaders.length){const empty=document.createElement('span');empty.className='duel-leader-empty';empty.textContent='첫 승을 기다려요';mini.append(empty);}
+    if(!leaders.length){const empty=document.createElement('span');empty.className='duel-leader-empty';empty.textContent='첫 승을 기다려요';mini.append(empty);el.append(empty.cloneNode(true));}
     else{
       const compact=list.cloneNode(true);
       compact.querySelectorAll('button').forEach((button,i)=>{

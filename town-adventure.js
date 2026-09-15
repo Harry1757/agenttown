@@ -269,15 +269,20 @@ const finishDuration=legendary=>legendary?3:finisherDuration;
 const defeatDelay=legendary=>legendary?.75:finisherDuration;
 const legendaryBladeAmount=age=>{const p=Math.max(0,Math.min(1,(age-1.6)/1.2));return 1-p*p*(3-2*p);};
 // Finishers draw over the arena frame, with room for their arc, glow and particles.
-function foregroundFinish(x,y,p,wanted=1.3,element=null){
+function foregroundFinish(x,y,p,wanted=1.3,element=null,targetSize=0){
  if(p<0||p>1)return;
  const m=ctx.getTransform(),pad=18*dpr,left=(pad-m.e)/m.a,right=(cv.width-pad-m.e)/m.a,top=(pad-m.f)/m.d,bottom=(cv.height-pad-m.f)/m.d;
  const bounds=element===null?[85,115,110,90]:[85,85,75,75];
- // Keep the hit on the target; fit the effect around that point without lifting it.
- const px=Math.max(left,Math.min(right,x)),py=Math.max(top,Math.min(bottom,y));
- const scale=1.44*Math.min(wanted,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/bounds[2],(bottom-py)/bounds[3]);
+ // Grounded effects keep their base on the feet; cuts keep their center on the body.
+ // Anchor compensation happens after scaling, so a larger window cannot move the hit.
+ const grounded=element===0||element===2,anchor=targetSize?(grounded?45:element===1?37:element===3?-12:0):0;
+ const targetY=targetSize?y-(grounded?0:element===1?targetSize*.2:targetSize*.45):y;
+ const px=Math.max(left,Math.min(right,x)),py=Math.max(top,Math.min(bottom,targetY));
+ // Keep the silhouette proportional to the target, even when fullscreen leaves more room.
+ const bodyLimit=targetSize?Math.max(1.05,targetSize/60)*(element===null?1.35:1):Infinity;
+ const scale=Math.min(1.44*wanted,bodyLimit,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/(bounds[2]+anchor),(bottom-py)/(bounds[3]-anchor));
  if(scale<=0)return;
- ctx.save();ctx.translate(px,py);ctx.scale(scale,scale);if(element===null)crescent(0,0,p);else finisher(0,0,p,element);ctx.restore();
+ ctx.save();ctx.translate(px,py-anchor*scale);ctx.scale(scale,scale);if(element===null)crescent(0,0,p);else finisher(0,0,p,element);ctx.restore();
 }
 const finishFade=(age,legendary=false)=>Math.max(0,1-Math.max(0,age-.15)/(finishDuration(legendary)-.15));
 const elements=['화염','번개','물','바람','안개'];
@@ -470,11 +475,11 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  if(counter>0){if(b.m.kind&&!b.receivedSpecial)bossStrike(b.m.kind,px,87-as*.5,1-counter,b.receivedDamage);impact(px,87-as*.5,1-counter,b.receivedDamage,b.m.kind?.color||'#ffba98');ctx.fillStyle='#ffb8a7';ctx.font='bold 18px sans-serif';ctx.fillText((b.receivedSpecial?'필살! ':'')+(b.receivedCritical?'치명타! ':'')+'−'+b.receivedDamage,px,65-as-(1-counter)*28);}
  if(age>=0&&age<(b.done&&b.won?finishDuration(b.legendary):1.2)){
   const k=impactScale(b.inflictedDamage||b.damage)*(b.done&&b.won?2:1);
-  if(b.legendary&&b.done&&b.won)foregroundFinish(mx,87-ms*.25,age/finishDuration(true),k);
-  else if(b.done&&b.won)foregroundFinish(mx,87-ms*.25,age/finisherDuration,k,b.element);
+  if(b.legendary&&b.done&&b.won)foregroundFinish(mx,monsterY,age/finishDuration(true),k,null,ms);
+  else if(b.done&&b.won)foregroundFinish(mx,monsterY,age/finisherDuration,k,b.element,ms);
   if(!b.done&&!b.attackSkill)impact(mx,87-ms*.45,age/.5,b.inflictedDamage||b.damage);
  }
- if(skillImpact)foregroundFinish(mx,87-ms*.25,age/skillDuration,1.1,b.attackElement);
+ if(skillImpact)foregroundFinish(mx,monsterY,age/skillDuration,1.1,b.attackElement,ms);
  if(skillCharge||skillImpact||chargedMove&&!b.finishing){ctx.fillStyle='#d8edfa';ctx.font='bold 13px sans-serif';ctx.fillText(elements[skillCharge||chargedMove?b.nextHit.element:b.attackElement]+(skillCharge?' 기술 · 힘을 모으는 중':chargedMove?' 기술 · 돌진!':' 기술!'),0,-39);}
  if(age>=0&&age<.9){ctx.fillStyle=b.dealtCritical?'#ffe190':'#e4eddf';ctx.font=b.dealtCritical?'bold 17px sans-serif':'13px sans-serif';ctx.fillText((b.dealtCritical?'치명타! ':'')+'−'+b.inflictedDamage,mx,70-ms*.6-age*20);}
  const lootAt=finishDuration(b.legendary)+.55;
