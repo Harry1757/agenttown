@@ -218,8 +218,8 @@ function drawBattle(){
  }
  if(hitBoss&&!r.done)g.impact?.(bossX,bossY-bossSize*.5,age/.7,r.hit.damage,'#ffe1a2');
  if(r.hit?.target==='boss'&&age<1){ctx.fillStyle=r.hit.critical?'#ffe39d':'#f0e8db';ctx.font='bold 16px sans-serif';ctx.fillText((r.hit.critical?'치명타! ':'')+'−'+r.hit.damage,bossX,bossY-bossSize-age*15);}
- if(r.done&&r.won&&age<g.finisherDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/g.finisherDuration,1.8,r.hit.element??g.elementFor(r.hit.actor.a)??4);
- else if(r.hit?.skill&&r.hit.target==='boss'&&age<skillDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/skillDuration,.9,r.hit.element);
+ if(r.done&&r.won&&age<g.finisherDuration)g.foregroundFinish(bossX,bossY-bossSize*.25,age/g.finisherDuration,1.8,r.hit.element??g.elementFor(r.hit.actor.a)??4);
+ else if(r.hit?.skill&&r.hit.target==='boss'&&age<skillDuration)g.foregroundFinish(bossX,bossY-bossSize*.25,age/skillDuration,.9,r.hit.element);
  ctx.textAlign='center';ctx.font='12px sans-serif';ctx.fillStyle='#ecdbb6';
  const bossLabel={single:'강타',focus:'집중 연타',scatter:'그림자 추격',wave:'전원 공격 · 달그림자 파동'}[r.bossPlan?.kind]||'공격';
  const message=r.done?(r.cancelled?'토벌을 잠시 멈췄어요':r.won?'함께 해냈어요! 참여한 친구에게 별가루를 나눠요':'잠깐 쉬고 다음에 다시 도전해요'):r.phase==='arrival'?'중앙의 균열이 열려요 · 모두 함께 힘을 모아요!':bossPhase?`${bossLabel}${r.bossPlan.total>1?' · '+(r.bossPlan.index+1)+' / '+r.bossPlan.total:''}${r.phase==='bossWindup'?' · 준비!':''}`:chargedMove?'힘을 모았어요 · 보스에게 돌진!':charge?r.phase==='bossWindup'?'위험! 달그림자 폭풍이 몰려와요…':r.finishing?'친구들의 힘을 모아 마지막 일격!':['화염','번개','물','바람','안개'][element]+' 기술 · 힘을 모아요!':`${r.members.filter(m=>m.hp&&!m.left).length}명과 함께 · ${r.turn+1}번째 공방`;

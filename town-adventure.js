@@ -455,11 +455,11 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  if(counter>0){if(b.m.kind&&!b.receivedSpecial)bossStrike(b.m.kind,px,87-as*.5,1-counter,b.receivedDamage);impact(px,87-as*.5,1-counter,b.receivedDamage,b.m.kind?.color||'#ffba98');ctx.fillStyle='#ffb8a7';ctx.font='bold 18px sans-serif';ctx.fillText((b.receivedSpecial?'필살! ':'')+(b.receivedCritical?'치명타! ':'')+'−'+b.receivedDamage,px,65-as-(1-counter)*28);}
  if(age>=0&&age<(b.done&&b.won?finishDuration(b.legendary):1.2)){
   const k=impactScale(b.inflictedDamage||b.damage)*(b.done&&b.won?2:1);
-  if(b.legendary&&b.done&&b.won)foregroundFinish(mx,87-ms*.45,age/finishDuration(true),k);
-  else if(b.done&&b.won)foregroundFinish(mx,87-ms*.45,age/finisherDuration,k,b.element);
+  if(b.legendary&&b.done&&b.won)foregroundFinish(mx,87-ms*.25,age/finishDuration(true),k);
+  else if(b.done&&b.won)foregroundFinish(mx,87-ms*.25,age/finisherDuration,k,b.element);
   if(!b.done&&!b.attackSkill)impact(mx,87-ms*.45,age/.5,b.inflictedDamage||b.damage);
  }
- if(skillImpact)foregroundFinish(mx,87-ms*.45,age/skillDuration,1.1,b.attackElement);
+ if(skillImpact)foregroundFinish(mx,87-ms*.25,age/skillDuration,1.1,b.attackElement);
  if(skillCharge||skillImpact||chargedMove&&!b.finishing){ctx.fillStyle='#d8edfa';ctx.font='bold 13px sans-serif';ctx.fillText(elements[skillCharge||chargedMove?b.nextHit.element:b.attackElement]+(skillCharge?' 기술 · 힘을 모으는 중':chargedMove?' 기술 · 돌진!':' 기술!'),0,-39);}
  if(age>=0&&age<.9){ctx.fillStyle=b.dealtCritical?'#ffe190':'#e4eddf';ctx.font=b.dealtCritical?'bold 17px sans-serif':'13px sans-serif';ctx.fillText((b.dealtCritical?'치명타! ':'')+'−'+b.inflictedDamage,mx,70-ms*.6-age*20);}
  const lootAt=finishDuration(b.legendary)+.55;

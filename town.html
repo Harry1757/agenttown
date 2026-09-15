@@ -1582,6 +1582,7 @@ function drawDuelSpotlight() {
   const intro=t<.65;
   const arrival=Math.max(0,Math.min(1,t/.65)),spacing=76*(d.ha+d.hb)/Math.max(d.ha,d.hb)/4+28,stance=100-(100-spacing)*arrival*arrival*(3-2*arrival);
   const actorX=a=>(a===d.a?-1:1)*(stance+(a.duelPose?.back||0)*32-(a.duelPose?.lunge||0)*20);
+  const impactY=a=>59-19*(a===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb);
   if(pb?.charging||pb?.finalApproach){ctx.save();ctx.beginPath();ctx.rect(-edge+5,-45,arenaWidth-10,123);ctx.clip();const charger=d.legendary||d.winner;window.townAdventure.chargeAura(actorX(charger),59,76*(charger===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.finalApproach?1:pb.charge,now/1000,element,!!d.legendary);ctx.restore();}
   if(pb?.skillCharging||pb?.skillApproach){const caster=pb.upcoming.attacker===0?d.a:d.b;window.townAdventure.chargeAura(actorX(caster),59,76*(caster===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.skillApproach?1:pb.skillCharge,now/1000,element,false);}
   for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
@@ -1614,10 +1615,10 @@ function drawDuelSpotlight() {
   ctx.restore(); // Let the final crescent extend beyond the arena's inner clip.
   if(window.townAdventure&&finalAge>=0&&finalAge<window.townAdventure.finishDuration(!!d.legendary)){
     const loser=d.winner===d.a?d.b:d.a,p=finalAge/window.townAdventure.finishDuration(!!d.legendary);
-    if(d.legendary)window.townAdventure.foregroundFinish(actorX(loser),20,p,1.3);
-    else window.townAdventure.foregroundFinish(actorX(loser),20,p,1.3,element);
+    if(d.legendary)window.townAdventure.foregroundFinish(actorX(loser),impactY(loser),p,1.3);
+    else window.townAdventure.foregroundFinish(actorX(loser),impactY(loser),p,1.3,element);
   }
-  if(skillHit){const target=pb.hit.attacker===0?d.b:d.a;window.townAdventure.foregroundFinish(actorX(target),20,impactAge/window.townAdventure.skillDuration,1.05,element);}
+  if(skillHit){const target=pb.hit.attacker===0?d.b:d.a;window.townAdventure.foregroundFinish(actorX(target),impactY(target),impactAge/window.townAdventure.skillDuration,1.05,element);}
   if(skill){ctx.fillStyle='#cfe9ff';ctx.font='12px sans-serif';ctx.fillText(['화염','번개','물결','바람','안개'][element]+' 기술'+(pb.skillCharging?' · 힘을 모으는 중…':pb.skillApproach?' · 돌진!':'!'),0,-36);}
   if(pb?.finalApproach){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText('힘을 모았어요 · 돌진!',0,-36);}
   if(pb?pb.charging:d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText(d.legendary?'전설검 · 별빛을 모으는 중…':'마지막 일격 · 힘을 모으는 중…',0,-36);}
