@@ -273,7 +273,7 @@ function foregroundFinish(x,y,p,wanted=1.3,element=null){
  const bounds=element===null?[85,115,110,90]:[85,85,75,75];
  // Keep the hit on the target; fit the effect around that point without lifting it.
  const px=Math.max(left,Math.min(right,x)),py=Math.max(top,Math.min(bottom,y));
- const scale=Math.min(wanted,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/bounds[2],(bottom-py)/bounds[3]);
+ const scale=1.2*Math.min(wanted,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/bounds[2],(bottom-py)/bounds[3]);
  if(scale<=0)return;
  ctx.save();ctx.translate(px,py);ctx.scale(scale,scale);if(element===null)crescent(0,0,p);else finisher(0,0,p,element);ctx.restore();
 }
@@ -333,6 +333,8 @@ function finisher(x,y,p,key){
   }
   for(let i=0;i<12;i++){const a=i*2.4,q=(burst+i*.071)%1,xx=Math.sin(a)*(15+q*47),yy=34-q*91;ctx.globalAlpha=opacity*(1-q)*.9;ctx.fillStyle=i%2?'#fff0b2':'#ff8654';ctx.fillRect(xx,yy,2+i%2,5-q*3);}
  }else if(kind===1){
+  // Raise the lightning strike slightly above the other grounded skill impacts.
+  ctx.translate(0,-12);
   // Separate forked strikes converge, followed by a thick, sustained finishing bolt.
   for(let i=0;i<3;i++){const q=phase(i*.13,.25);if(p<i*.13)continue;const xx=(i-1)*31,alpha=Math.max(.12,1-q*.86);
    stroke([[xx-9,-57],[xx+3,-29],[xx-7,-22],[xx+12,4],[xx-1,7],[xx+8,34]],'#f3bc4e',3.5,alpha);
