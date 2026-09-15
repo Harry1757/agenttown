@@ -15,7 +15,7 @@ assert.ok(game.active.won);assert.equal(game.record(a).kills,1);assert.equal(gam
 now+=100;game.step(now);assert.equal(game.record(a).kills,1,'reward only once');
 now+=4700;game.step(now);assert.equal(game.active,null);assert.ok(game.resting(a));
 now+=70000;env.spriteScaleFor=()=>2;env.Math.random=()=>.1;m=game.spawn('waiting',true);assert.ok(game.begin(a,m));assert.ok(game.active.legendary);
-now+=2000;game.step(now);now+=700;game.step(now);now+=3500;game.step(now);assert.ok(game.active.won,'legendary wins on final blow');
+now+=2000;game.step(now);now+=700;game.step(now);now=game.active.next;game.step(now);assert.ok(game.active.won,'legendary wins on final blow');
 game.cancel();now+=30000;m=game.spawn('waiting');assert.ok(game.begin(a,m));env.state.sessionInfo.a={needsInput:true};game.step(++now);assert.equal(game.active,null,'response waiting cancels');assert.equal(game.record(a).kills,2);
 env.state.sessionInfo.a={};now+=30000;m=game.spawn('waiting');assert.ok(game.begin(a,m));env.window.townUI.motionReduced=true;game.step(++now);assert.equal(game.active,null);assert.equal(game.monsters.length,0);
 console.log('Adventure: token HP, boss multi-hit, delayed retaliation, single loot, recovery, legendary win, response and reduced-motion cancellation pass');
@@ -74,7 +74,7 @@ env.Math.random=()=>.9;const normal=reloaded.rollDamage(30,5,.1);env.Math.random
 env.Math.random=()=>.9;const duel=reloaded.resolveDuel(weak,a);assert.equal(duel.winner,weak,'equipped resident wins through actual stats');assert.ok(duel.snapshots.at(-1).includes(0));
 console.log('Real defeat, four-loss legendary comeback, equipment stats, criticals, armor and PvP HP resolution pass');
 
-for(const size of [16,32,48,72,96]){assert.ok(reloaded.legendaryLength(size)<=104);assert.ok(reloaded.legendaryLength(size)>size*.62);}console.log('Legendary blade stays inside the battle stage at every character size');
+for(const size of [16,32,48,72,96]){assert.ok(reloaded.legendaryLength(size)<=155);assert.ok(reloaded.legendaryLength(size)>size*.62);}console.log('Legendary blade stays inside the battle stage at every character size');
 
 // Every five boss encounters offer the full roster, even with predictable randomness.
 reloaded.cancel();vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.window.townAdventure;env.state.sessionInfo.a={};env.spriteScaleFor=()=>8;env.Math.random=()=>.9;

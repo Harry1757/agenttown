@@ -68,7 +68,7 @@ async page => {
       if(!townAdventure.begin(a,monster))throw new Error('Start encounter');
       townAdventure.active.legendary=true;changeRoom(a,'research');const queued=a.role==='waiting'&&a.nextRole==='research';
       let now=performance.now();for(let i=0;i<30&&!townAdventure.active.done;i++){now+=500;townAdventure.step(now);}
-      const completed=townAdventure.active.won&&a.role==='waiting';now+=4700;townAdventure.step(now);
+      const completed=townAdventure.active.won&&a.role==='waiting';now+=5700;townAdventure.step(now);
       return {queued,completed,moved:a.role==='research'&&a.travelFrom==='waiting',reward:townAdventure.balance(a.key),level:monster.level};
     });
     check(travel.queued&&travel.completed&&travel.moved&&travel.reward===travel.level,`Battle/loot/departure: ${JSON.stringify(travel)}`);

@@ -33,7 +33,7 @@ assert.ok(results.striker.winPercent[9]>results.unarmed.winPercent[9],'offensive
 // A lethal critical gets preparation; the displayed preparation and delivered roll agree.
 g.cancel();now+=70000;g.monsters.length=0;size=2;const a=env.avatars.critical={key:'critical',role:'waiting',x:3,y:4,tokens:1e9};env.Math.random=()=>0;
 const m=g.spawn('waiting');m.power={...m.power,hp:50};assert.ok(g.begin(a,m));const b=g.active;
-assert.ok(b.nextHit.critical&&b.finishing);assert.equal(b.next-now,2400);
+assert.ok(b.nextHit.critical&&b.finishing);assert.equal(b.next-now,3000);
 env.Math.random=()=>.99;now=b.next;g.step(now);assert.ok(b.won&&b.dealtCritical);assert.equal(b.inflictedDamage,b.nextHit.damage);
 console.log('Lethal critical preparation uses the same reserved damage roll');
 
@@ -42,3 +42,17 @@ g.cancel();now+=70000;g.monsters.length=0;size=1;const lucky=env.avatars.lucky={
 assert.ok(g.begin(lucky,g.spawn('waiting',true)));const comeback=g.active;assert.ok(comeback.legendary);comeback.monsterAttack=100;
 now=comeback.next;g.step(now);now=comeback.counterAt;g.step(now);assert.ok(comeback.hp>=1&&!comeback.done);assert.ok(comeback.receivedCritical&&comeback.receivedDamage>=comeback.maxHp);
 now=comeback.next;g.step(now);assert.ok(comeback.done&&comeback.won);console.log('Legendary comeback survives a lethal boss critical and completes its final blow');
+
+// Elite bosses reward preparation without becoming automatic wins for the new equipment.
+const eliteRates={};
+for(const [name,items]of [['oldGear',['tideblade','aegis','runecrown','warden','sungrip','starboots','lantern','moonfox']],['endgame',['voidblade','bulwark','imperial','celestial','titanhand','cometboots','astrolabe','dragonling']]]){
+ size=2;const a=env.avatars[name]={key:name,role:'waiting',x:3,y:4,tokens:1e9};g.reward(a,false,5000);for(const id of items)assert.ok(g.buy(id,name));const counts={12:0,14:0,16:0};
+ for(let trial=0;trial<600;trial++){
+  g.cancel();now+=70000;g.monsters.length=0;env.Math.random=rng;g.reward(a,false,0);const monster=g.spawn('waiting',true,true),before=g.balance(a.key);assert.ok(g.begin(a,monster));const fight=g.active;fight.legendary=false;
+  for(let tick=0;tick<300&&!fight.done;tick++){now+=250;g.step(now);}assert.ok(fight.done);
+  if(fight.won){counts[monster.level]++;assert.equal(g.balance(a.key)-before,monster.reward);}else assert.equal(g.balance(a.key),before);
+ }
+ eliteRates[name]=Object.fromEntries(Object.entries(counts).map(([k,v])=>[k,v/2]));delete env.avatars[name];
+}
+assert.ok(eliteRates.endgame[12]>eliteRates.oldGear[12]);assert.ok(eliteRates.endgame[16]>5&&eliteRates.endgame[16]<95);
+console.log('Elite boss win percentages (without legendary): '+JSON.stringify(eliteRates));

@@ -1429,19 +1429,22 @@ function stepDuels(now) {
   for(const d of roomDuels){
     const room=ROOM_BY_ROLE[d.role];
     if(window.townUI?.motionReduced || !duelEligible(d.a)||!duelEligible(d.b)||d.a.role!==d.role||d.b.role!==d.role||room.gx!==d.gx||room.gy!==d.gy){endDuel(d);continue;}
-    const raw=(now-d.start)/1000,t=d.legendary&&raw>=2.5?(raw<4.5?2.5:raw-2):raw;
-    if(t>=5.6){endDuel(d,true);continue;}
+    const raw=(now-d.start)/1000,pb=window.townAdventure?.duelPlayback?.(d,now),t=pb?pb.t:d.legendary&&raw>=2.5?(raw<4.5?2.5:raw-2):raw;
+    d.playback=pb;
+    if(!pb&&t>=5.6){endDuel(d,true);continue;}
     const f=duelFrame(t);d.frame=f;
     for(const [a,from,x,back,dir] of [[d.a,d.fromA,d.xA,d.backA,-1],[d.b,d.fromB,d.xB,d.backB,1]]){
       a.x=a.tx=from.x+(x-from.x)*f.approach+dir*back*f.back;a.y=a.ty=from.y+(d.y-from.y)*f.approach;
       const won=a===d.winner;
-      a.duelPose={...f,hop:f.hop+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
+      a.duelPose={...f,sword:pb&&pb.attacker!==(a===d.a?0:1)?.48:f.sword,flash:pb&&pb.attacker!==(a===d.a?0:1)?0:f.flash,hop:f.hop+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
     }
-    if(t>=3.6&&!d.awarded){
+    if((pb?pb.result:t>=3.6)&&!d.awarded){
       d.awarded=true;
       for(const [a,b] of [[d.a,d.b],[d.b,d.a]]){if(!a.duelOpponents)a.duelOpponents=new Set();a.duelOpponents.add(b.key);}
       window.townUI?.recordWin(d.winner);
+      window.townAdventure?.rewardDuel?.(d);
     }
+    if(pb?.finished)endDuel(d,true);
   }
   if(window.townUI?.motionReduced || now<nextDuelCheck)return;
   nextDuelCheck=now+600;
@@ -1459,7 +1462,7 @@ function stepDuels(now) {
 
 function drawDuelAccessory(a,feetX,feetY,size) {
   const f=a.duelPose;if(!f)return;
-  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,Boolean(d?.legendary?.key===a.key&&(performance.now()-d.start)>2000),small);return;}
+  if(window.townAdventure){const d=a.duel,small=d&&(a.key===d.a.key?d.ha<d.hb:d.hb<d.ha);const pb=d?.playback,legend=Boolean(d?.legendary?.key===a.key&&(pb?(pb.charging||pb.finalHitAge>=0):(performance.now()-d.start)>2000)),amount=pb?(pb.charging?Math.min(1,pb.charge*1.35):Math.max(0,1-Math.max(0,pb.finalHitAge-1.5)/1.4)):1;window.townAdventure.equipment(a,feetX,feetY,size,f,a.face,legend,small,amount);return;}
   ctx.save();ctx.translate(feetX,feetY);ctx.scale(a.face,1);
   if(f.sword!==null){ctx.translate(size*.28,-size*.48);ctx.rotate(f.sword);ctx.fillStyle='#927099';ctx.fillRect(-size*.05,0,size*.1,size*.2);ctx.fillStyle='#ffe3a0';ctx.fillRect(-size*.16,-size*.08,size*.32,size*.07);ctx.fillStyle='#b5e5df';ctx.fillRect(-size*.06,-size*.63,size*.12,size*.55);ctx.fillStyle='#edfff2';ctx.fillRect(-size*.025,-size*.63,size*.04,size*.5);}
   ctx.restore();
@@ -1520,9 +1523,10 @@ function drawDuelSpotlight() {
   const enter=Math.min(1,(t-.18)/.22),exit=Math.min(1,(5.6-t)/.35);
   const pop=.94+.06*Math.sin(enter*Math.PI/2);
   const opacity=Math.max(0,Math.min(enter,exit));
-  const impactAge=t>=2.86?t-2.86:t-.96;
+  const pb=d.playback,impactAge=pb?pb.hitAge:t>=2.86?t-2.86:t-.96;
   const impact=impactAge>=0&&impactAge<.45?1-impactAge/.45:0;
-  const mood=t<2.86?Math.max(0,Math.min(1,(t-1.9)/.96)):(window.townAdventure?.finishFade?.(t-2.86)||0);
+  const finalAge=pb?pb.finalHitAge:t-2.9;
+  const mood=pb?(pb.charging?pb.charge:finalAge>=0?window.townAdventure.finishFade(finalAge,!!d.legendary):0):t<2.86?Math.max(0,Math.min(1,(t-1.9)/.96)):(window.townAdventure?.finishFade?.(t-2.86)||0);
   // Dim the scene around the final strike while keeping the combatants bright.
   ctx.save();ctx.fillStyle=`rgba(4,10,15,${(.48+mood*.28)*opacity})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
   ctx.save();ctx.translate(cv.width/2,cv.height/2);
@@ -1545,9 +1549,10 @@ function drawDuelSpotlight() {
   ctx.fillStyle=`rgba(2,4,12,${mood*.42})`;ctx.fillRect(-edge+5,-48,arenaWidth-10,148);
   window.townAdventure?.atmosphere(window.townAdventure.elementFor?.(d.winner)??hashSeed(d.winner.key)%5,mood,now/1000,arenaWidth,62,!!d.legendary);
   ctx.textAlign='center';ctx.fillStyle='#e7edda';ctx.font='600 12px sans-serif';
-  ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`,0,-82);
+  ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`+(pb?' · '+Math.min(d.combat.strikes.length,pb.index+2)+'번째 공격':'' ),0,-82);
   window.townAdventure?.drawDuelStats(d,t);
   const intro=t<.65,spread=intro?100:48+f.back*32;
+  if(pb?.charging){ctx.save();ctx.beginPath();ctx.rect(-edge+5,-45,arenaWidth-10,123);ctx.clip();const charger=d.legendary||d.winner,dir=charger===d.a?-1:1;window.townAdventure.chargeAura(dir*spread,59,76*(charger===d.a?d.ha:d.hb)/Math.max(d.ha,d.hb),pb.charge,now/1000,window.townAdventure.elementFor(charger)??hashSeed(charger.key)%5,!!d.legendary);ctx.restore();}
   for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
     const won=a===d.winner,size=76*h/Math.max(d.ha,d.hb);
     const pose=a.duelPose||{...f,squash:1,hop:0};
@@ -1568,18 +1573,22 @@ function drawDuelSpotlight() {
     ctx.fillText(label,dir*87,88);
   }
   // Draw both weapons after both bodies so the opponent cannot hide a swing.
-  if(!intro)for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]]){
+  const frontActor=pb?(pb.charging||pb.finalHitAge>=0?d.legendary||d.winner:pb.attacker===0?d.a:d.b):d.legendary||d.winner;
+  if(!intro)for(const [a,dir,h] of [[d.a,-1,d.ha],[d.b,1,d.hb]].sort(([a],[b])=>Number(a===frontActor)-Number(b===frontActor))){
     const pose=a.duelPose||{...f,squash:1,hop:0};
     drawDuelAccessory({...a,face:-dir,duelPose:pose},dir*spread,59-pose.hop*70,76*h/Math.max(d.ha,d.hb));
   }
-  if(window.townAdventure&&t>=2.9&&t<2.9+window.townAdventure.finisherDuration){
-    const loser=d.winner===d.a?d.b:d.a,dir=loser===d.a?-1:1,p=(t-2.9)/window.townAdventure.finisherDuration;
+  if(window.townAdventure&&finalAge>=0&&finalAge<window.townAdventure.finishDuration(!!d.legendary)){
+    const loser=d.winner===d.a?d.b:d.a,dir=loser===d.a?-1:1,p=finalAge/window.townAdventure.finishDuration(!!d.legendary);
     ctx.save();ctx.beginPath();ctx.rect(-edge+5,-29,arenaWidth-10,109);ctx.clip();ctx.translate(dir*spread,20);ctx.scale(1.3,1.3);
     if(d.legendary)window.townAdventure.crescent(0,0,p);
     else window.townAdventure.finisher(0,0,p,window.townAdventure.elementFor?.(d.winner)??d.winner.key);
     ctx.restore();
   }
-  if(d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText('전설검 · 별빛을 모으는 중…',0,-60);}
+  if(pb?pb.charging:d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText(d.legendary?'전설검 · 별빛을 모으는 중…':'마지막 일격 · 힘을 모으는 중…',0,-36);}
+  if(pb?.hit?.fatigue&&!pb.result&&!pb.charging){ctx.fillStyle='#d5ccb8';ctx.font='10px sans-serif';ctx.fillText('장기전 · 방어가 약해져요',0,75);}
+  if(pb?.result){ctx.fillStyle='#ffe3a3';ctx.font='12px sans-serif';ctx.fillText('승리! 별가루 +'+d.combat.reward,0,12);}
+  if(pb?.hit&&impactAge>=0&&impactAge<.65){const dir=pb.hit.attacker===0?1:-1;ctx.fillStyle=pb.hit.critical?'#ffe08b':'#ffe0c7';ctx.font='bold 14px sans-serif';ctx.fillText((pb.hit.critical?'치명타! ':'')+'−'+pb.hit.damage,dir*spread,-15-impactAge*12);}
   if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
   else if(impact>0){
     ctx.save();ctx.globalAlpha*=impact;

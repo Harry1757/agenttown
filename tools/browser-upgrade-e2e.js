@@ -9,7 +9,7 @@ async page=>{
   await page.setViewportSize({width:960,height:580});await page.reload();
   const fixture=()=>{cancelAnimationFrame(frameRequest);for(const key of Object.keys(avatars))delete avatars[key];townUI.motionReduced=false;townUI.roomView='all';updateRoomView();fitCanvas();const r=ROOM_BY_ROLE.waiting;avatars['Upgrade|hero']={key:'Upgrade|hero',proj:'Upgrade',sid:'hero',idx:84,role:'waiting',x:r.gx+3,y:r.gy+4};state.sessionInfo['Upgrade|hero']={tokens:1e7,state:'working',title:'새 장비의 실제 구매와 장착 확인'};townAdventure.openEquipment('Upgrade|hero');};
   await page.evaluate(fixture);
-  check(await page.locator('.shop-item').count()===33,'all 33 items visible');
+  check(await page.locator('.shop-item').count()===45,'all 45 items visible');
   for(const id of items){
    const button=page.locator('[data-item="'+id+'"]');await button.click();
    check((await button.getAttribute('aria-label')).endsWith('해제'),'new item equipped: '+id);
@@ -53,7 +53,7 @@ async page=>{
   check(combat.pvpLegendary,'small legendary remains visible in the PvP spotlight');
   check(combat.weaponFront,'weapon drawn after monster');check(combat.quietMap,'purchased weapon hidden on village map');check(new Set(combat.snapshots).size===5,'five distinct atmosphere frames');
   check(!errors.length,errors.join('; '));
-  return {newItemsPurchased:items.length,totalItems:33,responsiveWidths:[960,680,390],persistence:true,combat,errors};
+  return {newItemsPurchased:items.length,totalItems:45,responsiveWidths:[960,680,390],persistence:true,combat,errors};
  }finally{
   await page.evaluate(backup=>{for(const[k,v]of Object.entries(backup)){if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}},backup);
   await page.unroute('**/events');await page.reload();page.off('pageerror',onError);

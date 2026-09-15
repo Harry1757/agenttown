@@ -7,9 +7,9 @@ async page => {
       const winCount=townUI.winCount;townUI.winCount=a=>a.key.includes('grown')?25:0;
       const failures=[];let tested=0;
       try {
-        for(const id of ['','grown','steel','frost','astral','axe','hammer','staff','thunderblade','tideblade','eclipse','runemallet','legend']) {
+        for(const id of ['','grown','steel','frost','astral','axe','hammer','staff','thunderblade','tideblade','eclipse','runemallet','solaris','voidblade','tempest','legend']) {
           const key='E2E|weapon-'+id,a=avatars[key]={key,idx:84};
-          for(let i=0;i<10;i++)townAdventure.reward(a,true);
+          for(let i=0;i<30;i++)townAdventure.reward(a,true);
           if(id&&!['grown','legend'].includes(id))townAdventure.buy(id,key);
           for(const size of [32,48,76])for(const angle of [.48,.9,1.3,1.95])for(const face of [1,-1]) {
             ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,320,240);
