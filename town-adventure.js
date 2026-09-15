@@ -273,7 +273,7 @@ function foregroundFinish(x,y,p,wanted=1.3,element=null){
  const bounds=element===null?[85,115,110,90]:[85,85,75,75];
  // Keep the hit on the target; fit the effect around that point without lifting it.
  const px=Math.max(left,Math.min(right,x)),py=Math.max(top,Math.min(bottom,y));
- const scale=1.2*Math.min(wanted,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/bounds[2],(bottom-py)/bounds[3]);
+ const scale=1.44*Math.min(wanted,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/bounds[2],(bottom-py)/bounds[3]);
  if(scale<=0)return;
  ctx.save();ctx.translate(px,py);ctx.scale(scale,scale);if(element===null)crescent(0,0,p);else finisher(0,0,p,element);ctx.restore();
 }
@@ -352,6 +352,7 @@ function finisher(x,y,p,key){
   if(jet){ctx.globalAlpha=opacity;ctx.fillStyle='#80def1';ctx.beginPath();ctx.moveTo(-18,45);ctx.quadraticCurveTo(-9,3,-20,45-jet*99);ctx.lineTo(-3,45-jet*80);ctx.lineTo(9,45-jet*105);ctx.quadraticCurveTo(3,4,20,45);ctx.closePath();ctx.fill();stroke([[0,40],[1,0],[7,45-jet*96]],'#efffff',3);}
   for(let i=0;i<10;i++){const a=i*Math.PI/5,q=phase(.15+i%3*.04,.65),xx=Math.cos(a)*(25+q*33),yy=8+Math.sin(a)*q*45;ctx.globalAlpha=opacity*(1-q*.5);ctx.fillStyle='#bbf5ff';ctx.beginPath();ctx.ellipse(xx,yy,2,4,a,0,7);ctx.fill();}
  }else if(kind===3){
+  ctx.translate(0,-12);
   // Three broad wind blades cross from different directions, leaving a rotating wake.
   for(let i=0;i<3;i++){const start=i*.14,q=phase(start,.4);if(p<start)continue;const angle=[-.62,.62,0][i],travel=-14+q*28;
    ctx.save();ctx.rotate(angle);ctx.translate(0,travel);ctx.globalAlpha=opacity*Math.max(.18,1-q*.7);ctx.fillStyle='#8acdb0';ctx.beginPath();ctx.moveTo(-59,-5);ctx.quadraticCurveTo(0,-18,59,-4);ctx.lineTo(24,5);ctx.quadraticCurveTo(-12,10,-59,-5);ctx.fill();ctx.strokeStyle='#f0ffe2';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-56,-4);ctx.quadraticCurveTo(0,-12,57,-4);ctx.stroke();ctx.restore();
@@ -403,6 +404,12 @@ function bossStrike(kind,x,y,p,damage){
  }
  ctx.restore();
 }
+function monsterAttackAngle(windup,age){
+ const ease=value=>{const p=Math.max(0,Math.min(1,value));return p*p*(3-2*p);};
+ if(age>=0&&age<.4)return -.32*(1-ease(age/.4));
+ if(windup>=0)return windup<.6?.12*ease(windup/.6):.12-.44*ease((windup-.6)/.4);
+ return 0;
+}
 function battleMotion(b,now,as,ms){
  const smooth=value=>{const p=Math.max(0,Math.min(1,value));return p*p*(3-2*p);};
  const age=(now-(b.hitAt??-1e8))/1000,received=(now-(b.playerHitAt??-1e8))/1000;
@@ -411,11 +418,12 @@ function battleMotion(b,now,as,ms){
  const approach=!b.done&&!b.counterAt&&arrive>depart?smooth((now-depart)/(arrive-depart)):0;
  const held=b.done&&b.won?finishDuration(b.legendary):b.attackSkill?skillDuration:.5,returning=age>=0&&age<held+.26?1-smooth((age-held)/.26):0;
  const bossArrival=b.counterAt-(b.counterSpecial?1400:200),bossApproach=b.counterAt?smooth((now-(bossArrival-220))/220):0;
+ const bossWindup=b.counterAt&&now>=bossArrival?(now-bossArrival)/(b.counterSpecial?1400:200):-1,bossAngle=monsterAttackAngle(bossWindup,received);
  const bossHold=b.receivedSpecial?1.25:.5,bossReturn=received>=0&&received<bossHold+.26?1-smooth((received-bossHold)/.26):0;
  const playerPush=impulse(received),bossPush=impulse(age),playerContact=85-(ms*.4+as*.35+22),bossContact=-83+(as+ms)*.46+6;
  const preSwing=!b.done&&approach===1?smooth(1-(b.next-now)/(chargedAttack?80:120)):0;
  const swing=age>=0&&age<.5?age<.08?1.45+.5*smooth(age/.08):1.95-1.47*smooth((age-.08)/.42):.48+.97*preSwing;
- return {px:-83+(playerContact+83)*Math.max(approach,returning)-playerPush*(b.receivedSpecial?28:18),mx:85+(bossContact-85)*Math.max(bossApproach,bossReturn)+bossPush*9,swing,approach,bossApproach,playerPush,bossPush,bossMoving:bossApproach>0&&bossApproach<1||bossReturn>0&&bossReturn<1,playerHop:Math.sin(approach*Math.PI)*Math.abs(Math.sin(approach*Math.PI*2))*Math.min(3,as*.04),bossHop:Math.sin(bossApproach*Math.PI)*Math.min(4,ms*.04)};
+ return {px:-83+(playerContact+83)*Math.max(approach,returning)-playerPush*(b.receivedSpecial?28:18),mx:85+(bossContact-85)*Math.max(bossApproach,bossReturn)+bossPush*9,swing,approach,bossApproach,playerPush,bossPush,bossAngle,bossMoving:bossApproach>0&&bossApproach<1||bossReturn>0&&bossReturn<1,playerHop:Math.sin(approach*Math.PI)*Math.abs(Math.sin(approach*Math.PI*2))*Math.min(3,as*.04),bossHop:Math.sin(bossApproach*Math.PI)*Math.min(4,ms*.04)};
 }
 function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(now-b.start)/1000,age=(now-(b.hitAt||-1e8))/1000,charge=!b.done&&!b.counterAt&&b.finishing&&now>=b.next-280-(b.windup||3000)&&now<b.next-280,chargedMove=!b.done&&!b.counterAt&&(b.finishing||b.nextHit?.skill)&&now>=b.next-280&&now<b.next;
  const skillCharge=!b.done&&!b.counterAt&&!b.finishing&&b.nextHit?.skill&&now>=b.next-280-(b.windup||1200)&&now<b.next-280,cast=skillCharge?Math.max(0,Math.min(1,1-(b.next-280-now)/(b.windup||1200))):0,skillImpact=!b.done&&b.attackSkill&&age>=0&&age<skillDuration;
@@ -446,7 +454,8 @@ function drawBattle(){if(!battle)return;const b=battle,now=performance.now(),t=(
  drawOutfit(ctx,b.a,px,playerY,as,t,false,undefined,1,arenaWidth/2-20,bodyPose);
  const finishAge=b.done&&b.won?(now-b.ended)/1000:-1;
  const monsterFall=finishAge>=0?Math.max(0,Math.min(1,(finishAge-finishDuration(b.legendary))/.8)):0,monsterEase=monsterFall*monsterFall*(3-2*monsterFall);
- ctx.save();if(monsterFall>0)applyBattlePose(ctx,mx,87,{angle:.9*monsterEase,squash:1-.45*monsterEase,alpha:1-monsterFall});monster(b.m,mx,87-motion.bossHop-motion.bossPush*3,ms,t,motion.bossMoving);ctx.restore();
+ const monsterY=87-motion.bossHop-motion.bossPush*3;
+ ctx.save();applyBattlePose(ctx,mx,monsterY,{angle:monsterFall>0?.9*monsterEase:motion.bossAngle,squash:1-.45*monsterEase,alpha:1-monsterFall});monster(b.m,mx,monsterY,ms,t,motion.bossMoving);ctx.restore();
  const swing=motion.swing;
  equipment(b.a,px,playerY,as,{sword:swing,trail:hit},1,legendAmount>0,b.size<b.monsterSize,legendAmount,bodyPose);
  if(finishAge>=0&&finishAge<finishDuration(b.legendary)){ctx.save();ctx.globalAlpha=finishFade(finishAge,b.legendary);for(let i=0;i<18;i++){const a=i*2.4,r=finishAge*43;star(mx+Math.cos(a)*r,87-ms*.5+Math.sin(a)*r-finishAge*12,i%3?2:4,'#e6c8ff');}ctx.restore();}
@@ -611,7 +620,7 @@ shopDialog.onclick=event=>{
  if(event.target===shopDialog){const r=shopDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)shopDialog.close();}
 };
 panel.querySelector('button').onclick=()=>{enabled=!enabled;save('codextown.adventureEnabled',enabled);if(!enabled){window.townEvents?.cancel();cancel();monsters.length=0;}else nextSpawn=performance.now()+4000;renderLog();};renderLog();
-window.townAdventure={legendaryChance,skillDuration,rollPlayerHit,battleMotion,chronicle,journal,catalog,autoEquip,autoMode:key=>chronicle?.autoMode(key)||'off',setAutoMode:(key,mode)=>{if(!avatars[key]||!chronicle?.setAuto(key,mode))return false;autoEquip(avatars[key]);return true;},get enabled(){return enabled;},eligible,monster,chamber,impact,defeat,applyBattlePose,foregroundFinish,chargeAura,finishDuration,gradeFor,duelPlayback,rewardDuel,finisherDuration,finishFade,elementFor,atmosphere,legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a||Boolean(window.townEvents?.busy(a)),resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const playback=duelPlayback(d);if(playback){d.playback=playback;return playback.t;}const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
+window.townAdventure={monsterAttackAngle,legendaryChance,skillDuration,rollPlayerHit,battleMotion,chronicle,journal,catalog,autoEquip,autoMode:key=>chronicle?.autoMode(key)||'off',setAutoMode:(key,mode)=>{if(!avatars[key]||!chronicle?.setAuto(key,mode))return false;autoEquip(avatars[key]);return true;},get enabled(){return enabled;},eligible,monster,chamber,impact,defeat,applyBattlePose,foregroundFinish,chargeAura,finishDuration,gradeFor,duelPlayback,rewardDuel,finisherDuration,finishFade,elementFor,atmosphere,legendaryLength,resolveDuel,drawDuelStats,statsFor,rollDamage,nextElement,openEquipment,impactScale,buy,balance,equippedFor,get equipped(){return equippedFor(selectedSession);},wander,finisher,caveWalls,caveDoor,step,drawMap,drawBattle,roomInterior,equipment,loot,hpFor,spawn,begin,cancel,record,reward,get active(){return battle;},get monsters(){return monsters;},busy:a=>battle?.a===a||Boolean(window.townEvents?.busy(a)),resting:a=>performance.now()<(rest.get(a.key)||0),duelTime:d=>{const playback=duelPlayback(d);if(playback){d.playback=playback;return playback.t;}const t=(performance.now()-d.start)/1000;return d.legendary&&t>=2.5?t<4.5?2.5:t-2:t;},crescent};
 function sword(x,y,length,angle,rank,t,paint=ctx,breadth=1){
 paint.save();paint.translate(x,y);paint.rotate(angle);paint.scale(breadth,breadth);
 const L=length/breadth;

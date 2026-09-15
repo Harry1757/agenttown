@@ -1577,7 +1577,11 @@ function drawDuelSpotlight() {
   ctx.fillStyle=`rgba(2,4,12,${mood*.42})`;ctx.fillRect(-edge+5,-48,arenaWidth-10,148);
   window.townAdventure?.atmosphere(element,mood,now/1000,arenaWidth,62,!!d.legendary&&!skill);
   ctx.textAlign='center';ctx.fillStyle='#e7edda';ctx.font='600 12px sans-serif';
-  ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`+(pb?' · '+Math.min(d.combat.strikes.length,pb.index+2)+'번째 공격':'' ),0,-82);
+  if(pb?.result){
+    const label='✦ 승리! 별가루 +'+d.combat.reward;ctx.font='bold 14px sans-serif';
+    const w=ctx.measureText(label).width+28;ctx.fillStyle='#e8ce8c';ctx.fillRect(-w/2,-99,w,23);
+    ctx.fillStyle='#172c27';ctx.fillText(label,0,-83);
+  }else ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`+(pb?' · '+Math.min(d.combat.strikes.length,pb.index+2)+'번째 공격':'' ),0,-82);
   window.townAdventure?.drawDuelStats(d,t);
   const intro=t<.65;
   const arrival=Math.max(0,Math.min(1,t/.65)),spacing=76*(d.ha+d.hb)/Math.max(d.ha,d.hb)/4+28,stance=100-(100-spacing)*arrival*arrival*(3-2*arrival);
@@ -1623,7 +1627,6 @@ function drawDuelSpotlight() {
   if(pb?.finalApproach){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText('힘을 모았어요 · 돌진!',0,-36);}
   if(pb?pb.charging:d.legendary&&(now-d.start)/1000>=2.5&&(now-d.start)/1000<4.5){ctx.fillStyle='#ffe19b';ctx.font='12px sans-serif';ctx.fillText(d.legendary?'전설검 · 별빛을 모으는 중…':'마지막 일격 · 힘을 모으는 중…',0,-36);}
   if(pb?.hit?.fatigue&&!pb.result&&!pb.charging){ctx.fillStyle='#d5ccb8';ctx.font='10px sans-serif';ctx.fillText('장기전 · 방어가 약해져요',0,75);}
-  if(pb?.result){const label='승리! 별가루 +'+d.combat.reward;ctx.font='12px sans-serif';const w=ctx.measureText(label).width;ctx.fillStyle='#192c28';ctx.fillRect(-w/2-8,-109,w+16,18);ctx.fillStyle='#ffe3a3';ctx.fillText(label,0,-96);}
   if(pb?.hit&&impactAge>=0&&impactAge<.65){const target=pb.hit.attacker===0?d.b:d.a;ctx.fillStyle=pb.hit.critical?'#ffe08b':'#ffe0c7';ctx.font='bold 14px sans-serif';ctx.fillText((pb.hit.critical?'치명타! ':'')+'−'+pb.hit.damage,actorX(target),-15-impactAge*12);}
   if(intro){ctx.fillStyle='#ffe19b';ctx.font='italic bold 32px sans-serif';ctx.fillText('VS',0,12);}
   else if(impact>0){

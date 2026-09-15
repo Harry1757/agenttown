@@ -13,7 +13,7 @@ function advanceTo(f,phase){for(let i=0;i<30&&f.e.active?.phase!==phase;i++)f.ne
 }
 {
  const f=fixture();f.e.startRaid();const r=f.e.active;r.hp=80;r.members[0].stats.attack=45;r.members[1].stats.attack=500;
- while(!r.done)f.next();assert.equal(r.won,true);assert.equal(f.payouts.length,2,'only contributors get payout');assert.ok(f.payouts.every(p=>p.stars>=6));assert.ok(f.payouts[1].stars>f.payouts[0].stars,'share proportional to actual damage');
+ while(!r.done)f.next();assert.equal(r.won,true);assert.equal(f.payouts.length,4,'all present participants get a base payout');assert.ok(f.payouts.every(p=>p.stars>=6));assert.ok(f.payouts[1].stars>f.payouts[0].stars,'share proportional to actual damage');
  const n=f.payouts.length;for(let i=0;i<10;i++)f.step(r.ended+1000+i);assert.equal(f.payouts.length,n,'payout exactly once');assert.equal(f.log.filter(e=>e[0]==='raids'&&e[1]==='won').length,1);f.step(r.ended+4300);assert.equal(f.e.active,null);assert.equal(f.released.length,4);
 }
 {
@@ -87,3 +87,14 @@ for(const [roll,kind,count] of [[.1,'wave',1],[.4,'focus',2],[.7,'scatter',2],[.
  const f=fixture();f.e.startRaid();const r=f.e.active;r.hp=100000;r.attack=10000;advanceTo(f,'playerReturn');let calls=0;f.h.random=()=>calls++===0?.1:.99;f.next();advanceTo(f,'bossWindup');r.members[0].a.present=false;f.next();advanceTo(f,'bossImpact');assert.equal(r.hit.victims.length,3,'departed resident omitted from wave');assert.equal(r.won,false);assert.equal(f.lost.length,3);assert.ok(r.hit.victims.every(v=>v.target.defeatEffectDuration===1250));assert.equal(f.payouts.length,0,'party defeat gives no reward');
 }
 console.log('Boss patterns: repeat/distributed strikes, all-party wave, once-only armor damage, retargeting and party defeat pass');
+
+for(let grade=1;grade<=10;grade++){
+ const f=fixture();f.h.grade=stats=>stats.grade;f.people[0].stats.grade=grade;f.people[1].stats.grade=10;
+ f.e.startRaid(f.people.slice(0,2));const r=f.e.active;r.hp=1;r.members[0].hp=0;f.people[0].stats.grade=10;
+ while(!r.done)f.next();assert.equal(r.won,true);
+ const weak=r.members[0],bonus=Math.max(0,6-grade)*6;
+ assert.equal(weak.damage,0);assert.equal(weak.growthBonus,bonus);assert.equal(weak.reward,6+bonus,'fallen novice gets participation and locked-in grade bonus');
+ assert.equal(r.members[1].growthBonus,0,'high grades keep original reward');
+ const before=f.payouts.length;f.step(r.ended+100);assert.equal(f.payouts.length,before,'growth bonus paid once');
+}
+console.log('Raid growth: grades 1–5 earn +30/+24/+18/+12/+6; early defeat, grade snapshot and single payout pass');

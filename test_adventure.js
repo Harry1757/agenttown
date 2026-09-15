@@ -162,3 +162,17 @@ for(const [tokens,roll,expected] of [[0,.399,true],[9999999,.399,true],[10000000
 reloaded.cancel();rookie.tokens=0;env.spriteScaleFor=()=>8;env.Math.random=()=>.01;now+=70000;
 assert.ok(reloaded.begin(rookie,reloaded.spawn('waiting',true)));assert.equal(reloaded.active.legendary,false,'rookie boost still requires smaller body');reloaded.cancel();
 console.log('Rookie legendary: 40% through 10M inclusive, then 20%; body eligibility preserved');
+
+for(const special of [false,true]){
+ const counterAt=10000,windup=special?1400:200,arrival=counterAt-windup;
+ const state={next:13000,counterAt,counterSpecial:special};
+ assert.equal(game.battleMotion(state,arrival-100,70,96).bossAngle,0,'monster travels without attacking');
+ assert.ok(game.battleMotion(state,arrival+windup*.5,70,96).bossAngle>0,'monster pulls back before strike');
+ const before=game.battleMotion(state,counterAt-.01,70,96).bossAngle;
+ assert.ok(before<-.3,'monster leans toward target at contact');
+ const hit={...state,counterAt:0,playerHitAt:counterAt,receivedSpecial:special};
+ assert.ok(Math.abs(before-game.battleMotion(hit,counterAt,70,96).bossAngle)<.001,'pose stays continuous when damage lands');
+ assert.ok(game.battleMotion(hit,counterAt+200,70,96).bossAngle<0,'follow-through remains visible');
+ assert.equal(game.battleMotion(hit,counterAt+400,70,96).bossAngle,0,'monster recovers after attack');
+}
+console.log('Monster attacks: pull back, lean into damage and recover; normal and special timing pass');
