@@ -1356,7 +1356,7 @@ function beginDuel(first,second,now) {
   const d={a,b,ha,hb,role:a.role,gx:room.gx,gy:room.gy,start:now,xA,xB,y,backA,backB,bounds,
     fromA:{x:a.x,y:a.y},fromB:{x:b.x,y:b.y},winner:Math.random()<duelWinChance(ha,hb)?a:b,awarded:false};
   for(const actor of [a,b]){clearDuelAftermath(actor);actor.duel=d;actor.roomAction=null;actor.tx=actor.x;actor.ty=actor.y;actor.lean=0;}
-  if(window.townAdventure&&Math.abs(ha-hb)>.001&&Math.random()<.2){d.legendary=ha<hb?a:b;d.winner=d.legendary;}
+  if(window.townAdventure&&Math.abs(ha-hb)>.001&&Math.random()<(window.townAdventure.legendaryChance?.(ha<hb?a:b)??.2)){d.legendary=ha<hb?a:b;d.winner=d.legendary;}
   if(window.townAdventure?.resolveDuel){d.combat=window.townAdventure.resolveDuel(a,b,d.legendary);d.winner=d.combat.winner;}
   a.face=1;b.face=-1;roomDuels.add(d);return true;
 }

@@ -150,3 +150,15 @@ for(const legendary of [false,true]){
  assert.ok(moving.px>-83&&moving.px<arrived.px,'move only after charge');assert.equal(moving.swing,.48,'no swing during travel');assert.equal(arrived.px,game.battleMotion(state,state.next-1,70,96).px,'stop before impact');
 }
 console.log('Final attacks: charge at home, then move, stop and swing');
+
+// Rookie odds use lifetime tokens, including the exact 10M boundary.
+env.window.townUI.motionReduced=false;env.spriteScaleFor=()=>2;
+const rookie=env.avatars.rookie={key:'rookie',role:'waiting',x:3,y:4,tokens:0};
+for(const [tokens,roll,expected] of [[0,.399,true],[9999999,.399,true],[10000000,.399,true],[10000000,.4,false],[10000001,.199,true],[10000001,.2,false],[10000001,.399,false]]){
+ reloaded.cancel();now+=70000;rookie.tokens=tokens;env.Math.random=()=>roll;
+ const boss=reloaded.spawn('waiting',true);assert.ok(reloaded.begin(rookie,boss));
+ assert.equal(reloaded.active.legendary,expected,`rookie legendary: tokens=${tokens}, roll=${roll}`);
+}
+reloaded.cancel();rookie.tokens=0;env.spriteScaleFor=()=>8;env.Math.random=()=>.01;now+=70000;
+assert.ok(reloaded.begin(rookie,reloaded.spawn('waiting',true)));assert.equal(reloaded.active.legendary,false,'rookie boost still requires smaller body');reloaded.cancel();
+console.log('Rookie legendary: 40% through 10M inclusive, then 20%; body eligibility preserved');

@@ -81,3 +81,12 @@ const special=a.duel;env.stepDuels(33000);assert.equal(special.frame.result,0,'c
 env.resetDuelVisit(a);a.x=2.5;b.x=4.5;a.y=b.y=4.5;env.Math.random=()=>.2;
 assert.ok(env.beginDuel(a,b,40000));assert.equal(a.duel.legendary,undefined,'20% exclusive boundary');env.endDuel(a.duel);
 console.log('Legendary PvP: 20% boundary, small winner, longer charge and cleanup pass');
+
+let offeredTo=null;env.window.townAdventure.legendaryChance=actor=>{offeredTo=actor;return .4;};
+for(const [roll,expected] of [[.399,a],[.4,undefined]]){
+ env.resetDuelVisit(a);env.resetDuelVisit(b);a.x=2.5;b.x=4.5;a.y=b.y=4.5;env.Math.random=()=>roll;
+ assert.ok(env.beginDuel(a,b,50000));assert.equal(offeredTo,a,'use smaller session token odds');assert.equal(a.duel.legendary,expected);env.endDuel(a.duel);
+}
+env.resetDuelVisit(a);env.resetDuelVisit(b);a.x=2.5;b.x=4.5;a.y=b.y=4.5;a.h=b.h=1;env.Math.random=()=>0;
+assert.ok(env.beginDuel(a,b,60000));assert.equal(a.duel.legendary,undefined,'equal bodies have no legendary advantage');env.endDuel(a.duel);
+console.log('PvP rookie boost uses smaller session odds; 40% boundary and equal bodies pass');
