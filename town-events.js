@@ -1,10 +1,16 @@
 /* Village events keep their own clock and party state; wallets stay in townAdventure. */
 (function (root) {
 'use strict';
+function raidFormation(count,width,height){
+ const columns=Math.min(Math.max(1,count),count<=4?2:count<=9?3:4),rows=Math.ceil(count/columns),left=-width/2+20,right=0,top=-height/2+108,bottom=height/2-34;
+ const cellWidth=(right-left)/columns,cellHeight=(bottom-top)/Math.max(1,rows),size=Math.max(8,Math.min(72,cellWidth-12,cellHeight-20));
+ return {columns,rows,size,positions:Array.from({length:count},(_,i)=>({x:left+(i%columns+.5)*cellWidth,y:top+(Math.floor(i/columns)+1)*cellHeight-17})),meetingX:width*.08,bossX:width*.33,bossY:height/2-48};
+}
 function createTownEvents(host) {
  const now=()=>host.now(),random=()=>host.random(),game=()=>host.game();
- let raid=null,treasure=null,nextRaid=now()+180000,nextTreasure=now()+90000,last=now(),greetAt=0;
+ let raid=null,treasure=null,nextRaid=now()+180000,nextTreasure=now()+90000,last=now(),greetAt=0,raidPending=false;
  const greetings=[],eligible=()=>host.residents().filter(a=>host.eligible(a));
+ const raidEligible=a=>host.raidEligible?host.raidEligible(a):host.eligible(a),raidCandidates=()=>host.residents().filter(raidEligible);
  const notify=(type,action,stars=0)=>host.event?.(type,action,stars);
  const freeze=a=>host.freeze?.(a),release=a=>host.release?.(a);
  function finish(won,time,cancelled=false){
@@ -17,23 +23,24 @@ function createTownEvents(host) {
    host.cooperate?.(contributors.map(m=>m.a));
   }
  }
- function close(time){const old=raid;raid=null;nextRaid=time+180000+random()*180000;if(old)for(const m of old.members)if(!m.left)release(m.a);}
- function cancel(){if(raid){finish(false,now(),true);close(now());}if(treasure)removeTreasure(false);greetings.length=0;nextTreasure=now()+90000;}
- function startRaid(actors=eligible()){
+ function close(time){const old=raid;raid=null;raidPending=false;nextRaid=time+180000+random()*180000;if(old)for(const m of old.members)if(!m.left)release(m.a);}
+ function cancel(){raidPending=false;if(raid){finish(false,now(),true);close(now());}if(treasure)removeTreasure(false);greetings.length=0;nextTreasure=now()+90000;}
+ function startRaid(actors=raidCandidates()){
   if(raid||game().active||host.duels()||!host.enabled())return false;
-  const unique=[...new Map(actors.filter(a=>host.eligible(a)).map(a=>[a.key,a])).values()].slice(0,4);if(unique.length<2)return false;
+  const unique=[...new Map(actors.filter(raidEligible).map(a=>[a.key,a])).values()];if(unique.length<2||unique.some(a=>host.raidReady&&!host.raidReady(a)))return false;
   const members=unique.map(a=>{const stats=host.stats(a);return {a,stats,hp:stats.hp,maxHp:stats.hp,damage:0,reward:0,left:false};});
   const hp=220+members.reduce((s,m)=>s+m.maxHp*.9,0),attack=28+members.length*2+members.reduce((s,m)=>s+m.stats.attack,0)/members.length*.22;
   const kind={id:'eclipseLord',effect:'dusk',name:'월식의 군주',idx:122,color:'#d699ff',size:3.2};
   const monster={boss:true,elite:true,kind,idx:122,name:'균열의 월식 군주',level:12,power:kind};
   raid={members,monster,hp:Math.round(hp),maxHp:Math.round(hp),attack:Math.round(attack),defense:12,crit:.12,start:now(),next:now()+3000,phase:'arrival',cursor:0,turn:0,done:false};
-  members.forEach(m=>freeze(m.a));notify('raids','seen');host.see?.(monster);return true;
+  raidPending=false;members.forEach(m=>freeze(m.a));notify('raids','seen');host.see?.(monster);return true;
  }
  function alive(r){return r.members.filter(m=>!m.left&&m.hp>0);}
  function preparePlayer(r,time){
   const ready=alive(r);if(!ready.length){finish(false,time);return;}
   for(let i=0;i<r.members.length;i++){const j=(r.cursor+i)%r.members.length,m=r.members[j];if(!m.left&&m.hp>0){r.actor=m;r.cursor=(j+1)%r.members.length;break;}}
-  r.pending=host.damage(r.actor.stats.attack,r.defense,r.actor.stats.crit);r.finishing=r.pending.damage>=r.hp;r.phase='playerWindup';r.phaseAt=time;r.next=time+(r.finishing?2600:700);
+  const skill=random()<.25,element=skill?Math.floor(random()*5):null;
+  r.pending={...host.damage(r.actor.stats.attack*(skill?1.6:1),r.defense,r.actor.stats.crit),skill,element};r.finishing=r.pending.damage>=r.hp;r.phase='playerApproach';r.phaseAt=time;r.next=time+450;
  }
  function stepRaid(time){
   const r=raid;if(!r)return;
@@ -42,20 +49,34 @@ function createTownEvents(host) {
   if(r.done){if(time-r.ended>4200)close(time);return;}
   if(!alive(r).length){finish(false,time);return;}
   if(time<r.next)return;
-  if(r.phase==='arrival'||r.phase==='bossImpact'){preparePlayer(r,time);return;}
+  if(r.phase==='arrival'||r.phase==='bossReturn'){preparePlayer(r,time);return;}
+  if(r.phase==='playerApproach'){
+   if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
+   r.phase='playerWindup';r.phaseAt=time;r.next=time+(r.finishing?2600:r.pending.skill?1300:500);return;
+  }
   if(r.phase==='playerWindup'){
    if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
-   const actual=Math.min(r.hp,r.pending.damage);r.hp-=actual;r.actor.damage+=actual;r.hit={at:time,damage:r.pending.damage,critical:r.pending.critical,target:'boss',actor:r.actor};host.hit?.(r.monster,actual);r.turn++;
-   if(!r.hp){finish(true,time);return;}r.phase='playerImpact';r.phaseAt=time;r.next=time+850;return;
+   const actual=Math.min(r.hp,r.pending.damage);r.hp-=actual;r.actor.damage+=actual;r.hit={at:time,...r.pending,target:'boss',actor:r.actor};host.hit?.(r.monster,actual);r.turn++;
+   r.phase='playerImpact';r.phaseAt=time;r.next=time+(r.pending.skill?1400:350);if(!r.hp)finish(true,time);return;
   }
   if(r.phase==='playerImpact'){
-   const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.special=random()<.1;r.phase='bossWindup';r.phaseAt=time;r.next=time+(r.special?1600:800);return;
+   r.phase='playerReturn';r.phaseAt=time;r.next=time+450;return;
+  }
+  if(r.phase==='playerReturn'){
+   const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.special=random()<.1;r.phase='bossApproach';r.phaseAt=time;r.next=time+450;return;
+  }
+  if(r.phase==='bossApproach'){
+   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.phaseAt=time;r.next=time+450;return;}
+   r.phase='bossWindup';r.phaseAt=time;r.next=time+(r.special?1600:500);return;
   }
   if(r.phase==='bossWindup'){
-   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];}
+   if(r.target.left||!r.target.hp){const ready=alive(r);r.target=ready[Math.floor(random()*ready.length)];r.phase='bossApproach';r.phaseAt=time;r.next=time+450;return;}
    const hit=host.damage(r.attack*(r.special?2.6:1),r.target.stats.defense,r.crit);r.target.hp=Math.max(0,r.target.hp-hit.damage);r.hit={at:time,...hit,target:r.target,actor:'boss',special:r.special};
-   if(!r.target.hp)host.defeat?.(r.target.a);
-   r.phase='bossImpact';r.phaseAt=time;r.next=time+(r.special?1450:1000);if(!alive(r).length)finish(false,time);
+   if(!r.target.hp){r.target.defeatedAt=time;r.target.defeatEffectDuration=r.special?1250:800;host.defeat?.(r.target.a);}
+   r.phase='bossImpact';r.phaseAt=time;r.next=time+(r.special?1450:800);if(!alive(r).length)finish(false,time);return;
+  }
+  if(r.phase==='bossImpact'){
+   r.phase='bossReturn';r.phaseAt=time;r.next=time+450;
   }
  }
  function removeTreasure(caught,stars=0){if(!treasure)return;const t=treasure;treasure=null;if(!t.reported){t.reported=true;notify('treasure',caught?'caught':'escaped',stars);}if(game().active?.m!==t.monster){const list=game().monsters,i=list.indexOf(t.monster);if(i>=0)list.splice(i,1);}nextTreasure=now()+150000+random()*90000;}
@@ -82,21 +103,24 @@ function createTownEvents(host) {
   if(!host.enabled()){cancel();return;}
   stepTreasure(time,dt);if(raid){stepRaid(time);return;}
   if(!game().active&&!host.duels()){
-   if(time>=nextRaid){nextRaid=time+60000;startRaid();}
+   if(time>=nextRaid)raidPending=true;if(raidPending)startRaid();
    if(!raid&&time>=nextTreasure){nextTreasure=time+45000;spawnTreasure();}
    if(time>=greetAt){greetAt=time+12000;const people=eligible();outer:for(let i=0;i<people.length;i++)for(let j=i+1;j<people.length;j++){const a=people[i],b=people[j];if(a.role===b.role&&Math.hypot(a.x-b.x,a.y-b.y)<2){const relation=host.relation?.(a,b);if(relation?.coops||relation?.duels>=3){greetings.push({a,b,at:time,friend:relation.coops>0});break outer;}}}}
   }
   for(let i=greetings.length-1;i>=0;i--)if(time-greetings[i].at>2200)greetings.splice(i,1);
  }
- return {step,cancel,startRaid,spawnTreasure,busy:a=>Boolean(raid?.members.some(m=>m.a===a&&!m.left)),get active(){return raid;},get treasure(){return treasure;},get greetings(){return greetings;},snapshot:()=>({raid,treasure,nextRaid,nextTreasure})};
+ return {step,cancel,startRaid,spawnTreasure,busy:a=>Boolean(raid?.members.some(m=>m.a===a&&!m.left)),get active(){return raid;},get treasure(){return treasure;},get greetings(){return greetings;},snapshot:()=>({raid,treasure,nextRaid,nextTreasure,raidPending})};
 }
-if(typeof module==='object'&&module.exports)module.exports={createTownEvents};
+if(typeof module==='object'&&module.exports)module.exports={createTownEvents,raidFormation};
 root.createTownEvents=createTownEvents;
+root.raidFormation=raidFormation;
 if(!root.townAdventure||typeof avatars==='undefined')return;
 const g=root.townAdventure,clock=()=>performance.now(),journal=()=>g.chronicle;
 const host={now:clock,random:()=>Math.random(),game:()=>g,duels:()=>roomDuels.size,enabled:()=>g.enabled!==false&&!root.townUI?.motionReduced,
  residents:()=>Object.values(avatars),present:a=>avatars[a.key]===a&&!state.sessionInfo[a.key]?.needsInput,
- eligible:a=>avatars[a.key]===a&&workerState(a)!=='done'&&!state.sessionInfo[a.key]?.needsInput&&!a.travelFrom&&!a.portal&&!a.route?.length&&!a.duel&&!g.resting(a)&&displayedRooms.includes(ROOM_BY_ROLE[a.role]),
+ raidEligible:a=>avatars[a.key]===a&&a.role!=='done'&&!state.sessionInfo[a.key]?.needsInput,
+ raidReady:a=>!a.travelFrom&&!a.portal&&!a.route?.length&&!a.duel,
+ eligible:a=>avatars[a.key]===a&&a.role!=='done'&&workerState(a)!=='done'&&!state.sessionInfo[a.key]?.needsInput&&!a.travelFrom&&!a.portal&&!a.route?.length&&!a.duel&&!g.resting(a)&&displayedRooms.includes(ROOM_BY_ROLE[a.role]),
  room:role=>ROOM_BY_ROLE[role],roomValid:m=>{const r=ROOM_BY_ROLE[m.role];return displayedRooms.includes(r)&&r.gx===m.gx&&r.gy===m.gy;},
  stats:a=>g.statsFor(a),damage:(a,d,c)=>g.rollDamage(a,d,c),reward:(a,b,s)=>g.reward(a,b,s),defeat:a=>g.defeat?.(a),
  freeze:a=>{a.tx=a.x;a.ty=a.y;a.roomAction=null;clearDuelAftermath(a);},release:a=>{if(avatars[a.key]!==a)return;a.wanderAt=clock()+30000;const next=a.nextRole;a.nextRole=null;if(next&&next!==a.role)changeRoom(a,next);},
@@ -116,36 +140,53 @@ function drawMap(){
 function drawBattle(){
  const r=events.active;if(!r)return;const time=clock(),age=r.hit?(time-r.hit.at)/1000:99,t=(time-r.start)/1000;
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
- const arenaWidth=Math.min(640,Math.max(450,width/height*310)),scale=Math.min(1.65,width/arenaWidth,height/310),edge=arenaWidth/2;
- const charge=r.phase==='playerWindup'&&r.finishing?Math.min(1,(time-r.phaseAt)/2600):r.phase==='bossWindup'&&r.special?Math.min(1,(time-r.phaseAt)/1600):0;
+ const arenaHeight=Math.min(470,310+Math.max(0,Math.ceil(r.members.length/4)-2)*36),arenaWidth=Math.min(820,Math.max(450,width/height*arenaHeight)),scale=Math.min(1.65,width/arenaWidth,height/arenaHeight),edge=arenaWidth/2,formation=raidFormation(r.members.length,arenaWidth,arenaHeight);
+ const skillDuration=g.skillDuration||1.4,playerCharge=r.phase==='playerWindup'&&(r.finishing||r.pending.skill),charge=playerCharge?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):r.phase==='bossWindup'&&r.special?Math.min(1,(time-r.phaseAt)/1600):0,element=r.pending?.element??(r.actor?g.elementFor(r.actor.a):4)??4;
  ctx.save();ctx.fillStyle=`rgba(3,7,15,${.68+charge*.18})`;ctx.fillRect(0,0,cv.width,cv.height);ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
- g.chamber?.(r.monster.kind,arenaWidth);ctx.fillStyle='#13202b';ctx.fillRect(-edge+14,-138,arenaWidth-28,57);g.atmosphere?.(4,charge,t,arenaWidth,100,false);
- ctx.textAlign='center';ctx.fillStyle='#e8d5ff';ctx.font='bold 15px sans-serif';ctx.fillText('공동 토벌 · 균열의 월식 군주',0,-118);
- ctx.fillStyle='#2e273d';ctx.fillRect(-140,-104,280,9);ctx.fillStyle='#ce97e9';ctx.fillRect(-140,-104,280*r.hp/r.maxHp,9);ctx.font='10px sans-serif';ctx.fillStyle='#ebdfef';ctx.fillText(r.hp+' / '+r.maxHp,0,-83);
- const bossX=edge*.39,bossY=88,bossSize=94,hitBoss=r.hit?.target==='boss'?Math.max(0,1-age/.7):0;
- const bossStrike=r.hit?.actor==='boss'?Math.max(0,1-age/(r.hit.special?1.2:.8)):0,targetIndex=r.hit?.actor==='boss'?r.members.indexOf(r.hit.target):-1,targetX=-edge+42+(targetIndex%2)*80,targetY=targetIndex<2?28:100,bossDrawX=bossX+hitBoss*8+(targetX+65-bossX)*bossStrike,bossDrawY=bossY-hitBoss*4+(targetY-bossY)*bossStrike;
- ctx.save();ctx.globalAlpha=r.done&&r.won?Math.max(0,1-(time-r.ended)/1900):1;
- if(g.monster)g.monster(r.monster,bossDrawX,bossDrawY,bossSize,t);else drawTile(ctx,'dungeon',122,bossDrawX-bossSize/2,bossDrawY-bossSize,bossSize/16);ctx.restore();
- const sizes=r.members.map(m=>spriteScaleFor(m.a,layout.scale)/layout.scale),unit=72/Math.max(2,...sizes);
+ ctx.save();ctx.scale(1,arenaHeight/270);g.chamber?.(r.monster.kind,arenaWidth);ctx.restore();ctx.fillStyle='#13202b';ctx.fillRect(-edge+14,-arenaHeight/2+10,arenaWidth-28,64);g.atmosphere?.(playerCharge?element:4,charge,t,arenaWidth,formation.bossY+10,false);
+ ctx.textAlign='center';ctx.fillStyle='#e8d5ff';ctx.font='bold 15px sans-serif';ctx.fillText('공동 토벌 · 균열의 월식 군주',0,-arenaHeight/2+30);
+ ctx.fillStyle='#2e273d';ctx.fillRect(-140,-arenaHeight/2+42,280,9);ctx.fillStyle='#ce97e9';ctx.fillRect(-140,-arenaHeight/2+42,280*r.hp/r.maxHp,9);ctx.font='10px sans-serif';ctx.fillStyle='#ebdfef';ctx.fillText(r.hp+' / '+r.maxHp+' · '+r.members.length+'명 참가',0,-arenaHeight/2+66);
+ const sizes=r.members.map(m=>spriteScaleFor(m.a,layout.scale)/layout.scale),unit=formation.size/Math.max(2,...sizes);
+ const bossX=formation.bossX,bossY=formation.bossY,bossSize=94,hitBoss=r.hit?.target==='boss'?Math.max(0,1-age/.7):0;
+ const progress=Math.max(0,Math.min(1,(time-r.phaseAt)/450)),smooth=q=>q*q*(3-2*q);
+ const bossTravel=r.done&&!r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-(r.hit?.special?1450:800))/450))):r.phase==='bossApproach'?smooth(progress):r.phase==='bossReturn'?1-smooth(progress):['bossWindup','bossImpact'].includes(r.phase)?1:0;
+ const bossRecoil=hitBoss?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0,bossWalking=['bossApproach','bossReturn'].includes(r.phase)&&!r.done,bossBob=bossWalking?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2.6:0;
+ const entrance=r.phase==='arrival'?smooth(Math.max(0,Math.min(1,(time-r.start-1800)/1000))):1,targetIndex=r.target?r.members.indexOf(r.target):-1,targetSize=Math.max(8,(sizes[targetIndex]||1)*unit),bossGap=(bossSize+targetSize)*.46+10,meetingX=formation.meetingX,bossDrawX=meetingX+(bossX-meetingX)*entrance+bossRecoil*8+(meetingX+bossGap-bossX)*bossTravel,bossDrawY=bossY-bossRecoil*4+bossBob;
+ const bossFall=r.done&&r.won?Math.max(0,Math.min(1,((time-r.ended)/1000-g.finisherDuration)/.8)):0,bossEase=bossFall*bossFall*(3-2*bossFall);
+ const bossSwing=r.phase==='bossWindup'?Math.sin(Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt))*Math.PI/2)*.1:r.hit?.actor==='boss'&&age<.4?-Math.sin(age/.4*Math.PI)*.25:0;
+ ctx.save();g.applyBattlePose(ctx,bossDrawX,bossDrawY,{angle:bossFall>0?.9*bossEase:bossSwing,squash:1-.45*bossEase,alpha:1-bossFall});
+ if(g.monster)g.monster(r.monster,bossDrawX,bossDrawY,bossSize,bossWalking?t:0);else drawTile(ctx,'dungeon',122,bossDrawX-bossSize/2,bossDrawY-bossSize,bossSize/16);ctx.restore();
  const positions=new Map();
  r.members.forEach((m,i)=>{
-  const x=-edge+42+(i%2)*80,y=i<2?28:100,size=Math.max(18,sizes[i]*unit),received=r.hit?.target===m?Math.max(0,1-age/.8):0,attacking=r.hit?.actor===m?Math.max(0,1-age/.7):0;
-  const px=x+(bossX-60-x)*attacking-received*8,pose={angle:!m.hp?-.9:received?-.18*received:0,alpha:m.left?.2:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y,size});
-  ctx.save();g.applyBattlePose(ctx,px,y,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,y-size,size/16);ctx.restore();g.loot(m.a,px,y,size,1,edge-15,pose);
-  if(!m.left&&m.hp)g.equipment(m.a,px,y,size,{sword:attacking?1.9-attacking*.6:.52,trail:attacking},1,false,false,1,pose);
-  ctx.fillStyle='#142726';ctx.fillRect(x-25,y+6,50,4);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(x-25,y+6,50*m.hp/m.maxHp,4);
-  ctx.font='9px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'자리 비움':m.hp?m.hp+' / '+m.maxHp:'잠시 기절',x,y+20);
-  if(received){g.impact?.(px,y-size*.5,age/.8,r.hit.damage,'#d4a5ff');ctx.fillStyle='#ffc4c3';ctx.font='bold 13px sans-serif';ctx.fillText('−'+r.hit.damage,px,y-size-12-age*12);}
+  const receivedDuration=r.hit?.special?1.25:.8,{x,y}=formation.positions[i],size=Math.max(8,sizes[i]*unit),received=r.hit?.target===m?Math.max(0,1-age/receivedDuration):0,attacking=r.hit?.actor===m&&r.phase==='playerImpact'?Math.max(0,1-age/.35):0;
+  const fall=!m.hp?Math.max(0,Math.min(1,(time-(m.defeatedAt??-1e8)-(m.defeatEffectDuration??800))/500)):0,fallEase=fall*fall*(3-2*fall);
+  const travel=r.actor!==m?0:r.done&&r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-g.finisherDuration*1000)/450))):r.phase==='playerApproach'?smooth(progress):r.phase==='playerReturn'?1-smooth(progress):['playerWindup','playerImpact'].includes(r.phase)?1:0;
+  const defending=r.target===m?bossTravel:0,moving=!r.done&&(r.actor===m&&['playerApproach','playerReturn'].includes(r.phase)||r.target===m&&bossWalking),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0;
+  const contactGap=bossSize*.43+size*.4+14,px=x+(bossX-contactGap-x)*travel+(meetingX-x)*defending-recoil*8,py=y+(bossY-y)*Math.max(travel,defending)+bob,pose={angle:fall>0?-.9*fallEase:received?-.18*recoil:0,alpha:m.left?.2:!m.hp?1:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y:py,size});
+  ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,1,edge-15,pose);
+  const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=attacking?(age<.14?1.3+age/.14*.65:1.95-Math.min(1,(age-.14)/.21)*1.43):.52+winding*.75;
+  if(!m.left)g.equipment(m.a,px,py,size,{sword:swing,trail:attacking},1,false,false,1,pose);
+  const barWidth=Math.min(50,formation.size+8);ctx.fillStyle='#142726';ctx.fillRect(x-barWidth/2,y+4,barWidth,3);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(x-barWidth/2,y+4,barWidth*m.hp/m.maxHp,3);
+  ctx.font='8px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'비움':m.hp?r.members.length>9?Math.round(m.hp/m.maxHp*100)+'%':m.hp+' / '+m.maxHp:'기절',x,y+16);
+  if(received){g.impact?.(px,py-size*.5,age/receivedDuration,r.hit.damage,'#d4a5ff');ctx.fillStyle='#ffc4c3';ctx.font='bold 13px sans-serif';ctx.fillText('−'+r.hit.damage,px,py-size-12-age*12);}
  });
- if(r.phase==='playerWindup'&&r.finishing){const p=positions.get(r.actor);if(p)g.chargeAura?.(p.x,p.y,p.size,charge,t,g.elementFor(r.actor.a)??4);}
- if(r.phase==='bossWindup'&&r.special)g.chargeAura?.(bossX,bossY,bossSize,charge,t,4);
+ if(playerCharge){const p=positions.get(r.actor);if(p)g.chargeAura?.(p.x,p.y,p.size,charge,t,element);}
+ if(r.phase==='bossWindup'&&r.special)g.chargeAura?.(bossDrawX,bossDrawY,bossSize,charge,t,4);
  if(hitBoss&&!r.done)g.impact?.(bossX,bossY-bossSize*.5,age/.7,r.hit.damage,'#ffe1a2');
  if(r.hit?.target==='boss'&&age<1){ctx.fillStyle=r.hit.critical?'#ffe39d':'#f0e8db';ctx.font='bold 16px sans-serif';ctx.fillText((r.hit.critical?'치명타! ':'')+'−'+r.hit.damage,bossX,bossY-bossSize-age*15);}
- if(r.done&&r.won&&age<g.finisherDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/g.finisherDuration,1.8,g.elementFor(r.hit.actor.a)??4);
+ if(r.done&&r.won&&age<g.finisherDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/g.finisherDuration,1.8,r.hit.element??g.elementFor(r.hit.actor.a)??4);
+ else if(r.hit?.skill&&r.hit.target==='boss'&&age<skillDuration)g.foregroundFinish(bossX,bossY-bossSize*.45,age/skillDuration,.9,r.hit.element);
  ctx.textAlign='center';ctx.font='12px sans-serif';ctx.fillStyle='#ecdbb6';
- const message=r.done?(r.cancelled?'토벌을 잠시 멈췄어요':r.won?'함께 해냈어요! 참여한 친구에게 별가루를 나눠요':'잠깐 쉬고 다음에 다시 도전해요'):r.phase==='arrival'?'중앙의 균열이 열려요 · 힘을 모아요!':charge?r.phase==='bossWindup'?'위험! 달그림자 폭풍이 몰려와요…':'친구들의 힘을 모아 마지막 일격!':`${r.members.filter(m=>m.hp&&!m.left).length}명과 함께 · ${r.turn+1}번째 공방`;
- ctx.fillText(message,0,141);
- if(r.done&&r.won&&time-r.ended>1500){ctx.fillStyle='#ffe39d';ctx.font='bold 13px sans-serif';ctx.fillText('✦ 별가루 획득 · '+r.members.filter(m=>m.reward).map(m=>'+'+m.reward).join('  '),0,-60);}
+ const message=r.done?(r.cancelled?'토벌을 잠시 멈췄어요':r.won?'함께 해냈어요! 참여한 친구에게 별가루를 나눠요':'잠깐 쉬고 다음에 다시 도전해요'):r.phase==='arrival'?'중앙의 균열이 열려요 · 모두 함께 힘을 모아요!':charge?r.phase==='bossWindup'?'위험! 달그림자 폭풍이 몰려와요…':r.finishing?'친구들의 힘을 모아 마지막 일격!':['화염','번개','물','바람','안개'][element]+' 기술 · 힘을 모아요!':`${r.members.filter(m=>m.hp&&!m.left).length}명과 함께 · ${r.turn+1}번째 공방`;
+ ctx.fillText(message,0,arenaHeight/2-14);
+ if(r.done&&r.won&&time-r.ended>(g.finisherDuration+.55)*1000){ctx.fillStyle='#ffe39d';ctx.font='bold 13px sans-serif';const paid=r.members.filter(m=>m.reward);ctx.fillText(paid.length>5?'✦ '+paid.length+'명에게 별가루 '+paid.reduce((n,m)=>n+m.reward,0)+'개를 나눴어요':'✦ 별가루 획득 · '+paid.map(m=>'+'+m.reward).join('  '),0,-arenaHeight/2+92);}
+ if(r.phase==='arrival'){
+  const intro=Math.max(0,Math.min(1,(time-r.start)/450,(r.next-time)/450)),top=-arenaHeight/2+15;ctx.save();ctx.globalAlpha=intro;
+  ctx.strokeStyle='#ca9fff';ctx.shadowColor='#b98af0';ctx.shadowBlur=12;for(let ring=0;ring<3;ring++){ctx.lineWidth=3-ring*.6;ctx.beginPath();ctx.ellipse(bossDrawX,bossY+3,48+ring*14+Math.sin(t*3+ring)*5,9+ring*6,0,0,7);ctx.stroke();}
+  for(let i=0;i<18;i++){const a=i*Math.PI/9+t*.7,reach=52+((t*.45+i/18)%1)*38;ctx.globalAlpha=intro*.6;ctx.fillStyle='#e9d1ff';ctx.fillRect(bossDrawX+Math.cos(a)*reach,bossY-40+Math.sin(a)*reach*.65,2+i%2,2+i%2);}
+  ctx.globalAlpha=intro;ctx.shadowBlur=0;ctx.fillStyle='#171226';ctx.fillRect(-Math.min(180,edge-20),top,Math.min(360,arenaWidth-40),74);ctx.strokeStyle='#bc8fdb';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-Math.min(180,edge-20),top);ctx.lineTo(Math.min(180,edge-20),top);ctx.moveTo(-Math.min(180,edge-20),top+74);ctx.lineTo(Math.min(180,edge-20),top+74);ctx.stroke();
+  ctx.font='bold 29px sans-serif';ctx.fillStyle='#ecd6ff';ctx.fillText('BOSS',0,top+32);ctx.font='bold 13px sans-serif';ctx.fillText('균열의 월식 군주 · '+r.members.length+'명이 맞서요',0,top+56);ctx.restore();
+ }
  ctx.restore();
 }
 root.townEvents=Object.assign(events,{drawMap,drawBattle});

@@ -1,0 +1,17 @@
+async page=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/events',r=>r.fulfill({contentType:'text/event-stream',body:': fixture\n\n'}));await page.goto('http://127.0.0.1:8869');const results=[];
+ for(const width of [960,390]){await page.setViewportSize({width,height:580});await page.reload();await page.waitForFunction(()=>window.townAdventure&&SHEETS.dungeon.img&&SHEETS.equipment.img);
+ results.push(await page.evaluate(width=>{
+  cancelAnimationFrame(frameRequest);townUI.roomView='all';townUI.motionReduced=false;updateRoomView();fitCanvas();const g=townAdventure,clock=performance.now,random=Math.random,tile=drawTile,check=(ok,m)=>{if(!ok)throw Error(m);};let now=100000,frames=0,gearChecks=0,body=null;performance.now=()=>now;Math.random=()=>.99;
+  drawTile=function(c,sheet,idx,...args){if(sheet==='dungeon'&&[84,85].includes(idx))body=Array.from(c.getTransform().toFloat64Array());if(sheet==='equipment'&&[226,352,166].includes(idx)){const matrix=Array.from(c.getTransform().toFloat64Array());check(body&&matrix.every((n,i)=>Math.abs(n-body[i])<1e-7),'body and gear fall together');gearChecks++;}return tile(c,sheet,idx,...args);};
+  try{for(const legendary of [false,true])for(const winnerIndex of [0,1]){
+   for(const d of roomDuels)endDuel(d);g.cancel();townEvents.cancel();for(const key of Object.keys(avatars))delete avatars[key];const r=ROOM_BY_ROLE.waiting;
+   const actors=[0,1].map(i=>{const key=`Fall|${width}-${legendary}-${winnerIndex}-${i}`,a=avatars[key]={key,proj:'Fall',sid:key.slice(5),idx:84+i,role:'waiting',x:r.gx+2.5+i*2,y:r.gy+4.5,tx:r.gx+2.5+i*2,ty:r.gy+4.5,duelAfter:Infinity};state.sessionInfo[key]={state:'working',title:i?'오른쪽 기사':'왼쪽 기사',tokens:10000};g.reward(a,true,3000);for(const id of ['imperial','celestial','cometboots'])g.buy(id,key);return a;});
+   g.buy('abyssreaper',actors[winnerIndex].key);check(beginDuel(...actors,now),'duel starts');const d=actors[0].duel;if(legendary){d.legendary=actors[winnerIndex];d.combat=g.resolveDuel(...actors,d.legendary);d.winner=d.combat.winner;}
+   check(d.winner===actors[winnerIndex],'intended winner through stats');const loser=actors[1-winnerIndex],duration=g.finishDuration(legendary);now=d.start+200;stepDuels(now);draw();
+   for(const age of [duration-.05,duration+.25,duration+.6]){now=d.start+(d.combat.finalAt+age)*1000;stepDuels(now);draw();frames++;if(age<duration)check(loser.duelPose.collapse===0,'no collapse during skill');else check(loser.duelPose.collapse>.6,'falls after effect');check(d.winner.duelPose.collapse===0,'winner stays upright');check(battleLayer.matches(':popover-open'),'visible top layer');}
+   now=d.start+(d.combat.endAt-.1)*1000;stepDuels(now);draw();frames++;check(loser.duelPose.collapse<.1,'recovers before end');loser.nextRole='research';now=d.start+(d.combat.endAt+.05)*1000;stepDuels(now);check(!loser.duelPose&&loser.role==='research','cleanup and queued movement');now+=70000;
+  }return {width,frames,gearChecks};}finally{drawTile=tile;performance.now=clock;Math.random=random;for(const d of roomDuels)endDuel(d);g.cancel();}
+ },width));}
+ if(errors.length)throw Error(errors.join(';'));return results;
+}

@@ -33,7 +33,7 @@ assert.ok(results.striker.winPercent[9]>results.unarmed.winPercent[9],'offensive
 // A lethal critical gets preparation; the displayed preparation and delivered roll agree.
 g.cancel();now+=70000;g.monsters.length=0;size=2;const a=env.avatars.critical={key:'critical',role:'waiting',x:3,y:4,tokens:1e9};env.Math.random=()=>0;
 const m=g.spawn('waiting');m.power={...m.power,hp:50};assert.ok(g.begin(a,m));const b=g.active;
-assert.ok(b.nextHit.critical&&b.finishing);assert.equal(b.next-now,3000);
+assert.ok(b.nextHit.critical&&b.finishing);assert.equal(b.windup,3000);assert.equal(b.next-now,1100+480+3000);
 env.Math.random=()=>.99;now=b.next;g.step(now);assert.ok(b.won&&b.dealtCritical);assert.equal(b.inflictedDamage,b.nextHit.damage);
 console.log('Lethal critical preparation uses the same reserved damage roll');
 

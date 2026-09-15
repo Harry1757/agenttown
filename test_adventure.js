@@ -9,13 +9,13 @@ assert.equal(game.hpFor(0),80);assert.equal(game.hpFor(-10),80);assert.equal(gam
 const a=env.avatars.a={key:'a',role:'waiting',x:3,y:4,tokens:1e9};env.Math.random=()=>.9;
 let m=game.spawn('waiting',true);assert.ok(game.begin(a,m));assert.equal(game.active.legendary,false);
 now=2000;game.step(now);assert.ok(game.active.monsterHp>0,'boss survives a hit');assert.equal(game.active.hp,game.active.maxHp,'counterattack is delayed');
-now=2700;game.step(now);assert.ok(game.active.hp<game.active.maxHp);
+now=game.active.counterAt;game.step(now);assert.ok(game.active.hp<game.active.maxHp);
 for(let i=0;i<20&&!game.active.done;i++){now+=1800;game.step(now);}
 assert.ok(game.active.won);assert.equal(game.record(a).kills,1);assert.equal(game.record(a).bosses,1);
 now+=100;game.step(now);assert.equal(game.record(a).kills,1,'reward only once');
 now+=4700;game.step(now);assert.equal(game.active,null);assert.ok(game.resting(a));
 now+=70000;env.spriteScaleFor=()=>2;env.Math.random=()=>.1;m=game.spawn('waiting',true);assert.ok(game.begin(a,m));assert.ok(game.active.legendary);
-now+=2000;game.step(now);now+=700;game.step(now);now=game.active.next;game.step(now);assert.ok(game.active.won,'legendary wins on final blow');
+now=game.active.next;game.step(now);now=game.active.counterAt;game.step(now);now=game.active.next;game.step(now);assert.ok(game.active.won,'legendary wins on final blow');
 game.cancel();now+=30000;m=game.spawn('waiting');assert.ok(game.begin(a,m));env.state.sessionInfo.a={needsInput:true};game.step(++now);assert.equal(game.active,null,'response waiting cancels');assert.equal(game.record(a).kills,2);
 env.state.sessionInfo.a={};now+=30000;m=game.spawn('waiting');assert.ok(game.begin(a,m));env.window.townUI.motionReduced=true;game.step(++now);assert.equal(game.active,null);assert.equal(game.monsters.length,0);
 console.log('Adventure: token HP, boss multi-hit, delayed retaliation, single loot, recovery, legendary win, response and reduced-motion cancellation pass');
@@ -125,3 +125,19 @@ vm.runInContext(fs.readFileSync('town-adventure.js','utf8'),env);reloaded=env.wi
 assert.equal(reloaded.balance('legacy'),25,'new graded earnings survive reload');assert.equal(reloaded.equippedFor(legacy,'weapon'),'steel');
 reloaded.reward(legacy,true);assert.equal(reloaded.balance('legacy'),35,'future bosses pay ten');
 console.log('Legacy balances, purchases and graded earnings survive migration and reload');
+
+const motionState={next:2000,hitAt:-10000,playerHitAt:-10000,done:false,counterAt:0};
+const home=game.battleMotion(motionState,1000,50,96),walk=game.battleMotion(motionState,1540,50,96),ready=game.battleMotion(motionState,1800,50,96),swinging=game.battleMotion(motionState,1950,50,96);
+assert.equal(home.px,-83);assert.ok(walk.px>home.px&&walk.px<ready.px);assert.equal(walk.swing,.48,'weapon stays still while approaching');assert.equal(ready.px,swinging.px,'feet stop before sword swing');assert.ok(swinging.swing>ready.swing);assert.ok(Math.abs(swinging.playerHop)<1e-8);
+const targetHit=game.battleMotion({...motionState,hitAt:2000,next:4100},2050,50,96);assert.ok(targetHit.bossPush>0&&targetHit.playerPush===0,'only the target gets impact impulse');
+console.log('Combat movement: eased approach, stationary swing and target-only impulse pass');
+
+// Mid-battle skills use an independent 25% roll and five equally selectable elements.
+for(const chance of [0,.249999,.25,.999])for(let element=0;element<5;element++){
+ let i=0;const values=chance<.25?[chance,(element+.1)/5,.99]:[chance,.99];env.Math.random=()=>values[i++];const hit=game.rollPlayerHit(40,10,.1);
+ assert.equal(hit.skill,chance<.25);assert.equal(hit.damage,chance<.25?54:30);assert.equal(hit.element,chance<.25?element:null);assert.equal(hit.critical,false);
+}
+let ri=0;env.Math.random=()=>[.1,.41,.01][ri++];assert.equal(game.rollPlayerHit(40,10,.1).damage,102,'skill and critical multiply attack before armor');
+env.Math.random=()=>.1;env.spriteScaleFor=()=>2;const skills=game.resolveDuel({key:'mid-a',tokens:1e9},{key:'mid-b',tokens:1e9}),mid=skills.strikes.filter(s=>s.skill&&!s.final);assert.ok(mid.length);
+for(const hit of mid){assert.ok(Math.abs(hit.at-hit.chargeStart-1.2)<1e-8);const at=skills.strikes.indexOf(hit),next=skills.strikes[at+1];assert.ok(next.chargeStart-hit.at>=2.3-1e-8,'effect and recovery finish before next cast');const duel={start:0,combat:skills};const before=game.duelPlayback(duel,(hit.at-.001)*1000),after=game.duelPlayback(duel,(hit.at+.001)*1000);assert.ok(before.skillCharging);assert.equal(after.hit,hit);assert.notEqual(before.hp[1-hit.attacker],after.hp[1-hit.attacker]);}
+console.log('Mid skills: exact 25% boundary, five elements, 1.6x attack, armor/critical and cast/effect timing pass');

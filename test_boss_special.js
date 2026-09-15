@@ -11,7 +11,7 @@ for(const [boss,roll,special] of [[true,0,true],[true,.079999,true],[true,.08,fa
  const f=fixture(),b=f.start(boss);f.env.Math.random=()=>roll;f.at(b.next);
  assert.equal(b.counterSpecial,special,'8% boundary, bosses only');
  const due=b.counterAt,hp=b.hp,round=b.round;
- if(special)assert.equal(due-b.hitAt,1400,'special telegraph is longer');
+ if(special)assert.equal(due-b.counterStartedAt,1400,'special telegraph lasts 1.4 seconds after approach');
  f.at(due-1);assert.equal(b.hp,hp,'no damage during telegraph');assert.equal(b.round,round);
  f.env.Math.random=()=>.99;f.at(due);
  assert.equal(b.receivedSpecial,special);assert.equal(b.receivedCritical,false);
@@ -44,3 +44,13 @@ for(const reason of ['input','motion']){
  f.at(due-100);assert.equal(f.g.active,null);f.at(due+1);assert.equal(f.g.record(f.a).deaths||0,0,'cancelled special does not deal damage');
 }
 console.log('Boss specials: 8% boundary, boss-only, 3x attack, independent criticals, telegraph, impact pause, rerolls, defeat, legendary survival and cancellation pass');
+for(const special of [false,true]){
+ const f=fixture(),b=f.start();f.env.Math.random=()=>special?.01:.99;f.at(b.next);const late=b.counterAt+5000,round=b.round;f.at(late);
+ const hold=special?1250:500,recovery=hold+450;
+ assert.ok(b.next>=late+recovery+480+b.windup,'background delay preserves recovery, approach and cast');
+ f.at(late+1);assert.equal(b.round,round,'no immediate extra attack after tab resumes');
+ const contact=f.g.battleMotion(b,late+10,70,96).mx;
+ assert.equal(f.g.battleMotion(b,late+hold-1,70,96).mx,contact,'boss stays through the complete effect');
+ assert.ok(f.g.battleMotion(b,late+hold+200,70,96).mx>contact,'boss eases home after the effect');
+}
+console.log('Background resume preserves normal/special impact, recovery and full next cast');

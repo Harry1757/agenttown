@@ -14,13 +14,14 @@ async page=>{
     for(const key of Object.keys(avatars))delete avatars[key];g.cancel();e.cancel();g.monsters.length=0;
     const room=ROOM_BY_ROLE.waiting,people=[1e9,0,1e5,1e7].map((tokens,i)=>{
      const key='Raid|'+width+'-'+i,a=avatars[key]={key,proj:'Raid',sid:width+'-'+i,idx:84+i,role:'waiting',x:room.gx+2+i*.3,y:room.gy+4,tx:room.gx+2+i*.3,ty:room.gy+4};state.sessionInfo[key]={title:'함께 싸우는 친구 '+i,state:'working',tokens};return a;});
+    const advance=phase=>{for(let i=0;i<30&&e.active?.phase!==phase&&!e.active?.done;i++){now=e.active.next;g.step(now);}check(e.active?.phase===phase,'phase '+phase);};
     const frame=()=>{draw();const m=ctx.getTransform();check(m.a===1&&m.d===1&&m.e===0&&m.f===0,'render restores canvas transform');frames++;};
     try{
      check(e.startRaid(people),'start real raid');const r=e.active;check(r.members.length===4,'four real members');
      for(let i=0;i<4;i++){const stats=g.statsFor(people[i]);check(stats.hp===r.members[i].hp&&stats.attack===r.members[i].stats.attack,'actual token/equipment stats snapshot');}
      now=r.start+1400;frame();screens.arrival=battleCanvas.toDataURL();
-     const before=r.hp;now=r.next;g.step(now);check(r.phase==='playerWindup','arrival transitions to charge');now=r.next;g.step(now);check(r.hp===before-r.pending.damage,'player damage applied to actual HP');
-     frame();now=r.next;g.step(now);now=r.next;g.step(now);check(r.members.some(m=>m.hp<m.maxHp),'boss damages a real member');frame();screens.attack=battleCanvas.toDataURL();
+     const before=r.hp;advance('playerWindup');now=r.next;g.step(now);check(r.hp===before-r.pending.damage,'player damage applied to actual HP');
+     frame();advance('bossImpact');check(r.members.some(m=>m.hp<m.maxHp),'boss damages a real member');frame();screens.attack=battleCanvas.toDataURL();
      const queuedRole=displayedRooms.find(room=>room.role!=='waiting'&&room.role!=='done').role;changeRoom(people[0],queuedRole);check(people[0].role==='waiting'&&people[0].nextRole===queuedRole,'room movement deferred through raid');
      // Play the full battle with actual stats. A weaker party is allowed to lose.
      for(let i=0;i<250&&!r.done;i++){now=r.next;g.step(now);frame();}
@@ -28,7 +29,7 @@ async page=>{
      const totals=people.map(a=>g.record(a).earnedStardust);now=r.ended+300;frame();g.step(now);check(people.every((a,i)=>g.record(a).earnedStardust===totals[i]),'repeated finished frame does not pay twice');now=r.ended+4500;g.step(now);check(!e.active&&people[0].role===queuedRole,'queued movement released at end');
      // Verify actual winning finish/rewards independently, with guaranteed setup and no fake journal events.
      for(const a of people){a.role='waiting';a.travelFrom=null;a.portal=null;a.route=[];a.x=room.gx+3;a.y=room.gy+4;}
-     check(e.startRaid(people),'second raid can start');const win=e.active;win.hp=win.maxHp=10;now=win.next;g.step(now);check(win.finishing,'final strike charges');now=win.next-500;frame();screens.charge=battleCanvas.toDataURL();now=win.next;g.step(now);check(win.won,'final strike wins');now=win.ended+500;frame();screens.finish=battleCanvas.toDataURL();check(win.members[0].reward>=6,'winner payout');e.cancel();
+     check(e.startRaid(people),'second raid can start');const win=e.active;win.hp=win.maxHp=10;advance('playerWindup');check(win.finishing,'final strike charges');now=win.next-500;frame();screens.charge=battleCanvas.toDataURL();now=win.next;g.step(now);check(win.won,'final strike wins');now=win.ended+500;frame();screens.finish=battleCanvas.toDataURL();check(win.members[0].reward>=6,'winner payout');e.cancel();
      // Treasure is visible, wanders, then uses the same actual encounter engine.
      g.monsters.length=0;const treasure=e.spawnTreasure('waiting');check(treasure&&treasure.treasure,'rare treasure spawns');now+=100;g.step(now);frame();screens.treasure=cv.toDataURL();
      people[0].x=treasure.x;people[0].y=treasure.y;check(g.begin(people[0],treasure),'treasure enters real battle');const b=g.active;b.legendary=true;const balance=g.balance(people[0].key);

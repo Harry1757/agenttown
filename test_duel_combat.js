@@ -24,6 +24,11 @@ for(const hit of d.combat.strikes){
  assert.ok((target.x-(hit.attacker===0?d.xB:d.xA))*targetDir>0,'victim moves away');
 }
 assert.ok(prior.includes(0));const last=d.combat.strikes.at(-1);assert.equal(last.at-last.chargeStart,3,'final attack has a full charge');
+const loser=d.winner===d.a?d.b:d.a;
+for(const age of [.1,1,2.09]){now=d.start+(d.combat.finalAt+age)*1000;env.stepDuels(now);assert.equal(loser.duelPose.collapse,0,'target stays upright throughout the skill');}
+now=d.start+(d.combat.finalAt+2.35)*1000;env.stepDuels(now);assert.ok(loser.duelPose.collapse>.6&&loser.duelPose.collapse<1,'gradual fall after skill');
+now=d.start+(d.combat.finalAt+2.7)*1000;env.stepDuels(now);assert.equal(loser.duelPose.collapse,1,'defeated resident lies down');assert.equal(d.winner.duelPose.collapse,0,'winner never falls');
+now=d.start+(d.combat.endAt-.1)*1000;env.stepDuels(now);assert.ok(loser.duelPose.collapse<.1,'gets up before leaving');
 now=d.start+d.combat.resultAt*1000+1;env.stepDuels(now);assert.equal(wins,1);assert.equal(g.balance(d.winner.key),d.combat.reward);assert.equal(g.record(d.winner).kills,0,'PvP never counts as a monster kill');
 g.rewardDuel(d);env.stepDuels(now+1);assert.equal(g.balance(d.winner.key),d.combat.reward,'single reward');
 const winnerKey=d.winner.key,stars=d.combat.reward;vm.runInContext(source,env);g=env.window.townAdventure;assert.equal(g.balance(winnerKey),stars);assert.equal(g.record(d.winner).duelWins,1,'duel earnings survive reload');

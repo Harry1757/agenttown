@@ -39,7 +39,7 @@ async page => {
             if(!b.done){now=b.counterAt+1;game.step(now);game.drawBattle();
               check(b.hp===b.maxHp-Math.max(1,b.monsterAttack-b.stats.defense),'monster attack uses its own stats');}
             now+=170;game.drawBattle();
-            for(let j=0;j<100&&!b.done;j++){now+=250;game.step(now);game.drawBattle();}
+            for(let j=0;j<240&&!b.done;j++){now+=250;game.step(now);game.drawBattle();}
             check(b.done&&b.won,'equipped resident wins a complete battle: '+boss.name);
             check(game.balance(key)===balance+level,'reward equals monster level');
             check(b.rewardLabel.includes('별가루 +'+level),'loot announcement matches payout');
