@@ -75,7 +75,7 @@ node test_travel.js
 node --test app/test-notifications.js
 ```
 
-`claudetown.py`는 기존 도구 분류·정적 파일·이벤트 전송 코드를 재사용하는 내부 모듈입니다. Codex용 실행 진입점은 `codextown.py`입니다. Claude 전용 사용량 조회 및 Windows 설치 스크립트는 제거했습니다. macOS Apple Silicon은 실행 검증을 마쳤습니다. Windows x64 설치 파일 구성은 추가했으며, 실제 Windows 빌드 결과와 설치 검증은 별도로 확인해야 합니다.
+`claudetown.py`는 기존 도구 분류·정적 파일·이벤트 전송 코드를 재사용하는 내부 모듈입니다. Codex용 실행 진입점은 `codextown.py`입니다. macOS Apple Silicon과 Windows 11 Pro x64에서 앱 실행을 검증했습니다. Windows ZIP 설치 검증 범위는 아래에 정리했습니다. 별도 NSIS EXE 설치 파일의 빌드·설치는 이 검증에 포함되지 않습니다.
 
 원본의 미커밋 변경까지 보존한 기준 커밋: `a4e3d53`.
 별도 원본 백업: `../claudetown-backup-20260910-181812/`.
@@ -88,8 +88,17 @@ node --test app/test-notifications.js
 `설치.cmd`를 더블클릭하면 됩니다. 현재 사용자 폴더에 설치되고 바탕화면·시작 메뉴에
 바로가기가 생깁니다. Node.js와 Python은 별도로 설치하지 않습니다.
 
-동봉된 실행 파일과 리소스 구성은 검사했으며, 실제 Windows PC 설치·알림·Codex 연동은
-아직 실행 확인 전입니다. 이 ZIP은 테스트 배포본입니다.
+2026-09-15 Windows 11 Pro x64에서 WSL 없이 다음을 검증했습니다.
+
+- ZIP 설치, 바탕화면·시작 메뉴 바로가기, 내장 Python과 Electron 앱 실행
+- 한글 경로의 테스트 세션 인식, 토큰 표시, 작업 중 → 응답 요청 상태의 실시간 변경
+- 390~960px 화면, 세션별 장비 구매·저장, 여러 차례 공격하는 대전, 28개 일반·보스전과 상위 보스 3종
+- 무음 설정(`silent: true`)으로 보낸 Windows 네이티브 알림의 표시 이벤트와 알림 끄기
+- 세션 읽기 관련 Python 테스트 14개. 데이터베이스 연결 해제와 UTF-8 한글·이모지 제목 회귀 검사 포함
+
+이 PC에는 로그인된 Codex 실행 파일과 실제 작업 기록이 없어, 실시간 계정 한도 조회와
+`codex://` 작업 바로 열기는 미검증입니다. 알림 검증은 네이티브 표시 이벤트와 무음 설정 확인이며,
+Windows 배너 화면의 시각 검증이나 실제 소리 녹음 검증은 포함하지 않습니다.
 
 패키지를 다시 만들려면 `app` 폴더에서 `@electron/get`의 `downloadArtifact`로
 Electron 43.4.0 / win32 / x64 아카이브를 받고(체크섬 검증 포함), 저장소 루트에서 실행합니다.

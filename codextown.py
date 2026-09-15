@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import closing
 from datetime import datetime, timezone
 
 import claudetown as town
@@ -105,7 +106,7 @@ class Tailer(town.Tailer):
         self._index_at = time.monotonic()
         index = {}
         try:
-            for line in (self.codex_home / 'session_index.jsonl').read_text().splitlines():
+            for line in (self.codex_home / 'session_index.jsonl').read_text(encoding='utf-8').splitlines():
                 try:
                     row = json.loads(line)
                     index[row['id']] = {'title': row.get('thread_name', '')}
@@ -116,7 +117,7 @@ class Tailer(town.Tailer):
         databases = sorted(self.codex_home.glob('state_*.sqlite'), reverse=True)
         for db in databases:
             try:
-                with sqlite3.connect(db.as_uri() + '?mode=ro', uri=True, timeout=.2) as conn:
+                with closing(sqlite3.connect(db.as_uri() + '?mode=ro', uri=True, timeout=.2)) as conn:
                     columns = {r[1] for r in conn.execute('PRAGMA table_info(threads)')}
                     name_column = 'name' if 'name' in columns else 'NULL'
                     for sid, name, archived in conn.execute(f'SELECT id, {name_column}, archived FROM threads'):

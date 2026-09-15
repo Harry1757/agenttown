@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -109,15 +110,53 @@ class CodexTests(unittest.TestCase):
     def test_titles_archive_and_no_first_prompt_leak(self):
         import sqlite3
         self.meta()
-        with sqlite3.connect(self.root / 'state_5.sqlite') as conn:
+        with closing(sqlite3.connect(self.root / 'state_5.sqlite')) as conn, conn:
             conn.execute('CREATE TABLE threads (id TEXT, name TEXT, title TEXT, archived INTEGER)')
             conn.execute('INSERT INTO threads VALUES (?,?,?,?)', ('01a08a9a-847c-70a0-8a7b-ab6dcd26b65a','실제 작업 제목','PRIVATE PROMPT',0))
         self.t.seed()
         self.assertEqual(self.row()['title'],'실제 작업 제목')
-        with sqlite3.connect(self.root / 'state_5.sqlite') as conn:
+        with closing(sqlite3.connect(self.root / 'state_5.sqlite')) as conn, conn:
             conn.execute('UPDATE threads SET archived=1')
         self.t._index_at = 0
         self.assertEqual(self.t.sessions(),{})
+
+    def test_index_connections_close_after_read_and_schema_error(self):
+        import sqlite3
+        database = self.root / 'state_5.sqlite'
+        with closing(sqlite3.connect(database)) as conn, conn:
+            conn.execute('CREATE TABLE threads (id TEXT, name TEXT, archived INTEGER)')
+            conn.execute('INSERT INTO threads VALUES (?,?,?)', ('sid', '작업', 0))
+        connect = sqlite3.connect
+        opened = []
+        def tracked(*args, **kwargs):
+            conn = connect(*args, **kwargs)
+            opened.append(conn)
+            return conn
+        try:
+            with patch('codextown.sqlite3.connect', side_effect=tracked):
+                self.t._refresh_index()
+                self.assertEqual(self.t._index['sid']['title'], '작업')
+                # An incompatible newer database must close before falling back.
+                with closing(connect(self.root / 'state_6.sqlite')):
+                    pass
+                self.t._index_at = 0
+                self.t._refresh_index()
+                self.assertEqual(self.t._index['sid']['title'], '작업')
+            for conn in opened:
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    conn.execute('SELECT 1')
+        finally:
+            for conn in opened:
+                conn.close()
+
+    def test_session_index_uses_utf8_on_windows(self):
+        self.meta()
+        title = '윈도우 작업 · 마법검 🗡️'
+        (self.root / 'session_index.jsonl').write_text(json.dumps({
+            'id': '01a08a9a-847c-70a0-8a7b-ab6dcd26b65a', 'thread_name': title,
+        }, ensure_ascii=False) + '\n', encoding='utf-8')
+        self.t.seed()
+        self.assertEqual(self.row()['title'], title)
 
     def test_patch_fingerprints_and_subagent(self):
         self.add('session_meta', {'id':'child','cwd':'/work/project','source':{'subagent':{'thread_spawn':{'parent_thread_id':'parent'}}}})
