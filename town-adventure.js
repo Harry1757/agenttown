@@ -342,7 +342,8 @@ function finisher(x,y,p,key){
   for(const dir of [-1,1])stroke([[0,11],[dir*24,0],[dir*20,17],[dir*52,7]],'#ffe898',2.5,power*.8);
   ctx.globalAlpha=opacity*power;ctx.strokeStyle='#ffeaa2';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(-4,49,15+strike*31,5+strike*3,0,0,7);ctx.stroke();
  }else if(kind===2){
-  // Opposing waves curl around the body, then meet in an upward geyser.
+  // Keep the water surge low around the body instead of towering over the target.
+  ctx.translate(0,24);ctx.scale(1,.7);
   const wrap=phase(0,.42),jet=phase(.32,.28),tail=phase(.6,.4);
   for(const dir of [-1,1]){ctx.save();ctx.scale(dir,1);ctx.globalAlpha=opacity*(1-tail*.65);ctx.fillStyle='#3a9bd9';ctx.beginPath();ctx.moveTo(-60,30);ctx.bezierCurveTo(-65,-18,-36,-54,9,-33-wrap*12);ctx.bezierCurveTo(-21,-33,-35,-4,-19,17);ctx.quadraticCurveTo(8,36,27,28);ctx.quadraticCurveTo(-4,55,-60,30);ctx.fill();ctx.strokeStyle='#d6faff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-57,20);ctx.bezierCurveTo(-58,-13,-34,-42,3,-39);ctx.stroke();ctx.restore();}
   if(jet){ctx.globalAlpha=opacity;ctx.fillStyle='#80def1';ctx.beginPath();ctx.moveTo(-18,45);ctx.quadraticCurveTo(-9,3,-20,45-jet*99);ctx.lineTo(-3,45-jet*80);ctx.lineTo(9,45-jet*105);ctx.quadraticCurveTo(3,4,20,45);ctx.closePath();ctx.fill();stroke([[0,40],[1,0],[7,45-jet*96]],'#efffff',3);}
