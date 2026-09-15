@@ -11,7 +11,7 @@ async page=>{
    for(const [sid,idx,x]of[['a',84,2.2],['b',85,4.5]]){const key='Test|'+sid;avatars[key]={key,proj:'Test',sid,idx,role:'waiting',x:r.gx+x,y:r.gy+4.5,tx:r.gx+x,ty:r.gy+4.5,duelAfter:Infinity};state.sessionInfo[key]={tokens:1e9,state:'working',title:'최상위 장비와 실제 체력 전투 · '+sid};}
    townAdventure.openEquipment('Test|a');
   };
-  await page.evaluate(fixture);check(await page.locator('.shop-item').count()===45,'45 items');
+  await page.evaluate(fixture);check(await page.locator('.shop-item').count()===56,'56 items');
   for(const id of items){await page.locator('[data-item="'+id+'"]').click();check((await page.locator('[data-item="'+id+'"]').getAttribute('aria-label')).endsWith('해제'),'purchase '+id);}
   const balance=await page.evaluate(()=>townAdventure.balance('Test|a'));check(balance<4000,'new items cost currency');
   await page.reload();await page.evaluate(fixture);check(await page.evaluate(()=>townAdventure.balance('Test|a'))===balance,'inventory and money persist');
@@ -36,7 +36,7 @@ async page=>{
     return {strikesShown:shown,duelReward:d.combat.reward,opponentGrades:[...d.combat.grades],eliteBattles:elites};
    }finally{Math.random=random;performance.now=clock;}
   });
-  check(!errors.length,errors.join('; '));return {newPurchases:items.length,totalItems:45,widths:[960,680,390],...result,errors};
+  check(!errors.length,errors.join('; '));return {newPurchases:items.length,totalItems:56,widths:[960,680,390],...result,errors};
  }finally{
   await page.evaluate(b=>{for(const k of Object.keys(localStorage))if(k.startsWith('codextown.')&&!Object.hasOwn(b,k))localStorage.removeItem(k);for(const[k,v]of Object.entries(b))localStorage.setItem(k,v);},backup);
   await page.unroute('**/events');await page.reload();page.off('pageerror',onError);

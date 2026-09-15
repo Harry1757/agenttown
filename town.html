@@ -43,7 +43,7 @@
        font:13px ui-monospace,monospace;pointer-events:none;opacity:0;
        transition:opacity 1s ease;z-index:5}
 @media(max-width:760px){#usage{max-width:calc(100vw - 32px);bottom:54px;padding:8px;gap:8px;flex-direction:column}#usage-tok{border-left:0;padding-left:0}#usage-bars{gap:8px}#usage .u-bar{width:50px}#usage{font-size:12px}#hud{bottom:8px;max-width:calc(100vw - 100px);line-height:1.5}}
-</style><link rel="stylesheet" href="/town-ui.css"></head><body>
+</style><link rel="stylesheet" href="/town-ui.css"><link rel="stylesheet" href="/town-journal.css"></head><body>
 <a class="skip-link" href="#task-search">작업 검색으로 이동</a>
 <header class="topbar">
   <div class="brand"><canvas id="brand-avatar" width="32" height="32" class="brand-icon" aria-hidden="true"></canvas><div><h1>CodexTown</h1><small>나의 작은 작업실</small></div></div>
@@ -91,7 +91,7 @@ const T = {
 
 const TILE = 16;
 const cv = document.getElementById('cv');
-const ctx = cv.getContext('2d');
+let ctx = cv.getContext('2d');
 const hud = document.getElementById('hud');
 ctx.imageSmoothingEnabled = false;
 let dpr = window.devicePixelRatio || 1;   // 화면 배율(윈도 125%/150%, 브라우저 줌)마다 바뀐다
@@ -260,7 +260,7 @@ function updateRoomView() {
     startPendingTrips();
     return;
   }
-  if(roomDuels.size || window.townAdventure?.active)return;
+  if(roomDuels.size || window.townAdventure?.active||window.townEvents?.active)return;
   if(performance.now()<roomLayoutHoldUntil && !Object.values(avatars).some(a=>a.travelFrom))return;
   if (signature === roomViewSignature) { startPendingTrips(); return; }
   for(const duel of roomDuels)endDuel(duel);
@@ -1507,7 +1507,7 @@ function selectFeaturedDuel(now) {
 }
 
 function drawDuelSpotlight() {
-  if(window.townAdventure?.active)return;
+  if(window.townAdventure?.active||window.townEvents?.active)return;
   const now=performance.now(),d=selectFeaturedDuel(now);
   if(!d)return;
   const t=window.townAdventure?window.townAdventure.duelTime(d):(now-d.start)/1000,f=d.frame||duelFrame(t);
@@ -2744,14 +2744,29 @@ function draw() {
   computeTagLayout();
   drawPortals();
   for (const a of Object.values(avatars)) { if (displayedRooms.includes(ROOM_BY_ROLE[a.role]) || a.route?.length) drawWorker(a); }
-  window.townAdventure?.drawMap();
+  window.townAdventure?.drawMap();window.townEvents?.drawMap();
   drawDuelResults();
   drawConflicts();
   drawParticles();
-  drawDuelSpotlight();
-  window.townAdventure?.drawBattle();
+  drawBattleForeground();
 
   updateHud(activeCounts);
+}
+
+// A manual popover shares the browser's top layer with dialogs, above shop and roster.
+const battleLayer=document.createElement('div');battleLayer.id='battle-foreground';battleLayer.setAttribute('popover','manual');battleLayer.setAttribute('aria-hidden','true');
+battleLayer.style.cssText='position:fixed;inset:0;margin:0;width:100vw;height:100vh;max-width:none;max-height:none;border:0;padding:0;background:transparent;pointer-events:none;overflow:visible';
+const battleCanvas=document.createElement('canvas');battleCanvas.style.cssText='position:absolute;pointer-events:none';battleLayer.append(battleCanvas);document.body.append(battleLayer);
+const battleStyle=document.createElement('style');battleStyle.textContent='#battle-foreground::backdrop{background:transparent;pointer-events:none}';document.head.append(battleStyle);
+new MutationObserver(records=>{if(battleLayer.matches(':popover-open')&&records.some(r=>r.target.tagName==='DIALOG'&&r.target.open)){battleLayer.hidePopover();battleLayer.showPopover();}}).observe(document.body,{subtree:true,attributes:true,attributeFilter:['open']});
+function drawBattleForeground(){
+ const live=window.townAdventure?.active||window.townEvents?.active||selectFeaturedDuel(performance.now());
+ if(!live||window.townUI?.motionReduced){if(battleLayer.matches(':popover-open'))battleLayer.hidePopover();return;}
+ if(!battleLayer.matches(':popover-open'))battleLayer.showPopover();
+ const rect=cv.getBoundingClientRect();battleCanvas.style.left=rect.left+'px';battleCanvas.style.top=rect.top+'px';battleCanvas.style.width=rect.width+'px';battleCanvas.style.height=rect.height+'px';
+ if(battleCanvas.width!==cv.width)battleCanvas.width=cv.width;if(battleCanvas.height!==cv.height)battleCanvas.height=cv.height;
+ const mapContext=ctx;ctx=battleCanvas.getContext('2d');ctx.resetTransform();ctx.clearRect(0,0,cv.width,cv.height);ctx.imageSmoothingEnabled=false;
+ try{drawDuelSpotlight();window.townAdventure?.drawBattle();window.townEvents?.drawBattle();}finally{ctx=mapContext;}
 }
 
 // --- 인터랙션: 휠 줌 · 드래그 팬 · 호버 툴팁 · 방 하이라이트 -------------------
@@ -2908,12 +2923,15 @@ cv.addEventListener('mouseleave', () => {
 });
 // 더블클릭: 캐릭터 위면 그 세션을 연 창을 앞으로 가져오고, 빈 곳이면 카메라 리셋.
 // 창 제목으로 찾는 것이라 창 단위까지만 간다 — 탭까지는 못 간다.
+let characterClickTimer=null,clickedCharacter=null;
+cv.addEventListener('mousedown',e=>{if(e.detail>=2)clearTimeout(characterClickTimer);});
 cv.addEventListener('click', e => {
   trackMouse(e);updateHoverHit();
-  if (!mapDragged && !gesture && hoveredWorker){window.townUI?.select(hoveredWorker.key);window.townAdventure?.openEquipment(hoveredWorker.key);}
+  if (!mapDragged && !gesture && hoveredWorker){clickedCharacter=hoveredWorker;clearTimeout(characterClickTimer);characterClickTimer=setTimeout(()=>{const key=clickedCharacter?.key;clickedCharacter=null;if(key&&avatars[key])window.townUI?.select(key);characterClickTimer=null;},550);}
 });
 cv.addEventListener('dblclick', () => {
-  const a = hoveredWorker;
+  clearTimeout(characterClickTimer);characterClickTimer=null;
+  const a = hoveredWorker||clickedCharacter;clickedCharacter=null;
   // 제스처가 켜져 있으면 연타 중이라는 뜻이라 이동시키지 않는다.
   if (gesture) return;
   if (!a) { resetCamera(); return; }
@@ -3215,4 +3233,4 @@ initRooms();
 connect();
 initHint();
 loadSheets().then(tick);
-</script><script src="/town-ui.js"></script><script src="/town-adventure.js"></script></body></html>
+</script><script src="/town-ui.js"></script><script src="/town-chronicle.js"></script><script src="/town-adventure.js"></script><script src="/town-events.js"></script><script src="/town-journal-ui.js"></script></body></html>

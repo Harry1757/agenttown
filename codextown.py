@@ -410,7 +410,7 @@ def main():
             if host not in ('127.0.0.1', 'localhost'):
                 self.send_error(403); return
             route = self.path.split('?')[0]
-            if route in ('/town-ui.js', '/town-adventure.js', '/town-ui.css'):
+            if route in ('/town-ui.js', '/town-adventure.js', '/town-chronicle.js', '/town-events.js', '/town-journal-ui.js', '/town-journal.css', '/town-ui.css'):
                 target = town.HERE / route[1:]
                 ctype = 'text/javascript' if route.endswith('.js') else 'text/css'
                 return self._send(target.read_bytes(), ctype + '; charset=utf-8')

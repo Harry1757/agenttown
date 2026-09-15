@@ -1,0 +1,54 @@
+/* A village field journal, using the same quiet greens as the equipment shop. */
+#open-town-journal{padding:7px 10px;font-size:12px;white-space:nowrap;background:var(--panel);color:var(--sage);border-color:#647e63}
+#town-journal{width:min(780px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 32px);padding:0;border:1px solid #82967e;border-radius:14px;background:var(--panel);color:var(--ink);box-shadow:0 24px 80px #0008;word-break:keep-all;overflow:hidden}
+#town-journal[open]{display:flex;flex-direction:column}
+#town-journal::backdrop{background:#071310b8}
+.journal-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-shrink:0;padding:22px 24px 17px;border-bottom:1px solid var(--line)}
+.journal-eyebrow{font-size:11px;color:var(--muted);line-height:1.5}
+.journal-heading h2{font-size:25px;letter-spacing:-.6px;margin:5px 0 0}
+.journal-close{width:36px;height:36px;font-size:23px;flex-shrink:0}
+.journal-content{padding:0 24px 24px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.journal-intro,.journal-note{font-size:12px;line-height:1.7;color:var(--muted)}
+.journal-intro{margin:16px 0 22px}
+.journal-content section+section{margin-top:26px}
+.journal-content h3{font-size:15px;margin:0 0 12px}
+.journal-section-heading{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.journal-discovered{font-size:12px;color:var(--sage);white-space:nowrap}
+.journal-bosses{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.journal-boss{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;gap:12px;padding:14px;background:#142824;border:1px dashed #40564b;border-radius:10px;min-width:0}
+.journal-boss.is-discovered{background:var(--surface);border-style:solid;border-color:#516b57}
+.journal-portrait{width:64px;height:64px;background:#102420;position:relative;border-radius:6px;overflow:hidden}
+.journal-portrait canvas{width:64px;height:64px;display:block;image-rendering:pixelated}
+.journal-boss:not(.is-discovered) canvas{filter:brightness(0);opacity:.4}
+.journal-unknown{position:absolute;inset:0;display:grid;place-items:center;font-size:24px;color:#a1b39a}
+.journal-boss h4{font-size:14px;line-height:1.5;margin:4px 0 0;overflow-wrap:anywhere}
+.journal-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0;grid-column:1/-1}
+.journal-metrics div{min-width:0}
+.journal-metrics dt{font-size:10px;color:var(--muted);line-height:1.5}
+.journal-metrics dd{margin:4px 0 0;font-size:16px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--sand)}
+.journal-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.journal-event{padding:16px;border-radius:10px;background:var(--surface);border:1px solid var(--line);min-width:0}
+.journal-event h4{font-size:13px;margin:0 0 16px;color:var(--sage)}
+.journal-event .journal-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.journal-note{margin:-4px 0 12px}
+.journal-relations{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.journal-relation{padding:14px 16px;border:1px solid var(--line);border-radius:9px;background:#142824}
+.journal-pair{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px;font-size:12px;line-height:1.7;margin:0}
+.journal-pair span{max-width:100%;overflow-wrap:anywhere}
+.journal-pair-link{color:var(--sage)}
+.journal-relation-count{font-size:11px;line-height:1.7;color:var(--sand);margin:8px 0 0}
+.journal-empty{font-size:12px;color:var(--muted);line-height:1.8;padding:18px;border:1px dashed var(--line);border-radius:9px}
+.shop-auto-equipment{margin:0 0 14px;padding:12px;background:#142824;border:1px solid var(--line);border-radius:8px;word-break:keep-all}
+.shop-auto-equipment label{display:block;font-size:12px;margin-bottom:7px;color:var(--sage)}
+#shop-auto-mode{display:block;width:100%;min-width:0;background:var(--surface);color:var(--ink);border:1px solid #526b5a;border-radius:6px;padding:9px 7px;font-size:12px;outline-offset:-3px}
+#shop-auto-note{font-size:11px;line-height:1.7;color:var(--muted);margin:8px 0 0}
+@media(max-width:520px){
+  #adventure-controls #open-town-journal{position:absolute;top:42px;left:0}
+  .journal-heading{padding:17px 18px 14px}
+  .journal-heading h2{font-size:22px}
+  .journal-content{padding:0 18px 20px}
+  .journal-bosses,.journal-events{grid-template-columns:1fr}
+  .journal-boss{padding:12px}
+  .journal-event .journal-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .journal-relation{padding:12px}
+}

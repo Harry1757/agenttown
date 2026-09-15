@@ -1,0 +1,18 @@
+async page=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/events',r=>r.fulfill({contentType:'text/event-stream',body:': fixture\n\n'}));await page.goto('http://127.0.0.1:8869');
+ await page.evaluate(()=>{localStorage.clear();localStorage.setItem('codextown.adventure',JSON.stringify({a:{kills:0,bosses:0,earnedStardust:12000},b:{kills:0,bosses:0,earnedStardust:12000}}));});await page.reload();
+ const result=await page.evaluate(()=>{
+  cancelAnimationFrame(frameRequest);for(const k of Object.keys(avatars))delete avatars[k];townUI.roomView='all';townUI.motionReduced=false;updateRoomView();fitCanvas();const r=ROOM_BY_ROLE.waiting,g=townAdventure;
+  for(const [key,idx,x]of[['a',84,2],['b',85,4]]){avatars[key]={key,proj:'Demo',sid:key,idx,role:'waiting',x:r.gx+x,y:r.gy+4,tx:r.gx+x,ty:r.gy+4,duelAfter:Infinity};state.sessionInfo[key]={title:'초월 장비 테스트 '+key,tokens:1000,state:'working'};}
+  const check=(ok,m)=>{if(!ok)throw Error(m);},a=avatars.a,b=avatars.b,base=g.statsFor(a);check(g.catalog.length===56,'56 items');const newItems=g.catalog.filter(i=>i.tier==='transcendent');check(newItems.length===11,'11 upgrades');for(const item of newItems)check(g.buy(item.id,'a'),'buy '+item.id);const strong=g.statsFor(a);check(strong.attack>base.attack+90&&strong.defense>base.defense+70&&strong.hp>base.hp+400,'strong stats');check(g.balance('b')===12000,'other wallet unchanged');check(g.autoMode('b')==='off','default off');check(g.setAutoMode('b','attack'),'enable auto');check(g.equippedFor(b,'weapon')==='abyssreaper','best attack weapon');const spent=g.balance('b');g.autoEquip(b);check(g.balance('b')===spent,'no repeat spending');
+  const before=g.equippedFor(b,'weapon');b.duel={};g.setAutoMode('b','tank');check(g.equippedFor(b,'weapon')===before,'no midfight swap');b.duel=null;g.autoEquip(b);check(g.equippedFor(b,'weapon')==='oathkeeper','tank preference after fight');
+  g.chronicle.duel({...a,title:'첫 모험'}, {...b,title:'둘째 모험'});g.chronicle.see({boss:true,kind:{id:'frost'},name:'서리 망령',idx:121});g.chronicle.hit({boss:true,kind:{id:'frost'}},90);g.openEquipment('a');return {items:newItems.length,base,strong};
+ });
+ for(const width of [960,680,390]){await page.setViewportSize({width,height:580});for(const id of ['dawnbringer','thunderlord','abyssreaper','oathkeeper','stardrake'])await page.locator('[data-item="'+id+'"]').scrollIntoViewIfNeeded();const clips=await page.locator('.shop-item h3,.shop-auto-label').evaluateAll(es=>es.filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent));if(clips.length)throw Error('clipped '+width+clips);}
+ await page.keyboard.press('Escape');await page.locator('#open-town-journal').click();if(await page.locator('.journal-boss').count()!==8)throw Error('boss journal');await page.screenshot({path:'/tmp/chronicle-390.png'});await page.keyboard.press('Escape');
+ await page.setViewportSize({width:960,height:580});
+ await page.evaluate(()=>{townUI.select('a');const r=ROOM_BY_ROLE.waiting,a=avatars.a;townAdventure.cancel();townAdventure.monsters.length=0;const m=townAdventure.spawn(a.role,true);townAdventure.begin(a,m);townAdventure.openEquipment('a');draw();cancelAnimationFrame(frameRequest);});
+ await page.waitForTimeout(50);if(!await page.locator('#battle-foreground').evaluate(e=>e.matches(':popover-open')))throw Error('battle top layer');await page.screenshot({path:'/tmp/battle-over-shop.png'});
+ await page.evaluate(()=>{townAdventure.cancel();draw();cancelAnimationFrame(frameRequest);});if(await page.locator('#battle-foreground').evaluate(e=>e.matches(':popover-open')))throw Error('overlay cleanup');
+ if(errors.length)throw Error(errors.join(';'));return result;
+}

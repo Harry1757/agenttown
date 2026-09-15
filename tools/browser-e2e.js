@@ -23,8 +23,16 @@ async page => {
     const gap=await page.evaluate(()=>{const a=document.querySelector('#adventure-log summary').getBoundingClientRect(),b=document.querySelector('#open-stardust-shop').getBoundingClientRect();return b.left-a.right;});
     check(Math.abs(gap-6)<1,'Adventure/shop spacing');results.push('모험·상점 간격 6px');
     const point=await page.evaluate(()=>{const a=avatars['e2e-a'],r=cv.getBoundingClientRect(),P=TILE*layout.scale;return {x:r.x+(layout.offsetX+(a.x+.5)*P)/dpr,y:r.y+(layout.offsetY+(a.y+1)*P-TILE*spriteScaleFor(a,layout.scale)*.45)/dpr};});
+    await page.evaluate(()=>{window.__focusCalls=[];window.codextown={focusSession:(...args)=>{window.__focusCalls.push(args);return Promise.resolve({ok:true});}};});
+    await page.mouse.dblclick(point.x,point.y,{delay:300});await page.waitForTimeout(600);
+    check(await page.evaluate(()=>window.__focusCalls.length===1),'Double click opens session exactly once');
+    check(!await page.locator('#stardust-shop').evaluate(d=>d.open),'Double click leaves shop closed');
     await page.mouse.click(point.x,point.y);
-    check(await page.locator('#stardust-shop').evaluate(d=>d.open),'Character click opens equipment');
+    await page.waitForTimeout(600);
+    check(!await page.locator('#stardust-shop').evaluate(d=>d.open),'Single click keeps shop closed');
+    check(await page.evaluate(()=>townUI.selectedKey==='e2e-a'),'Single click selects session');
+    await page.locator('#equipment-selected').click();
+    check(await page.locator('#stardust-shop').evaluate(d=>d.open),'Detail button opens equipment');
     check(await page.locator('#shop-session').inputValue()==='e2e-a','Correct character selected');
     await page.getByRole('button',{name:'무기',exact:true}).click();
     await page.getByRole('button',{name:'기사의 검 구매',exact:true}).click();
