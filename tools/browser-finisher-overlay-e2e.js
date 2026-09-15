@@ -43,6 +43,16 @@ async page => {
      };
     }
     performance.now=()=>now;Math.random=()=>.99;for(const key of Object.keys(avatars))delete avatars[key];g.cancel();g.monsters.length=0;
+    // Oversized effects must stay on the target, including near the bottom edge.
+    ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
+    const translate=ctx.translate;
+    try{for(const element of [3,2,0,1,4,null]){
+     let origin=null;ctx.translate=function(x,y){if(!origin)origin={x,y};return translate.call(this,x,y);};
+     const x=cv.width/dpr*.72,y=cv.height/dpr*.78;
+     g.foregroundFinish(x,y,.45,3,element);
+     check(origin&&Math.abs(origin.x-x)<.01&&Math.abs(origin.y-y)<.01,'finisher moved away from target: '+JSON.stringify({element,expected:{x,y},origin}));
+    }}finally{ctx.translate=translate;ctx.restore();}
+
     const r=ROOM_BY_ROLE.waiting,a=avatars['Crescent|a']={key:'Crescent|a',proj:'Crescent',sid:'a',idx:84,role:'waiting',x:r.gx+2.5,y:r.gy+4.5,tx:r.gx+2.5,ty:r.gy+4.5},b=avatars['Crescent|b']={key:'Crescent|b',proj:'Crescent',sid:'b',idx:85,role:'waiting',x:r.gx+4.5,y:r.gy+4.5,tx:r.gx+4.5,ty:r.gy+4.5};
     state.sessionInfo[a.key]={tokens:1e9,state:'working',title:'전설검 검사'};state.sessionInfo[b.key]={tokens:1e9,state:'working',title:'큰 주민'};
     try{

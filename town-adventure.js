@@ -270,9 +270,10 @@ function foregroundFinish(x,y,p,wanted=1.3,element=null){
  if(p<0||p>1)return;
  const m=ctx.getTransform(),pad=18*dpr,left=(pad-m.e)/m.a,right=(cv.width-pad-m.e)/m.a,top=(pad-m.f)/m.d,bottom=(cv.height-pad-m.f)/m.d;
  const bounds=element===null?[85,115,110,90]:[85,85,75,75];
- const scale=Math.min(wanted,(right-left)/(bounds[0]+bounds[1]),(bottom-top)/(bounds[2]+bounds[3]));
+ // Keep the hit on the target; fit the effect around that point without lifting it.
+ const px=Math.max(left,Math.min(right,x)),py=Math.max(top,Math.min(bottom,y));
+ const scale=Math.min(wanted,(px-left)/bounds[0],(right-px)/bounds[1],(py-top)/bounds[2],(bottom-py)/bounds[3]);
  if(scale<=0)return;
- const px=Math.max(left+bounds[0]*scale,Math.min(right-bounds[1]*scale,x)),py=Math.max(top+bounds[2]*scale,Math.min(bottom-bounds[3]*scale,y));
  ctx.save();ctx.translate(px,py);ctx.scale(scale,scale);if(element===null)crescent(0,0,p);else finisher(0,0,p,element);ctx.restore();
 }
 const finishFade=(age,legendary=false)=>Math.max(0,1-Math.max(0,age-.15)/(finishDuration(legendary)-.15));
@@ -342,8 +343,7 @@ function finisher(x,y,p,key){
   for(const dir of [-1,1])stroke([[0,11],[dir*24,0],[dir*20,17],[dir*52,7]],'#ffe898',2.5,power*.8);
   ctx.globalAlpha=opacity*power;ctx.strokeStyle='#ffeaa2';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(-4,49,15+strike*31,5+strike*3,0,0,7);ctx.stroke();
  }else if(kind===2){
-  // Keep the water surge low around the body instead of towering over the target.
-  ctx.translate(0,24);ctx.scale(1,.7);
+  // Opposing waves curl around the body, then meet in an upward geyser.
   const wrap=phase(0,.42),jet=phase(.32,.28),tail=phase(.6,.4);
   for(const dir of [-1,1]){ctx.save();ctx.scale(dir,1);ctx.globalAlpha=opacity*(1-tail*.65);ctx.fillStyle='#3a9bd9';ctx.beginPath();ctx.moveTo(-60,30);ctx.bezierCurveTo(-65,-18,-36,-54,9,-33-wrap*12);ctx.bezierCurveTo(-21,-33,-35,-4,-19,17);ctx.quadraticCurveTo(8,36,27,28);ctx.quadraticCurveTo(-4,55,-60,30);ctx.fill();ctx.strokeStyle='#d6faff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-57,20);ctx.bezierCurveTo(-58,-13,-34,-42,3,-39);ctx.stroke();ctx.restore();}
   if(jet){ctx.globalAlpha=opacity;ctx.fillStyle='#80def1';ctx.beginPath();ctx.moveTo(-18,45);ctx.quadraticCurveTo(-9,3,-20,45-jet*99);ctx.lineTo(-3,45-jet*80);ctx.lineTo(9,45-jet*105);ctx.quadraticCurveTo(3,4,20,45);ctx.closePath();ctx.fill();stroke([[0,40],[1,0],[7,45-jet*96]],'#efffff',3);}
