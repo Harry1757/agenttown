@@ -98,3 +98,9 @@ for(let grade=1;grade<=10;grade++){
  const before=f.payouts.length;f.step(r.ended+100);assert.equal(f.payouts.length,before,'growth bonus paid once');
 }
 console.log('Raid growth: grades 1–5 earn +30/+24/+18/+12/+6; early defeat, grade snapshot and single payout pass');
+for(const count of [1,4,7,15]){
+ const sizes=Array.from({length:count},(_,i)=>48+(i%3)*24),a=raidFormation(count,660,400,sizes,2345),b=raidFormation(count,660,400,sizes,2345),c=raidFormation(count,660,400,sizes,9876);
+ assert.deepEqual(a.positions,b.positions,'same raid keeps its formation');assert.notDeepEqual(a.positions,c.positions,'another raid gets new positions');assert.deepEqual(a.sizes,sizes,'party count does not shrink token sizes');
+ for(let i=0;i<count;i++){const p=a.positions[i];assert.ok(Math.abs(p.x)+sizes[i]/2<a.width/2);assert.ok(p.y-sizes[i]>-a.height/2+80);assert.ok(p.y+18<a.height/2);}
+}
+console.log('Raid party: fixed token sizes, repeatable scatter, new raid variation and arena bounds pass');

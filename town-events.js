@@ -1,10 +1,23 @@
 /* Village events keep their own clock and party state; wallets stay in townAdventure. */
 (function (root) {
 'use strict';
-function raidFormation(count,width,height){
- const columns=Math.min(2,Math.max(1,count)),rows=Math.ceil(count/columns),top=-height/2+108,bottom=height/2-34;
- const cellHeight=(bottom-top)/Math.max(1,rows),size=Math.max(8,Math.min(72,cellHeight-20)),side=width/2-Math.max(38,size/2+20);
- return {columns,rows,size,positions:Array.from({length:count},(_,i)=>({x:i%2?side:-side,y:top+(Math.floor(i/columns)+1)*cellHeight-17})),meetingX:0,bossX:0,bossY:height/2-48};
+function raidFormation(count,width,height,sizes=Array(count).fill(64),seed=1){
+ const size=Math.max(48,...sizes),columns=count>4?2:1,rows=Math.max(1,Math.ceil(Math.ceil(count/2)/columns));
+ // Fit the stage around full-size residents, instead of squeezing each portrait.
+ width=Math.max(width,200+2*columns*(size+34)+48);
+ height=Math.max(height,112+rows*(size+32)+34);
+ let value=(Math.floor(seed)||1)>>>0;
+ const random=()=>{value=(Math.imul(value,1664525)+1013904223)>>>0;return value/4294967296;};
+ const positions=Array(count),top=-height/2+104,cellHeight=(height-138)/rows,sideWidth=(width-200)/2;
+ for(const side of [-1,1]){
+  const members=Array.from({length:count},(_,i)=>i).filter(i=>i%2===(side<0?0:1));
+  const slots=members.map((_,i)=>i);for(let i=slots.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
+  members.forEach((index,i)=>{const slot=slots[i],col=slot%columns,row=Math.floor(slot/columns),cellWidth=sideWidth/columns;
+   const body=sizes[index],jitterX=(random()-.5)*Math.max(0,cellWidth-body-24),jitterY=random()*Math.max(0,cellHeight-body-24);
+   positions[index]={x:side*(100+(col+.5)*cellWidth)+jitterX,y:top+row*cellHeight+body+6+jitterY};
+  });
+ }
+ return {columns,rows,size,width,height,sizes,positions,meetingX:0,bossX:0,bossY:height/2-52};
 }
 function createTownEvents(host) {
  const now=()=>host.now(),random=()=>host.random(),game=()=>host.game();
@@ -167,18 +180,26 @@ function drawMap(){
 function drawBattle(){
  const r=events.active;if(!r)return;const time=g.combatTime(r.start,clock()),age=r.hit?(time-r.hit.at)/1000:99,t=(time-r.start)/1000;
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
- const arenaHeight=Math.min(470,310+Math.max(0,Math.ceil(r.members.length/4)-2)*36),arenaWidth=Math.min(820,Math.max(450,width/height*arenaHeight)),scale=Math.min(1.65,width/arenaWidth,height/arenaHeight),edge=arenaWidth/2,formation=raidFormation(r.members.length,arenaWidth,arenaHeight);
+ const sizes=r.bodySizes??=r.members.map(m=>48*tokenSizeMul(tokensOf(m.a)));
+ const formation=raidFormation(r.members.length,Math.min(820,Math.max(660,width/height*400)),400,sizes,r.start);
+ const arenaWidth=formation.width,arenaHeight=formation.height,scale=Math.min(1.65,width/arenaWidth,height/arenaHeight),edge=arenaWidth/2;
  const skillDuration=g.skillDuration||1.4,playerCharge=r.phase==='playerCharge',chargedMove=['playerApproach','playerWindup'].includes(r.phase)&&(r.finishing||r.pending.skill),charge=chargedMove?1:playerCharge?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):r.phase==='bossWindup'&&(r.special||r.bossPlan?.kind==='wave')?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):0,element=r.pending?.element??(r.actor?g.elementFor(r.actor.a):4)??4;
  drawBattleBackdrop(`rgba(3,7,15,${.68+charge*.18})`);ctx.save();ctx.translate(cv.width/2,cv.height/2);ctx.scale(dpr*scale,dpr*scale);
  ctx.save();ctx.scale(1,arenaHeight/270);g.chamber?.(r.monster.kind,arenaWidth);ctx.restore();ctx.fillStyle='#13202b';ctx.fillRect(-edge+14,-arenaHeight/2+10,arenaWidth-28,64);g.atmosphere?.(playerCharge||chargedMove?element:4,charge,t,arenaWidth,formation.bossY+10,false);
  ctx.textAlign='center';ctx.fillStyle='#e8d5ff';ctx.font='bold 15px sans-serif';ctx.fillText('공동 토벌 · 균열의 월식 군주',0,-arenaHeight/2+30);
  ctx.fillStyle='#2e273d';ctx.fillRect(-140,-arenaHeight/2+42,280,9);ctx.fillStyle='#ce97e9';ctx.fillRect(-140,-arenaHeight/2+42,280*r.hp/r.maxHp,9);ctx.font='10px sans-serif';ctx.fillStyle='#ebdfef';ctx.fillText(r.hp+' / '+r.maxHp+' · '+r.members.length+'명 참가',0,-arenaHeight/2+66);
- const sizes=r.members.map(m=>spriteScaleFor(m.a,layout.scale)/layout.scale),unit=formation.size/Math.max(2,...sizes);
+
  const bossX=formation.bossX,bossY=formation.bossY,bossSize=94,hitBoss=r.hit?.target==='boss'?Math.max(0,1-age/.7):0;
  const progress=Math.max(0,Math.min(1,(time-r.phaseAt)/260)),smooth=q=>q*q*(3-2*q);
  const area=r.bossPlan?.kind==='wave',bossPhase=r.phase.startsWith('boss');
- const contact=m=>{if(!m||area)return {x:bossX,y:bossY};const i=r.members.indexOf(m),p=formation.positions[i],size=Math.max(8,(sizes[i]||1)*unit),side=p.x<0?-1:1;
-  return {x:p.x-side*((bossSize+size)*.5+24),y:Math.min(arenaHeight/2-28,p.y+(bossSize-size)*.65)};};
+ const contact=m=>{if(!m||area)return {x:bossX,y:bossY};const i=r.members.indexOf(m),p=formation.positions[i],size=sizes[i]||48,gap=(bossSize+size)*.5+24;
+  const candidates=[];
+  for(const side of [-1,1])for(const dy of [0,-80,80]){
+   const x=Math.max(-edge+bossSize/2+16,Math.min(edge-bossSize/2-16,p.x+side*gap)),y=Math.max(-arenaHeight/2+90+bossSize,Math.min(arenaHeight/2-28,p.y+(bossSize-size)*.65+dy));
+   let overlap=0;formation.positions.forEach((other,j)=>{if(j===i||r.members[j].left)return;const w=Math.max(0,(bossSize+sizes[j])/2+10-Math.abs(x-other.x)),h=Math.max(0,Math.min(y+18,other.y+18)-Math.max(y-bossSize,other.y-sizes[j]));overlap+=w*h;});
+   candidates.push({x,y,score:overlap*100+Math.hypot(x-bossX,y-bossY)});
+  }
+  return candidates.sort((a,b)=>a.score-b.score)[0];};
  const targetPoint=contact(r.target),fromPoint=contact(r.bossFromTarget),home={x:bossX,y:bossY};
  let bossPoint=home;
  if(r.done&&!r.won){const q=smooth(Math.max(0,Math.min(1,(time-r.ended-(r.hit?.special||r.hit?.area?1450:800))/260)));bossPoint={x:targetPoint.x+(home.x-targetPoint.x)*q,y:targetPoint.y+(home.y-targetPoint.y)*q};}
@@ -187,14 +208,14 @@ function drawBattle(){
  else if(['bossWindup','bossImpact'].includes(r.phase))bossPoint=targetPoint;
  const bossRecoil=hitBoss?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0,bossWalking=['bossApproach','bossReturn'].includes(r.phase)&&!r.done&&!area,bossBob=bossWalking?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2.6:0;
  const hitSide=r.hit?.actor?.a?Math.sign(formation.positions[r.members.indexOf(r.hit.actor)].x): -1;
- const bossDrawX=bossPoint.x-bossRecoil*8*hitSide,bossDrawY=bossPoint.y-bossRecoil*4+bossBob,bossFace=bossPhase&&r.target?Math.sign(formation.positions[r.members.indexOf(r.target)].x):1;
+ const bossDrawX=bossPoint.x-bossRecoil*8*hitSide,bossDrawY=bossPoint.y-bossRecoil*4+bossBob,bossFace=bossPhase&&r.target?Math.sign(formation.positions[r.members.indexOf(r.target)].x-bossPoint.x)||1:1;
  const bossFall=r.done&&r.won?Math.max(0,Math.min(1,((time-r.ended)/1000-g.finisherDuration)/.8)):0,bossEase=bossFall*bossFall*(3-2*bossFall);
  const bossSwing=-bossFace*g.monsterAttackAngle(r.phase==='bossWindup'?(time-r.phaseAt)/(r.next-r.phaseAt):-1,r.hit?.actor==='boss'?age:-1);
  ctx.save();g.applyBattlePose(ctx,bossDrawX,bossDrawY,{face:bossFace,angle:bossFall>0?.9*bossEase:bossSwing,squash:1-.45*bossEase,alpha:1-bossFall});
  if(g.monster)g.monster(r.monster,bossDrawX,bossDrawY,bossSize,bossWalking?t:0);else drawTile(ctx,'dungeon',122,bossDrawX-bossSize/2,bossDrawY-bossSize,bossSize/16);ctx.restore();
  const positions=new Map();
  r.members.forEach((m,i)=>{
-  const victim=r.hit?.victims?.find(v=>v.target===m)||(r.hit?.target===m?r.hit:null),receivedDuration=r.hit?.special||r.hit?.area?1.25:.8,{x,y}=formation.positions[i],face=x<0?1:-1,size=Math.max(8,sizes[i]*unit),received=victim?Math.max(0,1-age/receivedDuration):0,attacking=r.hit?.actor===m&&r.phase==='playerImpact'?Math.max(0,1-age/.35):0;
+  const victim=r.hit?.victims?.find(v=>v.target===m)||(r.hit?.target===m?r.hit:null),receivedDuration=r.hit?.special||r.hit?.area?1.25:.8,{x,y}=formation.positions[i],face=x<0?1:-1,size=sizes[i],received=victim?Math.max(0,1-age/receivedDuration):0,attacking=r.hit?.actor===m&&r.phase==='playerImpact'?Math.max(0,1-age/.35):0;
   const fall=!m.hp?Math.max(0,Math.min(1,(time-(m.defeatedAt??-1e8)-(m.defeatEffectDuration??800))/500)):0,fallEase=fall*fall*(3-2*fall);
   const travel=r.actor!==m?0:r.done&&r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-g.finisherDuration*1000)/260))):r.phase==='playerApproach'?smooth(progress):r.phase==='playerReturn'?1-smooth(progress):['playerWindup','playerImpact'].includes(r.phase)?1:0;
   const moving=!r.done&&r.actor===m&&['playerApproach','playerReturn'].includes(r.phase),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0;
@@ -202,7 +223,7 @@ function drawBattle(){
   ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,face,edge-15,pose);
   const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=g.swordSwing(attacking?age:-1,winding,.52);
   if(!m.left)g.equipment(m.a,px,py,size,{sword:swing,trail:attacking},face,false,false,1,pose);
-  const barWidth=Math.min(50,formation.size+8);ctx.fillStyle='#142726';ctx.fillRect(px-barWidth/2,py+4,barWidth,3);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(px-barWidth/2,py+4,barWidth*m.hp/m.maxHp,3);
+  const barWidth=Math.min(64,size+8);ctx.fillStyle='#142726';ctx.fillRect(px-barWidth/2,py+4,barWidth,3);ctx.fillStyle=m.hp?'#abd797':'#a07585';ctx.fillRect(px-barWidth/2,py+4,barWidth*m.hp/m.maxHp,3);
   ctx.font='8px sans-serif';ctx.fillStyle='#dce8dd';ctx.fillText(m.left?'비움':m.hp?r.members.length>9?Math.round(m.hp/m.maxHp*100)+'%':m.hp+' / '+m.maxHp:'기절',px,py+16);
   if(received){g.impact?.(px,py-size*.5,age/receivedDuration,victim.damage,'#d4a5ff');ctx.fillStyle='#ffc4c3';ctx.font='bold 13px sans-serif';ctx.fillText('−'+victim.damage,px,py-size-12-age*12);}
  });
