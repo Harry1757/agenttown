@@ -226,6 +226,7 @@
     if (!open && $('roster').contains(document.activeElement) && window.innerWidth<=1100) $('mobile-roster').focus({preventScroll:true});
   }
   document.querySelector('.office').addEventListener('click',e=>{
+    if(e.target.closest('button,dialog'))return;
     if(window.innerWidth<=1100 && $('workspace').classList.contains('roster-open')) {e.stopPropagation();setRoster(false);}
   },true);
   window.matchMedia('(max-width:1100px)').addEventListener('change',()=>setRoster(false));

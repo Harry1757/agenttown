@@ -18,7 +18,7 @@ async page=>{
   if(await page.evaluate(()=>townUI.selectedKey)!=='Selection|worker')throw Error('Refresh cleared selection');
   await page.locator('#equipment-selected').click();if(await page.locator('#shop-session').inputValue()!=='Selection|worker'+(sub?':sub':''))throw Error('Shop chose wrong actor');
   if(await page.locator('.shop-session-title').textContent()!==(sub?'보조 세션 상세 검사':'일반 세션 상세 검사'))throw Error('Shop lost title');
-  await page.keyboard.press('Escape');await page.locator('#open-stardust-shop').click();if(await page.locator('#shop-session').inputValue()!=='Selection|worker'+(sub?':sub':''))throw Error('Map shop chose wrong actor');await page.keyboard.press('Escape');await page.locator('#locate-selected').click();
+  await page.keyboard.press('Escape');await page.locator('#open-stardust-shop').click();if(await page.locator('#shop-session').inputValue()!=='Selection|worker'+(sub?':sub':''))throw Error('Map shop chose wrong actor');await page.keyboard.press('Escape');if(!await page.locator('#locate-selected').isVisible())await page.locator('#mobile-roster').click();await page.locator('#locate-selected').click();
   if(!await page.evaluate(()=>cam.userAdjusted))throw Error('Locate missed actor');
   results.push({width,sub,detail:true,shop:true,locate:true});
  }
