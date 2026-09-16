@@ -45,6 +45,7 @@
       return true;
     },
     roomView: read('codextown.roomView', 'focus'), selectedKey: null, filter: 'all', project: '', query: '', favoritesOnly: false, connected: false,
+    battleExpanded: read('codextown.battleExpanded',true)!==false,
     motionReduced: read('codextown.reducedMotion', window.matchMedia('(prefers-reduced-motion: reduce)').matches),
     matches(key) {
       const row = state.sessionInfo[key];
@@ -168,6 +169,8 @@
     $('zoom-label').textContent=Math.round(cam.scale/cam.fitScale*100)+'%';
     $('local-clock').textContent=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false});
     $('motion-toggle').setAttribute('aria-pressed',String(ui.motionReduced));
+    $('battle-view-toggle').setAttribute('aria-pressed',String(ui.battleExpanded));
+    $('battle-view-toggle').textContent='전투 확대 '+(ui.battleExpanded?'켬':'끔');
   }
   function renderDetail(row) {
     const signature=JSON.stringify([row,favorites.has(row.key)]);
@@ -241,6 +244,7 @@
   $('zoom-in').onclick=()=>zoomStep(1,cv.width/2,cv.height/2);
   $('zoom-out').onclick=()=>zoomStep(-1,cv.width/2,cv.height/2);
   $('map-reset').onclick=()=>{resetCamera();ui.selectedKey=null;render();};
+  $('battle-view-toggle').onclick=()=>{ui.battleExpanded=!ui.battleExpanded;save('codextown.battleExpanded',ui.battleExpanded);render();drawBattleForeground();};
   $('motion-toggle').onclick=()=>{ui.motionReduced=!ui.motionReduced;setGesture(null);save('codextown.reducedMotion',ui.motionReduced);render();};
   $('mobile-roster').onclick=()=>setRoster(!$('workspace').classList.contains('roster-open'));
   $('close-roster').onclick=()=>setRoster(false);

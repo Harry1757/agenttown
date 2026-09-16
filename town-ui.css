@@ -175,3 +175,7 @@ body{grid-template-rows:76px minmax(0,1fr) auto}
 
 /* Keep closing the larger catalog easy, including after scrolling on a small screen. */
 @media(max-width:620px){#stardust-shop .shop-heading{position:sticky;top:-20px;z-index:5;background:var(--panel);margin:-20px -20px 12px;padding:14px 20px 0;border-bottom:1px solid var(--line)}}
+
+.battle-view-toggle{flex-shrink:0;white-space:nowrap;font-size:11px;padding:4px 7px;line-height:18px;border:1px solid var(--line);border-radius:6px;color:var(--muted)}
+.battle-view-toggle[aria-pressed=true]{color:var(--ink);background:var(--panel)}
+@media(max-width:1100px){.map-toolbar .map-help{display:none}}
