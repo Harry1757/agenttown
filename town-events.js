@@ -198,7 +198,7 @@ function drawBattle(){
   const fall=!m.hp?Math.max(0,Math.min(1,(time-(m.defeatedAt??-1e8)-(m.defeatEffectDuration??800))/500)):0,fallEase=fall*fall*(3-2*fall);
   const travel=r.actor!==m?0:r.done&&r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-g.finisherDuration*1000)/260))):r.phase==='playerApproach'?smooth(progress):r.phase==='playerReturn'?1-smooth(progress):['playerWindup','playerImpact'].includes(r.phase)?1:0;
   const moving=!r.done&&r.actor===m&&['playerApproach','playerReturn'].includes(r.phase),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0;
-  const contactGap=bossSize*.43+size*.4+20,px=x+(bossX-face*contactGap-x)*travel-face*recoil*8,py=y+(bossY-y)*travel+bob,pose={face,angle:fall>0?-.9*fallEase:received?-.18*recoil:0,alpha:m.left?.2:!m.hp?1:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y:py,size});
+  const contactGap=bossSize*.43+size*.4+20,px=x+(bossX-face*contactGap-x)*travel-face*recoil*8,py=y+(bossY-y)*travel+bob,pose={face,angle:fall>0?-.9*fallEase:received?-.18*recoil:attacking?face*g.swordLean(age):0,alpha:m.left?.2:!m.hp?1:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y:py,size});
   ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,face,edge-15,pose);
   const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=g.swordSwing(attacking?age:-1,winding,.52);
   if(!m.left)g.equipment(m.a,px,py,size,{sword:swing,trail:attacking},face,false,false,1,pose);

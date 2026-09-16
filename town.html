@@ -1446,7 +1446,7 @@ function stepDuels(now) {
         lunge=Math.max(approach,returning);
         if(next?.attacker===index&&(next.chargeEnd!==undefined||lead<.25)){const swingLead=next.at-pb.raw;preparedSword=approach<1?.48:.48+.82*ease((.08-swingLead)/.08);}
       }
-      a.duelPose={...f,back:f.result?(won?0:1):struck?f.back:0,lunge,sword:attacking&&pb?.hit?window.townAdventure.swordSwing(pb.hitAge):attacking?f.sword:.48,flash:attacking?f.flash:0,angle:attacking?.1*lunge:struck?f.angle:0,hop:(struck?f.hop:0)+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
+      a.duelPose={...f,back:f.result?(won?0:1):struck?f.back:0,lunge,sword:attacking&&pb?.hit?window.townAdventure.swordSwing(pb.hitAge):attacking?f.sword:.48,flash:attacking?f.flash:0,angle:attacking?(pb?.hit?window.townAdventure.swordLean(pb.hitAge):0):struck?f.angle:0,hop:(struck?f.hop:0)+(won?Math.abs(Math.sin((t-3.6)*8))*.24*f.result:0),squash:won?1:1-.24*f.result,won};
       if(preparedSword!==null){a.duelPose.sword=preparedSword;a.duelPose.flash=0;}
       // Legendary hits topple the target after the cut; other skills finish before the fall.
       const fallAge=pb?pb.finalHitAge-(window.townAdventure?.defeatDelay?.(!!d.legendary)??2.1):t-3.1;
