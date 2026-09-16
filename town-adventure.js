@@ -106,7 +106,7 @@ const record=a=>records[a.key]||{kills:0,bosses:0,earnedStardust:0,deaths:0,loss
 const legendaryChance=a=>{const tokens=Number(tokensOf(a));return Number.isFinite(tokens)&&tokens>=0&&tokens<=10e6?.4:.2;};
 function statsFor(a){const size=spriteScaleFor(a,layout.scale)/layout.scale,base={attack:18+Math.round(size*7),defense:2+Math.floor(Math.max(0,size-1)),hp:hpFor(tokensOf(a)),crit:.1},bonus={attack:0,defense:0,hp:0,crit:0};for(const id of Object.values(inventory(a.key).equipped)){const item=catalog.find(i=>i.id===id);if(item)for(const stat of Object.keys(bonus))bonus[stat]+=item.stats[stat]||0;}return {attack:base.attack+bonus.attack,defense:base.defense+bonus.defense,hp:base.hp+bonus.hp,crit:Math.min(.45,base.crit+bonus.crit),base,bonus};}
 function rollDamage(attack,defense,critChance){const critical=Math.random()<critChance;return {damage:Math.max(1,Math.round(attack*(critical?1.75:1)-defense)),critical};}
-const skillDuration=1.4;
+const skillSpeed=1.5,skillDuration=1.4/skillSpeed;
 function rollPlayerHit(attack,defense,critChance){const skill=Math.random()<.25,element=skill?Math.floor(Math.random()*5):null;return {...rollDamage(attack*(skill?1.6:1),defense,critChance),skill,element};}
 function prepareBattleHit(b,readyAt){b.nextHit=rollPlayerHit(b.damage,b.monsterDefense,b.stats.crit);b.finishing=b.legendary&&b.round===1||b.monsterHp<=b.nextHit.damage;b.windup=b.finishing?(b.legendary?4800:3000):b.nextHit.skill?1200:220;b.next=readyAt+280+b.windup;if(b.finishing&&b.nextHit.skill&&!b.legendary)b.element=b.nextHit.element;}
 // Each displayed hit is the actual damage event, including armor and critical hits.
@@ -126,8 +126,8 @@ function resolveDuel(a,b,legendary=null){
   }
  }
  const winner=hp[0]>0?a:b,grades=stats.map(gradeFor);let at=1;
- for(let i=0;i<strikes.length;i++){const hit=strikes[i];hit.final=i===strikes.length-1;hit.chargeStart=at-.3;if(hit.final||hit.skill){hit.chargeStart=at;hit.chargeEnd=at+(hit.final?(legendary?4.8:3):1.2);at=hit.chargeEnd+.28;}hit.at=at;at+=hit.skill&&!hit.final?2.3:.85;}
- const finalAt=strikes.at(-1).at,resultAt=finalAt+(legendary?3.15:2.25);
+ for(let i=0;i<strikes.length;i++){const hit=strikes[i];hit.final=i===strikes.length-1;hit.chargeStart=at-.3;if(hit.final||hit.skill){hit.chargeStart=at;hit.chargeEnd=at+(hit.final?(legendary?4.8:3):1.2);at=hit.chargeEnd+.28;}hit.at=at;at+=hit.skill&&!hit.final?skillDuration+.9:.85;}
+ const finalAt=strikes.at(-1).at,resultAt=finalAt+finishDuration(Boolean(legendary))+.15;
  return {winner,stats,snapshots,strikes,grades,reward:grades[winner===a?1:0]*2,finalAt,resultAt,endAt:resultAt+2};
 }
 // Combat time speeds up after ten real seconds; village timers remain real time.
@@ -213,7 +213,7 @@ function step(now){const dt=Math.min(.1,Math.max(0,(now-lastStep)/1000));lastSte
   if(b.counterAt&&now>=b.counterAt){const hit=rollDamage(b.monsterAttack*(b.counterSpecial?3:1),b.stats.defense,b.monsterCrit);b.receivedSpecial=b.counterSpecial;b.receivedDamage=hit.damage;b.receivedCritical=hit.critical;b.hp=Math.max(b.legendary?1:0,b.hp-hit.damage);b.playerHitAt=now;b.counterAt=0;b.next=Math.max(b.next,now+(b.receivedSpecial?1510:760)+280+(b.windup||220));if(!b.hp){b.done=true;b.won=false;b.ended=now;chronicle?.result(b.m,false);defeat(b.a);}return;}
   if(now>=b.next){b.round++;b.hitAt=now;b.hitPlayer=false;const final=b.legendary&&b.round===2;const hit=b.nextHit;b.attackSkill=hit.skill&&!final;b.attackElement=hit.element??b.element;b.inflictedDamage=final?b.maxMonsterHp:hit.damage;b.dealtCritical=hit.critical&&!final;chronicle?.hit(b.m,Math.min(b.monsterHp,b.inflictedDamage));b.monsterHp=Math.max(0,b.monsterHp-b.inflictedDamage);
    if(b.monsterHp===0){if(hit.skill&&!final)b.element=hit.element;b.done=true;b.won=true;b.ended=now;const before=record(b.a),badge=b.m.boss&&!before.bosses?'보스 배지':before.kills===2?'별 장식':before.kills===9?'보라 별 장식':'';b.rewardLabel=`별가루 +${b.reward}`+(badge?' · '+badge:'');chronicle?.result(b.m,true);reward(b.a,b.m.boss,b.reward);}
-   else{b.counterSpecial=Boolean(b.m.boss)&&Math.random()<.08;b.counterAt=now+(b.counterSpecial?2400:1200)+(b.attackSkill?900:0);b.counterStartedAt=b.counterAt-(b.counterSpecial?1400:200);prepareBattleHit(b,b.counterAt+(b.counterSpecial?1510:760));}
+   else{b.counterSpecial=Boolean(b.m.boss)&&Math.random()<.08;b.counterAt=now+(b.counterSpecial?2400:1200)+(b.attackSkill?Math.max(0,skillDuration*1000-500):0);b.counterStartedAt=b.counterAt-(b.counterSpecial?1400:200);prepareBattleHit(b,b.counterAt+(b.counterSpecial?1510:760));}
   }
  }else{
   const residents=Object.values(avatars).filter(eligible);
@@ -267,10 +267,10 @@ function drawMap(){const P=TILE*layout.scale,t=performance.now()/1000;for(const 
  if(m.encounterKey&&!battle){ctx.font='bold 18px sans-serif';ctx.fillStyle='#ffe3a2';ctx.fillText('!',x,y-P*1.8);}ctx.restore();}}
 function bar(x,y,value,max,color){ctx.fillStyle='#142726';ctx.fillRect(x,y,130,8);ctx.fillStyle=color;ctx.fillRect(x,y,130*Math.max(0,value/max),8);ctx.fillStyle='#e7edda';ctx.font='11px sans-serif';ctx.fillText(`${value} / ${max}`,x+65,y+22);}
 function crescent(x,y,p){if(p<0||p>1)return;ctx.save();ctx.globalAlpha=1-p;ctx.translate(x,y-30);ctx.rotate(-.65);ctx.shadowColor='#d997ff';ctx.shadowBlur=14;ctx.fillStyle='#c48bee';ctx.beginPath();ctx.moveTo(-65,-20);ctx.quadraticCurveTo(0,55,65,-20);ctx.quadraticCurveTo(0,100,-65,-20);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#fff0c2';ctx.beginPath();ctx.moveTo(-65,-20);ctx.quadraticCurveTo(0,68,65,-20);ctx.quadraticCurveTo(0,86,-65,-20);ctx.fill();ctx.strokeStyle='#e6bbff';ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(0,25,20+p*65,8+p*28,.25,0,7);ctx.stroke();for(let i=0;i<14;i++){const a=i*Math.PI/7,r=18+p*85;star(Math.cos(a)*r,25+Math.sin(a)*r*.6,3*(1-p),'#fff3c9');}ctx.restore();}
-const finisherDuration=2.1;
-const finishDuration=legendary=>legendary?3:finisherDuration;
-const defeatDelay=legendary=>legendary?.75:finisherDuration;
-const legendaryBladeAmount=age=>{const p=Math.max(0,Math.min(1,(age-1.6)/1.2));return 1-p*p*(3-2*p);};
+const finisherDuration=2.1/skillSpeed;
+const finishDuration=legendary=>legendary?3/skillSpeed:finisherDuration;
+const defeatDelay=legendary=>legendary?.75/skillSpeed:finisherDuration;
+const legendaryBladeAmount=age=>{const p=Math.max(0,Math.min(1,(age*skillSpeed-1.6)/1.2));return 1-p*p*(3-2*p);};
 // Finishers draw over the arena frame, with room for their arc, glow and particles.
 function foregroundFinish(x,y,p,wanted=1.3,element=null,targetSize=0){
  if(p<0||p>1)return;
@@ -628,7 +628,7 @@ function renderShop(){
  const keys=Object.keys(avatars);if(!keys.includes(selectedSession))selectedSession=keys.includes(window.townUI?.selectedKey)?window.townUI.selectedKey:keys[0]||'';
  if(!shopDialog.open)return;
  if(window.dispatchEvent)queueMicrotask(()=>window.dispatchEvent(new Event('town:shop')));
- const selector=shopDialog.querySelector('#shop-session');selector.innerHTML=keys.length?keys.map(key=>`<option value="${escapeShop(key)}">${escapeShop(state.sessionInfo[key]?.title||avatars[key].sid||key)} · ${escapeShop(avatars[key].proj||'세션')}</option>`).join(''):'<option value="">마을에 세션이 없어요</option>';selector.value=selectedSession;selector.disabled=!keys.length;shopDialog.querySelector('.shop-session-title').textContent=state.sessionInfo[selectedSession]?.title||'';
+ const selector=shopDialog.querySelector('#shop-session');selector.innerHTML=keys.length?keys.map(key=>`<option value="${escapeShop(key)}">${escapeShop(state.sessionInfo[window.townUI?.sessionKey(key)??key]?.title||avatars[key].sid||key)} · ${escapeShop(avatars[key].proj||'세션')}</option>`).join(''):'<option value="">마을에 세션이 없어요</option>';selector.value=selectedSession;selector.disabled=!keys.length;shopDialog.querySelector('.shop-session-title').textContent=state.sessionInfo[window.townUI?.sessionKey(selectedSession)??selectedSession]?.title||'';
  const statsActor=avatars[selectedSession],stats=statsActor?statsFor(statsActor):null;shopDialog.querySelector('.equipment-stats').innerHTML=stats?['attack','defense','hp'].map(k=>`<div><span>${{attack:'공격력',defense:'방어력',hp:'체력'}[k]}</span><strong>${stats[k]}</strong><small>${stats.base[k]} + 장비 ${stats.bonus[k]}</small></div>`).join('')+`<p>${gradeFor(stats)}등급 · 치명타 ${Math.round(stats.crit*100)}% · 연속 패배 ${record(statsActor).lossStreak||0}/4</p>`:'';
  const inv=inventory(selectedSession),owned=new Set(inv.owned),equipped=inv.equipped;
  shopDialog.querySelector('.equipment-slots').innerHTML=Object.entries(slots).map(([slot,name])=>{const item=catalog.find(i=>i.id===equipped[slot]);return `<button type="button" data-slot="${slot}" aria-label="${name} 아이템 보기"><span>${name}</span><strong>${item?item.name:'미장착'}</strong></button>`;}).join('');
@@ -644,7 +644,7 @@ function renderShop(){
  if(focused)shopDialog.querySelector(`[data-item="${focused}"]`)?.focus();
 }
 shopDialog.querySelector('#shop-session').onchange=event=>{selectedSession=event.target.value;renderShop();shopDialog.querySelector('.shop-feedback').textContent='';};
-function openEquipment(key){if(avatars[key])selectedSession=key;if(!shopDialog.open)shopDialog.showModal();renderShop();shopDialog.querySelector('.shop-feedback').textContent='';shopDialog.scrollTop=0;shopDialog.querySelector('.shop-catalog').scrollTop=0;shopDialog.querySelector('.shop-character').scrollTop=0;}
+function openEquipment(key){key=window.townUI?.actorKey(key)??key;if(avatars[key])selectedSession=key;if(!shopDialog.open)shopDialog.showModal();renderShop();shopDialog.querySelector('.shop-feedback').textContent='';shopDialog.scrollTop=0;shopDialog.querySelector('.shop-catalog').scrollTop=0;shopDialog.querySelector('.shop-character').scrollTop=0;}
 shopButton.onclick=()=>openEquipment(window.townUI?.selectedKey);
 shopDialog.querySelector('.shop-close').onclick=()=>shopDialog.close();
 shopDialog.onclick=event=>{

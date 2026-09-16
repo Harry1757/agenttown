@@ -2548,7 +2548,7 @@ function drawWorker(a) {
 
   ctx.save();
   // 응답 대기는 '내 차례'라는 뜻이라 완료만큼 죽이지 않는다 — 눈에 걸려야 한다.
-  ctx.globalAlpha = window.townUI?.selectedKey === a.key || state.sessionInfo[a.key]?.needsInput ? 1 : ({ working: 1, waiting: 1, done: .6 }[st]);
+  ctx.globalAlpha = window.townUI?.isSelected?.(a) || state.sessionInfo[a.key]?.needsInput ? 1 : ({ working: 1, waiting: 1, done: .6 }[st]);
   ctx.translate(feetX, feetY);
   ctx.rotate(leanAngle);
   ctx.translate(-feetX, -feetY);
@@ -2579,12 +2579,12 @@ function drawWorker(a) {
   ctx.restore();
 
   if(a.portal)return;
-  if(duelPose){drawDuelDaze(feetX,feetY,sSize,leanAngle,duelPose.collapse||0);drawDuelAccessory(a,feetX,feetY,sSize,{angle:leanAngle,squash:hScale,alpha:window.townUI?.selectedKey===a.key||state.sessionInfo[a.key]?.needsInput?1:({working:1,waiting:1,done:.6}[st])});return;}
+  if(duelPose){drawDuelDaze(feetX,feetY,sSize,leanAngle,duelPose.collapse||0);drawDuelAccessory(a,feetX,feetY,sSize,{angle:leanAngle,squash:hScale,alpha:window.townUI?.isSelected?.(a)||state.sessionInfo[a.key]?.needsInput?1:({working:1,waiting:1,done:.6}[st])});return;}
   if(!reduced&&now<a.fleeUntil){
     const x=feetX+sSize*.45,y=feetY-sSize*.75;
     ctx.save();ctx.fillStyle='#b2dbe9';ctx.beginPath();ctx.moveTo(x,y-3*scale);ctx.quadraticCurveTo(x-4*scale,y+4*scale,x,y+4*scale);ctx.quadraticCurveTo(x+4*scale,y+4*scale,x,y-3*scale);ctx.fill();ctx.restore();
   }
-  if (window.townUI?.selectedKey === a.key) {
+  if (window.townUI?.isSelected?.(a)) {
     ctx.save();ctx.strokeStyle = '#f0d18b';ctx.lineWidth = Math.max(2, scale);
     ctx.beginPath();ctx.ellipse(feetX, feetY + scale, sSize * .65, 3 * scale, 0, 0, Math.PI*2);ctx.stroke();ctx.restore();
   }
@@ -2592,7 +2592,7 @@ function drawWorker(a) {
   const tb = tagLayout[a.key] || tagBox(a, px, py, bounce);
   const { pcx, pcy, pw, ph, dotR, dotGap, contentW, label } = tb;
   ctx.save();
-  ctx.globalAlpha = window.townUI?.selectedKey === a.key || state.sessionInfo[a.key]?.needsInput ? 1 : ({ working: 1, waiting: 1, done: .5 }[st]);
+  ctx.globalAlpha = window.townUI?.isSelected?.(a) || state.sessionInfo[a.key]?.needsInput ? 1 : ({ working: 1, waiting: 1, done: .5 }[st]);
   ctx.fillStyle = C.wallDark;
   roundRect(pcx - pw / 2 - 1, pcy - ph / 2 - 1, pw + 2, ph + 2, 3 * scale);
   ctx.fill();

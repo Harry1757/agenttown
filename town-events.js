@@ -78,7 +78,7 @@ function createTownEvents(host) {
   if(r.phase==='playerWindup'){
    if(r.actor.left||!r.actor.hp){preparePlayer(r,time);return;}
    const actual=Math.min(r.hp,r.pending.damage);r.hp-=actual;r.actor.damage+=actual;r.hit={at:time,...r.pending,target:'boss',actor:r.actor};host.hit?.(r.monster,actual);r.turn++;
-   r.phase='playerImpact';r.phaseAt=time;r.next=time+(r.pending.skill?1400:350);if(!r.hp)finish(true,time);return;
+   r.phase='playerImpact';r.phaseAt=time;r.next=time+(r.pending.skill?(game().skillDuration??1.4)*1000:350);if(!r.hp)finish(true,time);return;
   }
   if(r.phase==='playerImpact'){
    r.phase='playerReturn';r.phaseAt=time;r.next=time+260;return;

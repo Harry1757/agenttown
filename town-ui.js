@@ -29,6 +29,9 @@
     browsingObserver.observe(node, {attributes: true, attributeFilter: ['class']});
   const ui = window.townUI = {
     combatPaused,
+    sessionKey(key) { const a=avatars[key];return state.sessionInfo[key]?key:a?`${a.proj}|${a.sid}`:key; },
+    actorKey(key) { return avatars[key]?key:avatars[key+':sub']?key+':sub':key; },
+    isSelected(a) { return ui.selectedKey===ui.sessionKey(a.key); },
     winCount(a) {return duelWins.get(`${a.proj}|${a.sid}`)||0;},
     recordWin(a) {
       const key=`${a.proj}|${a.sid}`;
@@ -49,7 +52,7 @@
       return matching({ ...row, key, proj: key.slice(0, key.lastIndexOf('|')) });
     },
     select(key) {
-      ui.selectedKey = key;
+      ui.selectedKey = ui.sessionKey(key);
       render();
       if (window.innerWidth <= 1100) setRoster(true);
     },
@@ -174,10 +177,10 @@
     const detailScroll = lastDetailKey === row.key ? el.scrollTop : 0;
     el.innerHTML=`<button id="back-to-list" class="back-to-list">← 작업 목록으로</button><div class="detail-eyebrow"><i class="dot ${statusOf(row)}"></i>${statusText(row)}${row.sub?' · 보조 에이전트':''}</div><h3 class="detail-title">${escapeHtml(row.title)}</h3><dl class="detail-info"><dt>프로젝트</dt><dd>${escapeHtml(shortLabel(row.proj))}</dd><dt>모델</dt><dd>${escapeHtml(row.model||'기록 없음')}</dd><dt>최근 도구</dt><dd>${escapeHtml(row.lastTool||'아직 없음')}</dd><dt>오늘 토큰</dt><dd>${formatTokens(row.tokensToday||0)} <span style="color:var(--muted)">/ 누적 ${formatTokens(row.tokens||0)}</span></dd></dl><div class="detail-actions"><button id="open-selected" class="open-task">Codex에서 열기</button><button id="equipment-selected">장비 · 상점</button><button id="locate-selected" class="locate">지도에서 찾기</button><button id="star-selected" class="star-button" aria-label="즐겨찾기" aria-pressed="${favorites.has(row.key)}">${favorites.has(row.key)?'★':'☆'}</button></div>`;
     $('back-to-list').onclick=()=>{ui.selectedKey=null;render();$('task-search').focus({preventScroll:true});};
-    $('equipment-selected').onclick=()=>window.townAdventure?.openEquipment(row.key);
+    $('equipment-selected').onclick=()=>window.townAdventure?.openEquipment(ui.actorKey(row.key));
     $('open-selected').onclick=()=>openTask(row);
     $('locate-selected').onclick=()=>{
-      const a=avatars[row.key];if (!a) return;
+      const a=avatars[ui.actorKey(row.key)];if (!a) return;
       if(a.role==='done' && ui.roomView!=='all'){ui.roomView='all';save('codextown.roomView','all');refit();render();}
       ui.selectedKey=row.key;
       cam.zoomSteps=cam.fitScale*.65;cam.userAdjusted=true;cam.animTo=null;

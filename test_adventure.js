@@ -139,7 +139,7 @@ for(const chance of [0,.249999,.25,.999])for(let element=0;element<5;element++){
 }
 let ri=0;env.Math.random=()=>[.1,.41,.01][ri++];assert.equal(game.rollPlayerHit(40,10,.1).damage,102,'skill and critical multiply attack before armor');
 env.Math.random=()=>.1;env.spriteScaleFor=()=>2;const skills=game.resolveDuel({key:'mid-a',tokens:1e9},{key:'mid-b',tokens:1e9}),mid=skills.strikes.filter(s=>s.skill&&!s.final);assert.ok(mid.length);
-for(const hit of mid){assert.ok(Math.abs(hit.chargeEnd-hit.chargeStart-1.2)<1e-8);const at=skills.strikes.indexOf(hit),next=skills.strikes[at+1];assert.ok(next.chargeStart-hit.at>=2.3-1e-8,'effect and recovery finish before next cast');const duel={start:0,combat:skills};const before=game.duelPlayback(duel,game.combatRealTime(0,(hit.at-.001)*1000)),after=game.duelPlayback(duel,game.combatRealTime(0,(hit.at+.001)*1000));assert.ok(before.skillApproach);assert.equal(after.hit,hit);assert.notEqual(before.hp[1-hit.attacker],after.hp[1-hit.attacker]);}
+for(const hit of mid){assert.ok(Math.abs(hit.chargeEnd-hit.chargeStart-1.2)<1e-8);const at=skills.strikes.indexOf(hit),next=skills.strikes[at+1];assert.ok(next.chargeStart-hit.at>=game.skillDuration+.9-1e-8,'effect and recovery finish before next cast');const duel={start:0,combat:skills};const before=game.duelPlayback(duel,game.combatRealTime(0,(hit.at-.001)*1000)),after=game.duelPlayback(duel,game.combatRealTime(0,(hit.at+.001)*1000));assert.ok(before.skillApproach);assert.equal(after.hit,hit);assert.notEqual(before.hp[1-hit.attacker],after.hp[1-hit.attacker]);}
 console.log('Mid skills: exact 25% boundary, five elements, 1.6x attack, armor/critical and cast/effect timing pass');
 
 for(const legendary of [false,true]){
@@ -179,3 +179,6 @@ console.log('Monster attacks: pull back, lean into damage and recover; normal an
 
 for(const ms of [0,9999,10000,10001,15000,30000]){const t=game.combatTime(500,500+ms);assert.equal(t,500+ms+Math.max(0,ms-10000)*.3);assert.ok(Math.abs(game.combatRealTime(500,t)-(500+ms))<1e-8);}
 console.log("Battle clock: continuous 10s threshold, 1.3x speed and inverse timestamps pass");
+
+assert.ok(Math.abs(game.skillDuration-1.4/1.5)<1e-8);assert.ok(Math.abs(game.finisherDuration-1.4)<1e-8);assert.equal(game.finishDuration(true),2);assert.equal(game.defeatDelay(true),.5);assert.ok(game.legendaryBladeAmount(1.6/1.5)>.999);assert.equal(game.legendaryBladeAmount(2.8/1.5),0);
+console.log("Skill effects run at 1.5x; legendary defeat and blade recovery stay synchronized");
