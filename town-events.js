@@ -206,20 +206,20 @@ function drawBattle(){
  else if(r.phase==='bossApproach'){const q=smooth(progress);bossPoint={x:fromPoint.x+(targetPoint.x-fromPoint.x)*q,y:fromPoint.y+(targetPoint.y-fromPoint.y)*q};}
  else if(r.phase==='bossReturn'){const q=smooth(progress);bossPoint={x:targetPoint.x+(home.x-targetPoint.x)*q,y:targetPoint.y+(home.y-targetPoint.y)*q};}
  else if(['bossWindup','bossImpact'].includes(r.phase))bossPoint=targetPoint;
- const bossRecoil=hitBoss?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0,bossWalking=['bossApproach','bossReturn'].includes(r.phase)&&!r.done&&!area,bossBob=bossWalking?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2.6:0;
+ const bossRecoil=hitBoss?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5)*g.impactScale(r.hit.damage):0,bossWalking=['bossApproach','bossReturn'].includes(r.phase)&&!r.done&&!area,bossBob=bossWalking?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2.6:0;
  const hitSide=r.hit?.actor?.a?Math.sign(formation.positions[r.members.indexOf(r.hit.actor)].x): -1;
  const bossDrawX=bossPoint.x-bossRecoil*8*hitSide,bossDrawY=bossPoint.y-bossRecoil*4+bossBob,bossFace=bossPhase&&r.target?Math.sign(formation.positions[r.members.indexOf(r.target)].x-bossPoint.x)||1:1;
  const bossFall=r.done&&r.won?Math.max(0,Math.min(1,((time-r.ended)/1000-g.finisherDuration)/.8)):0,bossEase=bossFall*bossFall*(3-2*bossFall);
  const bossSwing=-bossFace*g.monsterAttackAngle(r.phase==='bossWindup'?(time-r.phaseAt)/(r.next-r.phaseAt):-1,r.hit?.actor==='boss'?age:-1);
- ctx.save();g.applyBattlePose(ctx,bossDrawX,bossDrawY,{face:bossFace,angle:bossFall>0?.9*bossEase:bossSwing,squash:1-.45*bossEase,alpha:1-bossFall});
+ ctx.save();g.applyBattlePose(ctx,bossDrawX,bossDrawY,{face:bossFace,angle:bossFall>0?.9*bossEase:bossSwing-bossRecoil*.12*hitSide,squash:1-.45*bossEase,alpha:1-bossFall});
  if(g.monster)g.monster(r.monster,bossDrawX,bossDrawY,bossSize,bossWalking?t:0);else drawTile(ctx,'dungeon',122,bossDrawX-bossSize/2,bossDrawY-bossSize,bossSize/16);ctx.restore();
  const positions=new Map();
  r.members.forEach((m,i)=>{
   const victim=r.hit?.victims?.find(v=>v.target===m)||(r.hit?.target===m?r.hit:null),receivedDuration=r.hit?.special||r.hit?.area?1.25:.8,{x,y}=formation.positions[i],face=x<0?1:-1,size=sizes[i],received=victim?Math.max(0,1-age/receivedDuration):0,attacking=r.hit?.actor===m&&r.phase==='playerImpact'?Math.max(0,1-age/.35):0;
   const fall=!m.hp?Math.max(0,Math.min(1,(time-(m.defeatedAt??-1e8)-(m.defeatEffectDuration??800))/500)):0,fallEase=fall*fall*(3-2*fall);
   const travel=r.actor!==m?0:r.done&&r.won?1-smooth(Math.max(0,Math.min(1,(time-r.ended-g.finisherDuration*1000)/260))):r.phase==='playerApproach'?smooth(progress):r.phase==='playerReturn'?1-smooth(progress):['playerWindup','playerImpact'].includes(r.phase)?1:0;
-  const moving=!r.done&&r.actor===m&&['playerApproach','playerReturn'].includes(r.phase),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5):0;
-  const contactGap=bossSize*.43+size*.4+20,px=x+(bossX-face*contactGap-x)*travel-face*recoil*8,py=y+(bossY-y)*travel+bob,pose={face,angle:fall>0?-.9*fallEase:received?-.18*recoil:attacking?face*g.swordLean(age):0,alpha:m.left?.2:!m.hp?1:received?.7+.3*Math.abs(Math.sin(age*25)):1};positions.set(m,{x:px,y:py,size});
+  const moving=!r.done&&r.actor===m&&['playerApproach','playerReturn'].includes(r.phase),bob=moving?Math.sin(progress*Math.PI*4)*Math.sin(progress*Math.PI)*2:0,recoil=received?Math.sin(Math.min(1,age/.12)*Math.PI/2)*Math.exp(-age*5)*g.impactScale(victim.damage):0;
+  const contactGap=bossSize*.43+size*.4+20,px=x+(bossX-face*contactGap-x)*travel-face*recoil*8,py=y+(bossY-y)*travel+bob,pose={face,angle:fall>0?-.9*fallEase:received?-face*.18*recoil:attacking?face*g.swordLean(age):0,alpha:m.left?.2:!m.hp?1:received?1-Math.min(.6,.3*g.impactScale(victim.damage))*(1-Math.abs(Math.sin(age*25))):1};positions.set(m,{x:px,y:py,size});
   ctx.save();g.applyBattlePose(ctx,px,py,pose);drawTile(ctx,'dungeon',m.a.idx,px-size/2,py-size,size/16);ctx.restore();g.loot(m.a,px,py,size,face,edge-15,pose);
   const winding=r.actor===m&&r.phase==='playerWindup'&&!r.done?Math.max(0,Math.min(1,(time-r.phaseAt)/Math.max(1,r.next-r.phaseAt))):0,swing=g.swordSwing(attacking?age:-1,winding,.52);
   if(!m.left)g.equipment(m.a,px,py,size,{sword:swing,trail:attacking},face,false,false,1,pose);

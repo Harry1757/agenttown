@@ -454,7 +454,7 @@ function battleMotion(b,now,as,ms){
  const bossArrival=b.counterAt-(b.counterSpecial?1400:200),bossApproach=b.counterAt?smooth((now-(bossArrival-220))/220):0;
  const bossWindup=b.counterAt&&now>=bossArrival?(now-bossArrival)/(b.counterSpecial?1400:200):-1,bossAngle=monsterAttackAngle(bossWindup,received);
  const bossHold=b.receivedSpecial?1.25:.5,bossReturn=received>=0&&received<bossHold+.26?1-smooth((received-bossHold)/.26):0;
- const playerPush=impulse(received),bossPush=impulse(age),playerContact=85-(ms*.4+as*.35+22),bossContact=-83+(as+ms)*.46+6;
+ const playerPush=impulse(received)*impactScale(b.receivedDamage??30),bossPush=impulse(age)*impactScale(b.inflictedDamage??30),playerContact=85-(ms*.4+as*.35+22),bossContact=-83+(as+ms)*.46+6;
  const preSwing=!b.done&&approach===1?smooth(1-(b.next-now)/(chargedAttack?80:120)):0;
  const swing=swordSwing(age,preSwing);
  return {px:-83+(playerContact+83)*Math.max(approach,returning)-playerPush*(b.receivedSpecial?28:18),mx:85+(bossContact-85)*Math.max(bossApproach,bossReturn)+bossPush*9,swing,playerAngle:swordLean(age),approach,bossApproach,playerPush,bossPush,bossAngle,bossMoving:bossApproach>0&&bossApproach<1||bossReturn>0&&bossReturn<1,playerHop:Math.sin(approach*Math.PI)*Math.abs(Math.sin(approach*Math.PI*2))*Math.min(3,as*.04),bossHop:Math.sin(bossApproach*Math.PI)*Math.min(4,ms*.04)};
@@ -483,13 +483,13 @@ function drawBattle(){if(!battle)return;const b=battle,now=combatTime(b.start,pe
  if(skillCharge)chargeAura(px,playerY,as,cast,t,b.nextHit.element,false);
  if(chargedMove)chargeAura(px,playerY,as,1,t,b.finishing?b.element:b.nextHit.element,b.legendary&&b.finishing);
  const defeated=b.done&&!b.won,fall=defeated?Math.max(0,Math.min(1,(now-b.playerHitAt-(b.receivedSpecial?1250:700))/500)):0,fallEase=fall*fall*(3-2*fall);
- const bodyPose={angle:fall>0?-.9*fallEase:counter?-.18*counter:charge?Math.sin(t*16)*.05:motion.playerAngle,alpha:defeated?1:counter>.1?.65+.35*Math.abs(Math.sin(counter*24)):1};
+ const bodyPose={angle:fall>0?-.9*fallEase:counter?-.22*motion.playerPush:charge?Math.sin(t*16)*.05:motion.playerAngle,alpha:defeated?1:counter>.1?1-Math.min(.6,.35*impactScale(b.receivedDamage??30))*(1-Math.abs(Math.sin(counter*24))):1};
  ctx.save();applyBattlePose(ctx,px,playerY,bodyPose);drawTile(ctx,'dungeon',b.a.idx,px-as/2,playerY-as,as/16);ctx.restore();
  drawOutfit(ctx,b.a,px,playerY,as,t,false,undefined,1,arenaWidth/2-20,bodyPose);
  const finishAge=b.done&&b.won?(now-b.ended)/1000:-1;
  const monsterFall=finishAge>=0?Math.max(0,Math.min(1,(finishAge-defeatDelay(b.legendary))/.8)):0,monsterEase=monsterFall*monsterFall*(3-2*monsterFall);
  const monsterY=87-motion.bossHop-motion.bossPush*3;
- ctx.save();applyBattlePose(ctx,mx,monsterY,{angle:monsterFall>0?.9*monsterEase:motion.bossAngle,squash:1-.45*monsterEase,alpha:1-monsterFall});monster(b.m,mx,monsterY,ms,t,motion.bossMoving);ctx.restore();
+ ctx.save();applyBattlePose(ctx,mx,monsterY,{angle:monsterFall>0?.9*monsterEase:motion.bossAngle+.12*motion.bossPush,squash:1-.45*monsterEase,alpha:1-monsterFall});monster(b.m,mx,monsterY,ms,t,motion.bossMoving);ctx.restore();
  const swing=motion.swing;
  equipment(b.a,px,playerY,as,{sword:swing,trail:hit},1,legendAmount>0,b.size<b.monsterSize,legendAmount,bodyPose);
  if(finishAge>=0&&finishAge<finishDuration(b.legendary)){ctx.save();ctx.globalAlpha=finishFade(finishAge,b.legendary);for(let i=0;i<18;i++){const a=i*2.4,r=finishAge*43;star(mx+Math.cos(a)*r,87-ms*.5+Math.sin(a)*r-finishAge*12,i%3?2:4,'#e6c8ff');}ctx.restore();}
