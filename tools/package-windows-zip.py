@@ -26,7 +26,7 @@ if not errorlevel 1 (
 )
 tasklist /FI "IMAGENAME eq CodexTown.exe" /NH 2>nul | find /I "CodexTown.exe" >nul
 if not errorlevel 1 (
-  echo Please quit the previous CodexTown app from its tray menu before installing AgentTown.
+  echo Please quit the previous version of AgentTown from its tray menu before installing.
   pause
   exit /b 1
 )
@@ -93,7 +93,7 @@ def package(electron_zip):
         shutil.copytree(ROOT / 'app/assets', payload / 'assets', ignore=shutil.ignore_patterns('icon-src'))
         server = payload / 'server'
         server.mkdir()
-        for name in ['codextown.py', 'claudetown.py', 'town.html', 'town-ui.js', 'town-adventure.js', 'town-chronicle.js', 'town-events.js', 'town-journal-ui.js', 'town-journal.css', 'town-ui.css', 'tiles.html']:
+        for name in ['agenttown.py', 'codextown.py', 'claudetown.py', 'town.html', 'town-ui.js', 'town-adventure.js', 'town-chronicle.js', 'town-events.js', 'town-journal-ui.js', 'town-journal.css', 'town-ui.css', 'tiles.html']:
             shutil.copy2(ROOT / name, server / name)
         shutil.copytree(ROOT / 'assets', server / 'assets')
         (payload / 'package.json').write_text(json.dumps({

@@ -4,7 +4,7 @@
 
 아래 명령은 별도 안내가 없으면 저장소 루트에서 실행합니다.
 
-ClaudeTown의 도트 마을을 유지하면서 **Codex 데스크톱·명령줄 세션과 계정 사용량**을 표시하는 로컬 앱입니다.
+AgentTown은 도트 마을에서 **Codex 데스크톱·명령줄 세션과 계정 사용량**을 표시하는 로컬 앱입니다.
 
 ## 실행
 
@@ -17,7 +17,7 @@ ClaudeTown의 도트 마을을 유지하면서 **Codex 데스크톱·명령줄 �
 ./launch.sh
 ```
 
-접속 주소: `http://127.0.0.1:8766`. ClaudeTown의 기본 포트 8765와 다릅니다.
+접속 주소: `http://127.0.0.1:8766`. Claude Code 모드의 기본 포트 8765와 다릅니다.
 
 개발·맥 앱 빌드:
 
@@ -63,6 +63,10 @@ HTTP 서버는 `127.0.0.1`에만 열립니다. 명령·코드 본문, 도구 결
 환경 변수:
 
 - `CODEX_HOME`: Codex 기록 폴더
+### 환경 변수
+
+아래 식별자는 이전 버전과의 호환을 위해 유지합니다. 앱과 문서의 제품명은 **AgentTown(에이전트 타운)**입니다.
+
 - `CODEXTOWN_ROOTS`: 세션 폴더 경로(여러 개는 운영체제 경로 구분자로 연결)
 - `CODEXTOWN_PORT`: 포트(기본 8766)
 - `CODEXTOWN_CODEX`: Codex 실행 파일
@@ -79,7 +83,7 @@ node test_travel.js
 node --test app/test-notifications.js
 ```
 
-`claudetown.py`는 기존 도구 분류·정적 파일·이벤트 전송 코드를 재사용하는 내부 모듈입니다. Codex용 실행 진입점은 `codextown.py`입니다. macOS Apple Silicon과 Windows 11 Pro x64에서 앱 실행을 검증했습니다. Windows ZIP 설치 검증 범위는 아래에 정리했습니다. 별도 NSIS EXE 설치 파일의 빌드·설치는 이 검증에 포함되지 않습니다.
+`claudetown.py`는 기존 도구 분류·정적 파일·이벤트 전송 코드를 재사용하는 내부 모듈입니다. 공식 실행 진입점은 `agenttown.py`이며 기본값은 Codex 모드입니다. macOS Apple Silicon과 Windows 11 Pro x64에서 앱 실행을 검증했습니다. Windows ZIP 설치 검증 범위는 아래에 정리했습니다. 별도 NSIS EXE 설치 파일의 빌드·설치는 이 검증에 포함되지 않습니다.
 
 ## Windows ZIP 설치 (GitHub 없이 전달)
 
@@ -88,9 +92,8 @@ node --test app/test-notifications.js
 바로가기가 생깁니다. Node.js와 Python은 별도로 설치하지 않습니다.
 
 2026-09-15 Windows 11 Pro x64에서 WSL 없이 **AgentTown 이름의 설치본**을 검증했습니다.
-기존 CodexTown 또는 AgentTown이 실행 중이면 설치가 중단되고 종료 안내가 나옵니다.
-설치 전에 트레이 메뉴에서 기존 앱을 종료해 주세요. 이름이 바뀌어도 기존 CodexTown
-사용자 데이터 폴더를 계속 사용하므로 설정과 장비를 새 폴더로 옮길 필요가 없습니다.
+이전 버전 또는 현재 AgentTown이 실행 중이면 설치가 중단되고 종료 안내가 나옵니다.
+설치 전에 트레이 메뉴에서 기존 앱을 종료해 주세요. 이름이 바뀌어도 기존 사용자 데이터 폴더를 계속 사용하므로 설정과 장비를 새 폴더로 옮길 필요가 없습니다.
 
 - ZIP 설치, 바탕화면·시작 메뉴 바로가기, 내장 Python과 Electron 앱 실행
 - 이름 변경 전 프로필의 저장 값과 테스트용 장비 데이터 유지

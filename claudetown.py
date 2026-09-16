@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ClaudeTown — Claude Code 세션을 도트 맵으로 보는 로컬 뷰어."""
+"""AgentTown — Claude Code 세션을 도트 맵으로 보는 로컬 뷰어."""
 import json
 import os
 import queue
@@ -766,11 +766,11 @@ def main():
         server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)   # 로컬 전용
     except OSError as e:
         if e.errno in (98, 10048):  # 리눅스/윈도우 "이미 사용 중" 번호가 다르다
-            print(f"포트 {PORT} 이 이미 사용 중입니다. 다른 ClaudeTown 인스턴스가 실행 중인지 확인하세요.")
+            print(f"포트 {PORT} 이 이미 사용 중입니다. 다른 AgentTown 인스턴스가 실행 중인지 확인하세요.")
             raise SystemExit(1)
         raise
     server.daemon_threads = True
-    print(f"ClaudeTown  →  {url}   (Ctrl+C 로 종료)", flush=True)
+    print(f"AgentTown  →  {url}   (Ctrl+C 로 종료)", flush=True)
     # 데스크톱 앱이 띄울 때는 브라우저를 열면 안 된다. 예전엔 BROWSER=true 라는
     # 환경변수 꼼수를 썼는데 그건 리눅스에서만 통한다 — 플래그로 바꿨다.
     if "--no-browser" not in sys.argv:

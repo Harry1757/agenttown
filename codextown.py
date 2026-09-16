@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AgentTown: read-only Codex session viewer, using ClaudeTown's map renderer."""
+"""AgentTown: read-only Codex session viewer, using the shared AgentTown map renderer."""
 import hashlib
 import json
 import math
