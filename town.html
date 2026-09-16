@@ -1430,7 +1430,7 @@ function stepDuels(now) {
   for(const d of roomDuels){
     const room=ROOM_BY_ROLE[d.role];
     if(window.townUI?.motionReduced || !duelEligible(d.a)||!duelEligible(d.b)||d.a.role!==d.role||d.b.role!==d.role||room.gx!==d.gx||room.gy!==d.gy){endDuel(d);continue;}
-    const raw=(now-d.start)/1000,pb=window.townAdventure?.duelPlayback?.(d,now),t=pb?pb.t:d.legendary&&raw>=2.5?(raw<4.5?2.5:raw-2):raw;
+    const raw=((window.townAdventure?.combatTime(d.start,now)??now)-d.start)/1000,pb=window.townAdventure?.duelPlayback?.(d,now),t=pb?pb.t:d.legendary&&raw>=2.5?(raw<4.5?2.5:raw-2):raw;
     d.playback=pb;
     if(!pb&&t>=5.6){endDuel(d,true);continue;}
     const f=duelFrame(t);if(pb&&(pb.charging||pb.skillCharging||pb.finalApproach||pb.skillApproach)){f.flash=0;f.sword=.48;}d.frame=f;

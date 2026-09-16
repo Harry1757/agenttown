@@ -26,7 +26,7 @@ function createTownEvents(host) {
    host.cooperate?.(contributors.map(m=>m.a));
   }
  }
- function close(time){const old=raid;raid=null;raidPending=false;nextRaid=time+180000+random()*180000;if(old)for(const m of old.members)if(!m.left)release(m.a);}
+ function close(time){const old=raid;raid=null;raidPending=false;nextRaid=now()+180000+random()*180000;if(old)for(const m of old.members)if(!m.left)release(m.a);}
  function cancel(){raidPending=false;if(raid){finish(false,now(),true);close(now());}if(treasure)removeTreasure(false);greetings.length=0;nextTreasure=now()+90000;}
  function startRaid(actors=raidCandidates()){
   if(host.combatPaused?.()||raid||game().active||host.duels()||!host.enabled())return false;
@@ -128,7 +128,7 @@ function createTownEvents(host) {
  function step(time=now()){
   const dt=Math.min(.1,Math.max(0,(time-last)/1000));last=time;
   if(!host.enabled()){cancel();return;}
-  stepTreasure(time,dt);if(raid){stepRaid(time);return;}
+  stepTreasure(time,dt);if(raid){stepRaid(host.combatTime?host.combatTime(raid.start,time):time);return;}
   if(!game().active&&!host.duels()){
    if(time>=nextRaid)raidPending=true;if(raidPending)startRaid();
    if(!raid&&time>=nextTreasure){nextTreasure=time+45000;spawnTreasure();}
@@ -143,7 +143,7 @@ root.createTownEvents=createTownEvents;
 root.raidFormation=raidFormation;
 if(!root.townAdventure||typeof avatars==='undefined')return;
 const g=root.townAdventure,clock=()=>performance.now(),journal=()=>g.chronicle;
-const host={combatPaused:()=>root.townUI?.combatPaused?.(),now:clock,random:()=>Math.random(),game:()=>g,duels:()=>roomDuels.size,enabled:()=>g.enabled!==false&&!root.townUI?.motionReduced,
+const host={combatTime:g.combatTime,combatPaused:()=>root.townUI?.combatPaused?.(),now:clock,random:()=>Math.random(),game:()=>g,duels:()=>roomDuels.size,enabled:()=>g.enabled!==false&&!root.townUI?.motionReduced,
  residents:()=>Object.values(avatars),present:a=>avatars[a.key]===a&&!state.sessionInfo[a.key]?.needsInput,
  raidEligible:a=>avatars[a.key]===a&&a.role!=='done'&&!state.sessionInfo[a.key]?.needsInput,
  raidReady:a=>!a.travelFrom&&!a.portal&&!a.route?.length&&!a.duel,
@@ -165,7 +165,7 @@ function drawMap(){
  ctx.restore();
 }
 function drawBattle(){
- const r=events.active;if(!r)return;const time=clock(),age=r.hit?(time-r.hit.at)/1000:99,t=(time-r.start)/1000;
+ const r=events.active;if(!r)return;const time=g.combatTime(r.start,clock()),age=r.hit?(time-r.hit.at)/1000:99,t=(time-r.start)/1000;
  const width=cv.width/dpr-24,height=cv.height/dpr-24;if(width<=0||height<=0)return;
  const arenaHeight=Math.min(470,310+Math.max(0,Math.ceil(r.members.length/4)-2)*36),arenaWidth=Math.min(820,Math.max(450,width/height*arenaHeight)),scale=Math.min(1.65,width/arenaWidth,height/arenaHeight),edge=arenaWidth/2,formation=raidFormation(r.members.length,arenaWidth,arenaHeight);
  const skillDuration=g.skillDuration||1.4,playerCharge=r.phase==='playerCharge',chargedMove=['playerApproach','playerWindup'].includes(r.phase)&&(r.finishing||r.pending.skill),charge=chargedMove?1:playerCharge?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):r.phase==='bossWindup'&&(r.special||r.bossPlan?.kind==='wave')?Math.min(1,(time-r.phaseAt)/(r.next-r.phaseAt)):0,element=r.pending?.element??(r.actor?g.elementFor(r.actor.a):4)??4;
