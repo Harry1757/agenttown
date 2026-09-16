@@ -6,6 +6,14 @@
 
 AgentTown은 도트 마을에서 **Codex 데스크톱·명령줄 세션과 계정 사용량**을 표시하는 로컬 앱입니다.
 
+## 지원 범위
+
+- 기본 데스크톱 앱: Codex 데스크톱·CLI의 로컬 세션.
+- Claude Code: 별도 모드로 로컬 세션 읽기. `python3 agenttown.py --provider claude`로 실행합니다.
+- 두 제공자의 기록을 한 목록으로 합치는 기능은 아직 없습니다.
+- ChatGPT·Claude 웹 대화, Gemini 등 다른 서비스는 지원하지 않습니다.
+- 현재 데스크톱 앱의 계정 한도 조회와 작업 바로 열기는 Codex용입니다.
+
 ## 실행
 
 맥에서는 `/Applications/AgentTown.app`을 열거나 저장소의 `AgentTown.command`를 더블클릭합니다.
