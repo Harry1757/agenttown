@@ -1529,6 +1529,49 @@ function selectFeaturedDuel(now) {
   return featuredDuel;
 }
 
+// Quiet central stage: architecture stays behind the fighters and their effects.
+function drawDuelArena(width,t){
+  const edge=width/2;
+  ctx.fillStyle='#101720';ctx.fillRect(-edge,-105,width,210);
+  ctx.fillStyle='#4a535e';ctx.fillRect(-edge+2,-103,width-4,206);
+  ctx.fillStyle='#182431';ctx.fillRect(-edge+6,-99,width-12,198);
+  ctx.strokeStyle='#a68e61';ctx.lineWidth=1;ctx.strokeRect(-edge+4,-101,width-8,202);
+  // Stepped stone arch, with a recessed night sky rather than a busy wall.
+  ctx.fillStyle='#0d1828';ctx.fillRect(-edge+18,-46,width-36,108);
+  for(let i=0;i<22;i++){
+    const x=-edge+30+(i*73)%(width-60),y=-40+(i*23)%75;
+    ctx.fillStyle=i%5===0?'#849fb0':'#344a60';ctx.fillRect(x,y,i%5===0?2:1,1);
+  }
+  for(const side of [-1,1]){
+    const x=side<0?-edge+12:edge-24;
+    ctx.fillStyle='#384756';ctx.fillRect(x,-43,12,100);
+    ctx.fillStyle='#52616a';ctx.fillRect(x,-43,3,100);
+    ctx.fillStyle='#26333f';for(let y=-39;y<56;y+=13)ctx.fillRect(x+3,y,9,2);
+    ctx.fillStyle='#65716e';ctx.fillRect(x-3,54,18,7);ctx.fillRect(x-2,-47,16,6);
+    // Pennants and a little four-point guild crest, kept at the outer walls.
+    const bx=side*(edge-41),color=side<0?'#467879':'#766487';
+    ctx.fillStyle='#c2a66d';ctx.fillRect(bx-11,-41,22,2);
+    ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(bx-9,-39);ctx.lineTo(bx+9,-39);ctx.lineTo(bx+9,-5);ctx.lineTo(bx,2);ctx.lineTo(bx-9,-5);ctx.closePath();ctx.fill();
+    ctx.strokeStyle=side<0?'#a4cdbe':'#cdb9df';ctx.beginPath();ctx.moveTo(bx,-29);ctx.lineTo(bx+4,-21);ctx.lineTo(bx,-13);ctx.lineTo(bx-4,-21);ctx.closePath();ctx.stroke();
+    ctx.fillStyle='#59615e';ctx.fillRect(bx-5,39,10,18);ctx.fillStyle='#c7ab71';ctx.fillRect(bx-7,36,14,4);
+    ctx.fillStyle='#f1d598';ctx.fillRect(bx-2,28,4,7);ctx.fillStyle='#fff0c8';ctx.fillRect(bx-1,26+Math.round(Math.sin(t*3)),2,5);
+  }
+  // Perspective stone slabs and an inlaid, elliptical dueling seal.
+  ctx.fillStyle='#303e49';ctx.fillRect(-edge+7,62,width-14,36);
+  ctx.fillStyle='#708077';ctx.fillRect(-edge+7,61,width-14,2);
+  ctx.strokeStyle='#43525c';ctx.lineWidth=1;
+  for(const y of [69,80,95]){ctx.beginPath();ctx.moveTo(-edge+7,y);ctx.lineTo(edge-7,y);ctx.stroke();}
+  for(let x=-edge+20;x<edge;x+=40){ctx.beginPath();ctx.moveTo(x*.74,63);ctx.lineTo(x,98);ctx.stroke();}
+  for(const [rx,ry]of [[width*.27,13],[width*.23,10]]){ctx.strokeStyle='#a68e615c';ctx.beginPath();ctx.ellipse(0,79,rx,ry,0,0,Math.PI*2);ctx.stroke();}
+  ctx.strokeStyle='#b7a37788';ctx.beginPath();ctx.moveTo(-21,79);ctx.lineTo(0,73);ctx.lineTo(21,79);ctx.lineTo(0,85);ctx.closePath();ctx.stroke();
+  // The name and health bars sit on a solid lintel, clear of all scenery.
+  ctx.fillStyle='#1b2935';ctx.fillRect(-edge+7,-98,width-14,52);
+  ctx.fillStyle='#495663';ctx.fillRect(-edge+7,-47,width-14,2);
+  for(const side of [-1,1])for(const y of [-100,94]){
+    const x=side<0?-edge+4:edge-14;ctx.fillStyle='#c4ab79';ctx.fillRect(x,y,10,3);ctx.fillRect(side<0?x:x+7,y,3,8);
+  }
+}
+
 function drawDuelSpotlight() {
   if(window.townAdventure?.active||window.townEvents?.active)return;
   const now=performance.now(),d=selectFeaturedDuel(now);
@@ -1562,19 +1605,8 @@ function drawDuelSpotlight() {
   ctx.scale(dpr*k*pop,dpr*k*pop);ctx.globalAlpha=opacity;
   const shake=impactAge>=0&&impactAge<.16?3*(1-impactAge/.16):0;
   ctx.translate(Math.sin(impactAge*115)*shake,Math.cos(impactAge*95)*shake*.5);
-  ctx.fillStyle='#101f20';ctx.fillRect(-edge,-105,arenaWidth,210);
-  ctx.strokeStyle='#a7c7a1';ctx.lineWidth=2;ctx.strokeRect(-edge+2,-103,arenaWidth-4,206);
+  drawDuelArena(arenaWidth,t);
   ctx.save();ctx.beginPath();ctx.rect(-edge+5,-100,arenaWidth-10,200);ctx.clip();
-  // A diagonal encounter ribbon, a warm wooden stage and quiet pixel sparkles.
-  ctx.fillStyle='#294548';ctx.beginPath();ctx.moveTo(-edge+5,-100);ctx.lineTo(35,-100);ctx.lineTo(-30,62);ctx.lineTo(-edge+5,62);ctx.fill();
-  ctx.fillStyle='#493e50';ctx.beginPath();ctx.moveTo(35,-100);ctx.lineTo(edge-5,-100);ctx.lineTo(edge-5,62);ctx.lineTo(-30,62);ctx.fill();
-  ctx.fillStyle='#6c634b';ctx.fillRect(-edge+5,62,arenaWidth-10,38);
-  ctx.strokeStyle='#857856';ctx.lineWidth=1;
-  for(let y=66;y<100;y+=10){ctx.beginPath();ctx.moveTo(-edge+5,y);ctx.lineTo(edge-5,y);ctx.stroke();}
-  for(let i=0;i<12;i++){
-    const x=((i*67+t*14)%(arenaWidth-10))-edge+5,y=(i*29)%130-86;
-    ctx.fillStyle=i%2?'#a9c4b2':'#c4a9c4';ctx.globalAlpha*=.55;ctx.fillRect(x,y,2,2);ctx.globalAlpha/= .55;
-  }
   ctx.fillStyle=`rgba(2,4,12,${mood*.42})`;ctx.fillRect(-edge+5,-48,arenaWidth-10,148);
   window.townAdventure?.atmosphere(element,mood,now/1000,arenaWidth,62,!!d.legendary&&!skill);
   ctx.textAlign='center';ctx.fillStyle='#e7edda';ctx.font='600 12px sans-serif';
@@ -1582,7 +1614,7 @@ function drawDuelSpotlight() {
     const label='✦ 승리! 별가루 +'+d.combat.reward;ctx.font='bold 14px sans-serif';
     const w=ctx.measureText(label).width+28;ctx.fillStyle='#e8ce8c';ctx.fillRect(-w/2,-99,w,23);
     ctx.fillStyle='#172c27';ctx.fillText(label,0,-83);
-  }else ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 작은 결투`+(pb?' · '+Math.min(d.combat.strikes.length,pb.index+2)+'번째 공격':'' ),0,-82);
+  }else ctx.fillText(`${ROOM_BY_ROLE[d.role].label} · 별빛 결투장`+(pb?' · '+Math.min(d.combat.strikes.length,pb.index+2)+'번째 공격':'' ),0,-82);
   window.townAdventure?.drawDuelStats(d,t);
   const intro=t<.65;
   const arrival=Math.max(0,Math.min(1,t/.65)),spacing=76*(d.ha+d.hb)/Math.max(d.ha,d.hb)/4+28,stance=100-(100-spacing)*arrival*arrival*(3-2*arrival);
