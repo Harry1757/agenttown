@@ -206,3 +206,67 @@ body{grid-template-rows:76px minmax(0,1fr) auto}
 .detail-close{width:36px;height:36px;flex-shrink:0;margin-left:auto;font-size:22px;line-height:1}
 #project-filter{min-height:32px;padding-inline:6px;border-radius:6px}
 .favorites-filter{min-width:32px;min-height:32px;flex-shrink:0}
+
+/* Shared spacing and grouped controls: quiet frames, one clear active action. */
+.view-switch{gap:2px;padding:3px;background:var(--surface);border:1px solid var(--line);border-radius:9px}
+.view-switch button{border-color:transparent;border-radius:6px;padding:5px 11px;font-size:11px}
+.view-switch button[aria-pressed=true]{background:var(--sage);border-color:var(--sage);color:var(--pine);font-weight:600}
+.view-settings{gap:10px;align-items:center}
+.view-settings .battle-view-toggle{min-height:40px;border-radius:9px;padding-inline:12px;background:transparent}
+.battle-view-toggle::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--muted);margin-right:7px;vertical-align:1px}
+.battle-view-toggle[aria-pressed=true]::before{background:var(--sand)}
+.office-heading{align-items:center;padding-top:0}
+.map-toolbar{gap:12px;padding-inline:16px;background:var(--pine)}
+.map-controls{gap:2px}
+.map-controls button{border-radius:6px}
+.map-controls #zoom-out,.map-controls #zoom-in{border:1px solid var(--line);background:var(--panel)}
+.map-controls .home-button{margin-left:5px;border:1px solid var(--line)}
+.map-controls #gestures{gap:4px;margin-left:10px;padding-left:10px}
+.motion-button{border:1px solid var(--line);border-radius:7px;padding-inline:10px}
+.filters{gap:3px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:14px}
+.filters button{min-height:34px;padding-inline:5px}
+.project-row{margin-top:10px;gap:8px}
+#project-filter,.favorites-filter{background:var(--surface);border:1px solid var(--line);border-radius:7px;min-height:34px}
+.detail-navigation{padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.detail-actions{gap:8px}
+.detail-actions button{min-height:40px;border-radius:8px}
+.shop-heading{align-items:center;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px}
+.shop-heading h2{margin-bottom:0}
+.shop-character{padding-right:12px;border-right:1px solid var(--line)}
+.shop-catalog{padding-left:4px}
+.shop-catalog .shop-categories{gap:4px;padding:5px;background:var(--surface);border:1px solid var(--line);border-radius:9px}
+.shop-categories button{border-color:transparent;padding:5px 9px}
+.shop-categories button[aria-pressed=true]{background:var(--sage);color:var(--pine);border-color:var(--sage);font-weight:600}
+.shop-sort-note{margin:10px 2px 14px}
+.shop-item{padding:12px;gap:0;border-radius:12px}
+.shop-item h3{line-height:1.5}
+.shop-item button:not(:disabled){background:var(--sage);color:var(--pine);border-color:var(--sage);font-weight:600}
+.shop-item.is-equipped button{background:transparent;color:var(--ink);border-color:var(--line);font-weight:400}
+.shop-price{line-height:1.6}
+.shop-equipment-details{margin:12px 0;border:1px solid var(--line);border-radius:9px;padding:10px}
+.shop-equipment-details summary{cursor:pointer;min-height:28px;font-size:12px;line-height:28px;color:var(--ink);list-style-position:inside}
+.shop-equipment-details summary span{float:right;font-size:10px;color:var(--muted)}
+.shop-equipment-details[open] summary span{display:none}
+.shop-equipment-details summary:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+.shop-equipment-details .equipment-overview{background:transparent;padding:0;margin-bottom:0}
+@media(max-width:620px){
+ .shop-character{padding-right:3px;border-right:0}
+ .shop-catalog{padding-left:3px}
+ .shop-character .shop-wallet{margin-block:8px;padding:12px;align-items:center}
+ .shop-session-title{margin-bottom:8px}
+ .shop-character .shop-intro{display:none}
+ #stardust-shop .shop-heading{padding-bottom:12px;margin-bottom:14px}
+ .shop-equipment-details{padding:8px 10px;margin-block:10px}
+ .shop-catalog .shop-categories{margin-top:8px}
+ .shop-item{padding:12px;column-gap:14px}
+}
+@media(max-width:570px){
+ .view-settings{justify-content:space-between;gap:8px}
+ .view-switch button{padding-inline:8px;min-height:30px}
+ .view-settings .battle-view-toggle{min-height:38px;padding-inline:9px}
+ .map-toolbar{padding-inline:8px;gap:6px}
+ .map-controls .home-button{margin-left:2px;padding-inline:6px}
+ .map-controls #gestures{margin-left:5px;padding-left:5px;gap:2px}
+ .motion-button{padding-inline:6px}
+}
+@media(max-width:620px){.shop-catalog .shop-categories{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.shop-categories button{min-height:32px;text-align:center}}

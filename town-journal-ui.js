@@ -108,7 +108,7 @@
   const note = make('p', '', '보상을 받은 뒤 쉬는 동안, 이 세션의 별가루로 더 좋은 장비를 골라요.');
   note.id = 'shop-auto-note';
   auto.append(label, select, note);
-  sessionSelect.insertAdjacentElement('afterend', auto);
+  (shop.querySelector('.shop-equipment-details')||sessionSelect.parentElement).append(auto);
   function syncAuto() {
     const key = sessionSelect.value;
     const mode = game()?.autoMode?.(key) || 'off';

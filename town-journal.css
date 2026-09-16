@@ -52,3 +52,12 @@
   .journal-event .journal-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
   .journal-relation{padding:12px}
 }
+
+#adventure-controls{gap:3px;padding:4px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+#adventure-controls #adventure-log{border:0;background:transparent}
+#adventure-controls #adventure-log summary,#adventure-controls #open-stardust-shop,#adventure-controls #open-town-journal{position:static;min-height:32px;padding:6px 10px;line-height:18px;font-size:11px;border-radius:6px}
+#adventure-controls #open-stardust-shop{background:#3b3827;border-color:#796944;color:#f0d391}
+#adventure-controls #open-town-journal{border-color:transparent}
+#adventure-controls #adventure-log summary:hover,#adventure-controls #open-town-journal:hover{background:var(--surface)}
+.shop-equipment-details .shop-auto-equipment{margin:12px 0 0;padding:10px;background:transparent}
+@media(max-width:570px){.duel-mini-leaders{top:58px;padding:3px 5px}}

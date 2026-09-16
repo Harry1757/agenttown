@@ -21,7 +21,7 @@ async page => {
     await page.evaluate(()=>{localStorage.setItem('codextown.adventure',JSON.stringify({'e2e-a':{kills:200,bosses:0},'e2e-b':{kills:60,bosses:0}}));localStorage.removeItem('codextown.shop');localStorage.removeItem('codextown.shop.sessions');});
     await page.setViewportSize({width:960,height:580});await page.reload();await page.evaluate(fixture);
     const gap=await page.evaluate(()=>{const a=document.querySelector('#adventure-log summary').getBoundingClientRect(),b=document.querySelector('#open-stardust-shop').getBoundingClientRect();return b.left-a.right;});
-    check(Math.abs(gap-6)<1,'Adventure/shop spacing');results.push('모험·상점 간격 6px');
+    check(Math.abs(gap-3)<1,'Adventure/shop spacing');results.push('모험·상점 묶음 간격 3px');
     const point=await page.evaluate(()=>{const a=avatars['e2e-a'],r=cv.getBoundingClientRect(),P=TILE*layout.scale;return {x:r.x+(layout.offsetX+(a.x+.5)*P)/dpr,y:r.y+(layout.offsetY+(a.y+1)*P-TILE*spriteScaleFor(a,layout.scale)*.45)/dpr};});
     await page.evaluate(()=>{window.__focusCalls=[];window.codextown={focusSession:(...args)=>{window.__focusCalls.push(args);return Promise.resolve({ok:true});}};});
     await page.mouse.dblclick(point.x,point.y,{delay:300});await page.waitForTimeout(600);
