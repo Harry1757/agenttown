@@ -9,7 +9,7 @@
 
 **실시간 세션 · 무음 알림 · 던전 전투 · 장비와 펫 · 공동 토벌**
 
-[화면 둘러보기](#작업이-모이는-작은-마을) · [전투와 기술](#작업을-기다리는-동안-한-판) · [설치하기](#시작하기) · [자세한 실행 안내](docs/INSTALL.md)
+[화면 둘러보기](#작업이-모이는-작은-마을) · [전투와 기술](#확대-화면으로-보는-전투) · [설치하기](#시작하기) · [자세한 실행 안내](docs/INSTALL.md)
 
 </div>
 
@@ -144,14 +144,14 @@
 | --- | --- |
 | macOS 앱 | 전달받거나 직접 빌드한 `AgentTown.app` 실행. 창을 닫으면 메뉴 막대에 남습니다. |
 | Windows ZIP | `AgentTown-Windows-x64.zip` 전체 압축 해제 → `설치.cmd` 실행. Python·Node.js 별도 설치 없이 사용합니다. |
-| 소스에서 실행 | Python 3 환경에서 저장소 루트의 `./launch.sh` 실행 → `http://127.0.0.1:8766` 접속. |
+| 소스에서 실행 | Python 3.12 환경에서 저장소 루트의 `./launch.sh` 실행 → `http://127.0.0.1:8766` 접속. |
 
 **설치 파일은 소스 저장소에 포함되어 있지 않습니다.** 패키지 생성, Windows EXE 빌드, 환경 변수와 플랫폼별 검증 범위는 [설치·실행 안내](docs/INSTALL.md)에 정리했습니다.
 
 ```sh
 git clone https://github.com/Harry1757/agenttown.git
 cd agenttown
-./launch.sh
+CODEXTOWN_PYTHON=python3.12 ./launch.sh
 ```
 
 ### Claude Code로 실행하기
@@ -159,7 +159,7 @@ cd agenttown
 Claude Code의 로컬 기록은 별도 진입점으로 읽을 수 있습니다.
 
 ```sh
-python3 agenttown.py --provider claude
+python3.12 agenttown.py --provider claude
 ```
 
 기본 접속 주소는 `http://127.0.0.1:8765`입니다. 현재 데스크톱 앱의 기본 서버와 계정 한도 조회·작업 바로 열기는 Codex용입니다. 두 제공자의 기록을 한 목록으로 합치는 기능은 아직 제공하지 않습니다.
@@ -173,6 +173,33 @@ python3 agenttown.py --provider claude
 세션은 기본적으로 `~/.codex`의 로컬 기록을 읽습니다. 서버는 `127.0.0.1`에만 열리고, 코드 본문·도구 결과·인증 토큰을 화면에 보내지 않습니다. 계정 한도는 로그인된 Codex의 App Server로 조회하며, 새 모델 작업을 실행하지 않습니다.
 
 장비·별가루·도감·즐겨찾기는 로컬에 저장됩니다. 게임 연출은 실제 Codex 작업을 실행하거나 모델 성능을 높이지 않습니다. 토큰 표시 역시 청구 금액을 계산하는 지표는 아닙니다. 수집 범위와 상태 추정의 한계는 [데이터와 한계](docs/INSTALL.md#데이터와-한계)를 확인해 주세요.
+
+## 핵심 설계와 검증
+
+| 구성 | 역할 |
+| --- | --- |
+| Python 수집기 | Codex·Claude Code의 로컬 기록을 읽어 화면에 필요한 세션 상태로 정리합니다. 제공자는 실행 시 선택합니다. |
+| 이벤트 전송(SSE) | 로컬 HTTP 서버가 세션 변화를 브라우저로 전달합니다. |
+| Canvas 2D | 마을 이동, 전투, 장비와 효과를 그립니다. 게임 진행과 실제 AI 실행은 별개입니다. |
+| Electron | 창·메뉴 막대·운영체제 알림과 작업 바로 열기를 연결합니다. |
+
+소스 실행과 아래 검증은 **Python 3.12 · Node.js 22**를 기준으로 합니다. macOS 기본 Python 3.9에서는 시간 측정 방식 차이로 Codex 기록 검사 일부가 실패하므로 Python 3.12를 선택하세요. Python 수집기는 표준 라이브러리를 사용하며, 데스크톱 의존성은 `app/package-lock.json`으로 고정합니다.
+
+```sh
+# 저장소 루트: 로컬 기록 해석과 마을 동작 검증
+python3.12 -m unittest test_codextown -v
+python3.12 test_claudetown.py
+node test_town_scale.js
+node test_wander.js
+node test_travel.js
+node --test app/test-server-command.js app/test-notifications.js
+
+# 데스크톱 개발 실행
+npm --prefix app ci
+npm --prefix app start
+```
+
+macOS와 Windows용 패키지 구성이 있습니다. Windows 설치 파일은 Windows에서 빌드합니다. 위 명령은 소스 검증용이며 실제 AI 응답 실행이나 모든 운영체제의 설치 성공을 보증하지 않습니다. 날짜별 확인 범위는 [Windows 검증 기록](docs/WINDOWS-VALIDATION-2026-09-15.md)과 [실행 안내](docs/INSTALL.md)를 참고하세요.
 
 ## 만드는 데 사용한 것들
 
